@@ -106,6 +106,16 @@
   --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
   --sidebar-border: oklch(0.929 0.013 255.508);
   --sidebar-ring: oklch(0.704 0.04 256.788);
+  --court: oklch(0.32 0.08 55);
+  --court-foreground: oklch(0.98 0.02 85);
+  --champion: oklch(0.78 0.16 85);
+  --champion-foreground: oklch(0.22 0.05 60);
+  --cooldown: oklch(0.62 0.22 27);
+  --cooldown-foreground: oklch(0.98 0.01 0);
+  --victory: oklch(0.68 0.18 145);
+  --victory-foreground: oklch(0.15 0.03 145);
+  --team-a: oklch(0.55 0.18 250);
+  --team-b: oklch(0.62 0.2 20);
 }
 
 .dark {
