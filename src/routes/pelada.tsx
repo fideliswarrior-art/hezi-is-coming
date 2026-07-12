@@ -402,6 +402,7 @@ function QueueBlock() {
               position={i + 1}
               entry={entry}
               player={players[entry.id]}
+              players={players}
               selection={selection}
               onToggle={toggleSelect}
               onSend={() => trySend(entry)}
