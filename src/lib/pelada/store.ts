@@ -379,11 +379,52 @@ export const usePelada = create<PeladaState>()(
           return draft;
         }),
 
+      sendToCourtSide: (entry, side, opts) =>
+        set((s) => {
+          const draft: PeladaState = cloneState(s);
+          const memberIds = entryMembers(draft, entry);
+          const blocked = memberIds.some((m) => draft.players[m]?.justPlayed);
+          if (blocked && !opts?.forceCooldown) return s;
+          const occupied = side === "A" ? draft.court.teamAId : draft.court.teamBId;
+          if (occupied) return s;
+          if (entry.kind === "team" && draft.waitingChampion === entry.id) {
+            draft.waitingChampion = null;
+          } else {
+            draft.queue = draft.queue.filter(
+              (e) => !(e.kind === entry.kind && e.id === entry.id),
+            );
+          }
+          placeOnCourt(draft, side, entry);
+          return draft;
+        }),
+
       removeFromQueue: (entry) =>
         set((s) => ({
           ...s,
           queue: s.queue.filter((e) => !(e.kind === entry.kind && e.id === entry.id)),
         })),
+
+      removeCourtTeam: (side) =>
+        set((s) => {
+          const draft: PeladaState = cloneState(s);
+          const tid = side === "A" ? draft.court.teamAId : draft.court.teamBId;
+          if (!tid) return s;
+          const team = draft.teams[tid];
+          if (team) {
+            for (const pid of team.memberIds) {
+              delete draft.players[pid];
+              draft.selection = draft.selection.filter((x) => x !== pid);
+            }
+            delete draft.teams[tid];
+          }
+          if (side === "A") draft.court.teamAId = null;
+          else draft.court.teamBId = null;
+          draft.court.elapsedMs = 0;
+          draft.court.runningSince = null;
+          draft.court.suddenDeathUsed = false;
+          draft.court.inSuddenDeath = false;
+          return draft;
+        }),
 
       startTimer: () =>
         set((s) => {
