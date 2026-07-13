@@ -96,6 +96,28 @@ const uid = () =>
     ? crypto.randomUUID()
     : Math.random().toString(36).slice(2) + Date.now().toString(36);
 
+/** Deep-clone ONLY the data slices of state (never the action functions).
+ *  Using structuredClone on the whole state throws DataCloneError because
+ *  zustand actions are functions on the same object. */
+function cloneState(s: PeladaState): PeladaState {
+  const teams: Record<ID, Team> = {};
+  for (const [k, v] of Object.entries(s.teams)) {
+    teams[k] = { ...v, memberIds: [...v.memberIds] };
+  }
+  const players: Record<ID, Player> = {};
+  for (const [k, v] of Object.entries(s.players)) {
+    players[k] = { ...v };
+  }
+  return {
+    ...s,
+    players,
+    teams,
+    queue: s.queue.map((e) => ({ ...e })),
+    court: { ...s.court },
+    selection: [...s.selection],
+  };
+}
+
 function entryMembers(state: PeladaState, e: QueueEntry): ID[] {
   return e.kind === "player" ? [e.id] : state.teams[e.id]?.memberIds ?? [];
 }
