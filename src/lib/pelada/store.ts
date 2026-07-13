@@ -514,7 +514,8 @@ export const usePelada = create<PeladaState>()(
           else draft.court.teamAId = null;
 
           // winner: if 2 wins, becomes champion waiting (goes off court)
-          if (winner.wins >= WINS_TO_ROTATE) {
+          const promoted = winner.wins >= WINS_TO_ROTATE;
+          if (promoted) {
             winner.wins = 0;
             draft.waitingChampion = winner.id;
             if (side === "A") draft.court.teamAId = null;
@@ -527,13 +528,16 @@ export const usePelada = create<PeladaState>()(
           draft.court.suddenDeathUsed = false;
           draft.court.inSuddenDeath = false;
 
-          // fill empty slots from queue (champion has priority)
-          for (const slot of ["A", "B"] as const) {
-            const cur = slot === "A" ? draft.court.teamAId : draft.court.teamBId;
-            if (cur) continue;
-            const next = popNext(draft);
-            if (!next) break;
-            placeOnCourt(draft, slot, next);
+          // Fill only the loser's slot from the queue.
+          // If winner was promoted, its slot stays open (champion waits at top).
+          // Do NOT use popNext here — that would pull the just-promoted champion
+          // right back onto court.
+          const loserSide: "A" | "B" = side === "A" ? "B" : "A";
+          const loserSlotEmpty =
+            (loserSide === "A" ? draft.court.teamAId : draft.court.teamBId) === null;
+          if (loserSlotEmpty) {
+            const next = draft.queue.shift();
+            if (next) placeOnCourt(draft, loserSide, next);
           }
 
           return draft;
