@@ -96,6 +96,28 @@ const uid = () =>
     ? crypto.randomUUID()
     : Math.random().toString(36).slice(2) + Date.now().toString(36);
 
+/** Deep-clone ONLY the data slices of state (never the action functions).
+ *  Using structuredClone on the whole state throws DataCloneError because
+ *  zustand actions are functions on the same object. */
+function cloneState(s: PeladaState): PeladaState {
+  const teams: Record<ID, Team> = {};
+  for (const [k, v] of Object.entries(s.teams)) {
+    teams[k] = { ...v, memberIds: [...v.memberIds] };
+  }
+  const players: Record<ID, Player> = {};
+  for (const [k, v] of Object.entries(s.players)) {
+    players[k] = { ...v };
+  }
+  return {
+    ...s,
+    players,
+    teams,
+    queue: s.queue.map((e) => ({ ...e })),
+    court: { ...s.court },
+    selection: [...s.selection],
+  };
+}
+
 function entryMembers(state: PeladaState, e: QueueEntry): ID[] {
   return e.kind === "player" ? [e.id] : state.teams[e.id]?.memberIds ?? [];
 }
@@ -259,7 +281,7 @@ export const usePelada = create<PeladaState>()(
 
       removePlayer: (id) =>
         set((s) => {
-          const draft: PeladaState = structuredClone(s);
+          const draft: PeladaState = cloneState(s);
           removePlayerFromAll(draft, id);
           delete draft.players[id];
           draft.selection = draft.selection.filter((x) => x !== id);
@@ -279,7 +301,7 @@ export const usePelada = create<PeladaState>()(
       formTeamFromSelection: () =>
         set((s) => {
           if (s.selection.length < 2) return s;
-          const draft: PeladaState = structuredClone(s);
+          const draft: PeladaState = cloneState(s);
           // Find earliest queue position among the selected players; that becomes the new team slot.
           let earliestIdx = Infinity;
           for (const pid of s.selection) {
@@ -314,7 +336,7 @@ export const usePelada = create<PeladaState>()(
       pasteSelectionIntoTeam: (teamId) =>
         set((s) => {
           if (s.selection.length === 0) return s;
-          const draft: PeladaState = structuredClone(s);
+          const draft: PeladaState = cloneState(s);
           const target = draft.teams[teamId];
           if (!target) return s;
           for (const pid of s.selection) {
@@ -329,7 +351,7 @@ export const usePelada = create<PeladaState>()(
 
       sendToCourt: (entry, opts) =>
         set((s) => {
-          const draft: PeladaState = structuredClone(s);
+          const draft: PeladaState = cloneState(s);
           // cooldown check
           const memberIds = entryMembers(draft, entry);
           const blocked = memberIds.some((m) => draft.players[m]?.justPlayed);
@@ -417,7 +439,7 @@ export const usePelada = create<PeladaState>()(
 
       declareWinner: (side) =>
         set((s) => {
-          const draft: PeladaState = structuredClone(s);
+          const draft: PeladaState = cloneState(s);
           const winnerId = side === "A" ? draft.court.teamAId : draft.court.teamBId;
           const loserId = side === "A" ? draft.court.teamBId : draft.court.teamAId;
           if (!winnerId || !loserId) return s;
@@ -474,7 +496,7 @@ export const usePelada = create<PeladaState>()(
 
       declareDraw: () =>
         set((s) => {
-          const draft: PeladaState = structuredClone(s);
+          const draft: PeladaState = cloneState(s);
           const a = draft.court.teamAId ? draft.teams[draft.court.teamAId] : null;
           const b = draft.court.teamBId ? draft.teams[draft.court.teamBId] : null;
           if (!a || !b) return s;
