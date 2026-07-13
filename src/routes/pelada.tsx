@@ -227,10 +227,13 @@ function CourtTeamCard({
 }) {
   const pasteInto = usePelada((s) => s.pasteSelectionIntoTeam);
   const selection = usePelada((s) => s.selection);
+  const toggleSelect = usePelada((s) => s.toggleSelect);
+  const removePlayer = usePelada((s) => s.removePlayer);
+  const removeCourtTeam = usePelada((s) => s.removeCourtTeam);
   const sideColor = side === "A" ? "bg-team-a" : "bg-team-b";
   return (
     <div className="rounded-2xl bg-background/95 text-foreground p-4 flex flex-col gap-3 min-h-[240px]">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <span className={cn("h-8 w-8 rounded-full flex items-center justify-center text-white font-display text-lg", sideColor)}>
             {side}
@@ -244,20 +247,53 @@ function CourtTeamCard({
             </Badge>
           )}
         </div>
+        {team && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-destructive hover:bg-destructive/10"
+            onClick={() => {
+              if (confirm(`Remover TIME ${team.number} da quadra? Os jogadores serão apagados.`)) {
+                removeCourtTeam(side);
+              }
+            }}
+            title="Remover time inteiro"
+          >
+            <X className="h-4 w-4" /> Remover time
+          </Button>
+        )}
       </div>
 
       <div className="flex-1 flex flex-wrap gap-2 content-start">
         {team?.memberIds.map((pid) => {
           const p = players[pid];
           if (!p) return null;
+          const selected = selection.includes(pid);
           return (
-            <div
+            <button
               key={pid}
-              className="rounded-lg border border-border px-3 py-2 text-sm font-medium bg-secondary"
+              onClick={() => toggleSelect(pid)}
+              className={cn(
+                "group relative rounded-lg border px-3 py-2 text-sm font-medium min-h-[44px] flex items-center gap-2 transition-all",
+                selected
+                  ? "border-primary bg-primary text-primary-foreground scale-105 shadow-md"
+                  : "border-border bg-secondary hover:border-primary/50",
+              )}
             >
-              {p.name}
-              {p.justPlayed && <Ban className="inline ml-1 h-3 w-3 text-cooldown" />}
-            </div>
+              {p.justPlayed && <Ban className="h-3.5 w-3.5 text-cooldown" />}
+              <span>{p.name}</span>
+              <span
+                role="button"
+                tabIndex={-1}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (confirm(`Remover ${p.name}?`)) removePlayer(pid);
+                }}
+                className="opacity-60 hover:opacity-100 hover:text-destructive transition-opacity"
+              >
+                <X className="h-3.5 w-3.5" />
+              </span>
+            </button>
           );
         })}
         {team && selection.length > 0 && (
