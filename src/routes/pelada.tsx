@@ -487,12 +487,31 @@ function QueueRow(props: {
   players: ReturnType<typeof usePelada.getState>["players"];
   selection: ID[];
   onToggle: (id: ID) => void;
-  onSend: () => void;
-  hasOpenSlot: boolean;
+  onSendSide: (side: "A" | "B") => void;
+  slotAOpen: boolean;
+  slotBOpen: boolean;
   onRemovePlayer: (id: ID) => void;
+  onRemoveEntry: (entry: QueueEntry) => void;
+  onPasteInto: (teamId: ID) => void;
 }) {
-  const { kind, position, team, player, players, selection, onToggle, onSend, hasOpenSlot, onRemovePlayer } = props;
+  const {
+    kind,
+    position,
+    entry,
+    team,
+    player,
+    players,
+    selection,
+    onToggle,
+    onSendSide,
+    slotAOpen,
+    slotBOpen,
+    onRemovePlayer,
+    onRemoveEntry,
+    onPasteInto,
+  } = props;
   const isChampion = kind === "champion";
+  const hasAny = slotAOpen || slotBOpen;
 
   return (
     <div
@@ -543,24 +562,68 @@ function QueueRow(props: {
                   e.stopPropagation();
                   if (confirm(`Remover ${p.name}?`)) onRemovePlayer(pid);
                 }}
-                className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
+                className="opacity-60 hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
               >
                 <X className="h-3.5 w-3.5" />
               </span>
             </button>
           );
         })}
+        {team && selection.length > 0 && !selection.every((s) => team.memberIds.includes(s)) && (
+          <button
+            className="rounded-lg border-2 border-dashed border-primary/60 px-3 py-2 text-xs font-medium text-primary hover:bg-primary/5"
+            onClick={() => onPasteInto(team.id)}
+          >
+            <Plus className="inline h-3 w-3" /> colar {selection.length} aqui
+          </button>
+        )}
       </div>
 
-      <Button
-        size="lg"
-        variant={isChampion ? "default" : "outline"}
-        disabled={!hasOpenSlot}
-        onClick={onSend}
-        className={cn(isChampion && "bg-champion text-champion-foreground hover:bg-champion/90")}
-      >
-        Entrar na quadra →
-      </Button>
+      <div className="flex items-center gap-2">
+        <Button
+          size="lg"
+          variant={isChampion ? "default" : "outline"}
+          disabled={!slotAOpen}
+          onClick={() => onSendSide("A")}
+          className={cn(
+            "min-w-[72px]",
+            isChampion && slotAOpen && "bg-champion text-champion-foreground hover:bg-champion/90",
+          )}
+          title="Enviar para o slot A"
+        >
+          → A
+        </Button>
+        <Button
+          size="lg"
+          variant={isChampion ? "default" : "outline"}
+          disabled={!slotBOpen}
+          onClick={() => onSendSide("B")}
+          className={cn(
+            "min-w-[72px]",
+            isChampion && slotBOpen && "bg-champion text-champion-foreground hover:bg-champion/90",
+          )}
+          title="Enviar para o slot B"
+        >
+          → B
+        </Button>
+        {!hasAny && (
+          <span className="text-xs text-muted-foreground italic px-1">quadra cheia</span>
+        )}
+        {!isChampion && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-muted-foreground hover:text-destructive"
+            onClick={() => {
+              const label = team ? `TIME ${team.number}` : player?.name ?? "esta entrada";
+              if (confirm(`Remover ${label} da fila?`)) onRemoveEntry(entry);
+            }}
+            title="Remover da fila"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
