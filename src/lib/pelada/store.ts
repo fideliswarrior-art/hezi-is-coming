@@ -59,8 +59,12 @@ export interface PeladaState {
   pasteSelectionIntoTeam: (teamId: ID) => void;
   /** Send a queue entry to court in the first empty slot. */
   sendToCourt: (entry: QueueEntry, opts?: { forceCooldown?: boolean }) => void;
+  /** Send a queue entry to a specific court side. */
+  sendToCourtSide: (entry: QueueEntry, side: "A" | "B", opts?: { forceCooldown?: boolean }) => void;
   /** Remove any queue entry (player or team) */
   removeFromQueue: (entry: QueueEntry) => void;
+  /** Remove the entire team on a court side (team + its player records). */
+  removeCourtTeam: (side: "A" | "B") => void;
 
   // Timer
   startTimer: () => void;
@@ -375,11 +379,52 @@ export const usePelada = create<PeladaState>()(
           return draft;
         }),
 
+      sendToCourtSide: (entry, side, opts) =>
+        set((s) => {
+          const draft: PeladaState = cloneState(s);
+          const memberIds = entryMembers(draft, entry);
+          const blocked = memberIds.some((m) => draft.players[m]?.justPlayed);
+          if (blocked && !opts?.forceCooldown) return s;
+          const occupied = side === "A" ? draft.court.teamAId : draft.court.teamBId;
+          if (occupied) return s;
+          if (entry.kind === "team" && draft.waitingChampion === entry.id) {
+            draft.waitingChampion = null;
+          } else {
+            draft.queue = draft.queue.filter(
+              (e) => !(e.kind === entry.kind && e.id === entry.id),
+            );
+          }
+          placeOnCourt(draft, side, entry);
+          return draft;
+        }),
+
       removeFromQueue: (entry) =>
         set((s) => ({
           ...s,
           queue: s.queue.filter((e) => !(e.kind === entry.kind && e.id === entry.id)),
         })),
+
+      removeCourtTeam: (side) =>
+        set((s) => {
+          const draft: PeladaState = cloneState(s);
+          const tid = side === "A" ? draft.court.teamAId : draft.court.teamBId;
+          if (!tid) return s;
+          const team = draft.teams[tid];
+          if (team) {
+            for (const pid of team.memberIds) {
+              delete draft.players[pid];
+              draft.selection = draft.selection.filter((x) => x !== pid);
+            }
+            delete draft.teams[tid];
+          }
+          if (side === "A") draft.court.teamAId = null;
+          else draft.court.teamBId = null;
+          draft.court.elapsedMs = 0;
+          draft.court.runningSince = null;
+          draft.court.suddenDeathUsed = false;
+          draft.court.inSuddenDeath = false;
+          return draft;
+        }),
 
       startTimer: () =>
         set((s) => {
@@ -469,7 +514,8 @@ export const usePelada = create<PeladaState>()(
           else draft.court.teamAId = null;
 
           // winner: if 2 wins, becomes champion waiting (goes off court)
-          if (winner.wins >= WINS_TO_ROTATE) {
+          const promoted = winner.wins >= WINS_TO_ROTATE;
+          if (promoted) {
             winner.wins = 0;
             draft.waitingChampion = winner.id;
             if (side === "A") draft.court.teamAId = null;
@@ -482,13 +528,16 @@ export const usePelada = create<PeladaState>()(
           draft.court.suddenDeathUsed = false;
           draft.court.inSuddenDeath = false;
 
-          // fill empty slots from queue (champion has priority)
-          for (const slot of ["A", "B"] as const) {
-            const cur = slot === "A" ? draft.court.teamAId : draft.court.teamBId;
-            if (cur) continue;
-            const next = popNext(draft);
-            if (!next) break;
-            placeOnCourt(draft, slot, next);
+          // Fill only the loser's slot from the queue.
+          // If winner was promoted, its slot stays open (champion waits at top).
+          // Do NOT use popNext here — that would pull the just-promoted champion
+          // right back onto court.
+          const loserSide: "A" | "B" = side === "A" ? "B" : "A";
+          const loserSlotEmpty =
+            (loserSide === "A" ? draft.court.teamAId : draft.court.teamBId) === null;
+          if (loserSlotEmpty) {
+            const next = draft.queue.shift();
+            if (next) placeOnCourt(draft, loserSide, next);
           }
 
           return draft;

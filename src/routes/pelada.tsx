@@ -227,10 +227,13 @@ function CourtTeamCard({
 }) {
   const pasteInto = usePelada((s) => s.pasteSelectionIntoTeam);
   const selection = usePelada((s) => s.selection);
+  const toggleSelect = usePelada((s) => s.toggleSelect);
+  const removePlayer = usePelada((s) => s.removePlayer);
+  const removeCourtTeam = usePelada((s) => s.removeCourtTeam);
   const sideColor = side === "A" ? "bg-team-a" : "bg-team-b";
   return (
     <div className="rounded-2xl bg-background/95 text-foreground p-4 flex flex-col gap-3 min-h-[240px]">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <span className={cn("h-8 w-8 rounded-full flex items-center justify-center text-white font-display text-lg", sideColor)}>
             {side}
@@ -244,20 +247,53 @@ function CourtTeamCard({
             </Badge>
           )}
         </div>
+        {team && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-destructive hover:bg-destructive/10"
+            onClick={() => {
+              if (confirm(`Remover TIME ${team.number} da quadra? Os jogadores serão apagados.`)) {
+                removeCourtTeam(side);
+              }
+            }}
+            title="Remover time inteiro"
+          >
+            <X className="h-4 w-4" /> Remover time
+          </Button>
+        )}
       </div>
 
       <div className="flex-1 flex flex-wrap gap-2 content-start">
         {team?.memberIds.map((pid) => {
           const p = players[pid];
           if (!p) return null;
+          const selected = selection.includes(pid);
           return (
-            <div
+            <button
               key={pid}
-              className="rounded-lg border border-border px-3 py-2 text-sm font-medium bg-secondary"
+              onClick={() => toggleSelect(pid)}
+              className={cn(
+                "group relative rounded-lg border px-3 py-2 text-sm font-medium min-h-[44px] flex items-center gap-2 transition-all",
+                selected
+                  ? "border-primary bg-primary text-primary-foreground scale-105 shadow-md"
+                  : "border-border bg-secondary hover:border-primary/50",
+              )}
             >
-              {p.name}
-              {p.justPlayed && <Ban className="inline ml-1 h-3 w-3 text-cooldown" />}
-            </div>
+              {p.justPlayed && <Ban className="h-3.5 w-3.5 text-cooldown" />}
+              <span>{p.name}</span>
+              <span
+                role="button"
+                tabIndex={-1}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (confirm(`Remover ${p.name}?`)) removePlayer(pid);
+                }}
+                className="opacity-60 hover:opacity-100 hover:text-destructive transition-opacity"
+              >
+                <X className="h-3.5 w-3.5" />
+              </span>
+            </button>
           );
         })}
         {team && selection.length > 0 && (
@@ -295,23 +331,28 @@ function QueueBlock() {
   const formTeam = usePelada((s) => s.formTeamFromSelection);
   const clearSelection = usePelada((s) => s.clearSelection);
   const addPlayer = usePelada((s) => s.addPlayer);
-  const sendToCourt = usePelada((s) => s.sendToCourt);
+  const sendToCourtSide = usePelada((s) => s.sendToCourtSide);
   const removePlayer = usePelada((s) => s.removePlayer);
+  const removeFromQueue = usePelada((s) => s.removeFromQueue);
+  const pasteInto = usePelada((s) => s.pasteSelectionIntoTeam);
   const court = usePelada((s) => s.court);
 
   const [name, setName] = useState("");
-  const [cooldownConfirm, setCooldownConfirm] = useState<QueueEntry | null>(null);
+  const [cooldownConfirm, setCooldownConfirm] = useState<
+    { entry: QueueEntry; side: "A" | "B" } | null
+  >(null);
 
-  const hasOpenSlot = !court.teamAId || !court.teamBId;
+  const slotAOpen = !court.teamAId;
+  const slotBOpen = !court.teamBId;
 
-  function trySend(entry: QueueEntry) {
+  function trySend(entry: QueueEntry, side: "A" | "B") {
     const memberIds = entry.kind === "player" ? [entry.id] : teams[entry.id]?.memberIds ?? [];
     const blocked = memberIds.some((m) => players[m]?.justPlayed);
     if (blocked) {
-      setCooldownConfirm(entry);
+      setCooldownConfirm({ entry, side });
       return;
     }
-    sendToCourt(entry);
+    sendToCourtSide(entry, side);
   }
 
   return (
@@ -367,9 +408,12 @@ function QueueBlock() {
           players={players}
           selection={selection}
           onToggle={toggleSelect}
-          onSend={() => trySend({ kind: "team", id: waitingChampion })}
-          hasOpenSlot={hasOpenSlot}
+          onSendSide={(side) => trySend({ kind: "team", id: waitingChampion }, side)}
+          slotAOpen={slotAOpen}
+          slotBOpen={slotBOpen}
           onRemovePlayer={removePlayer}
+          onRemoveEntry={removeFromQueue}
+          onPasteInto={pasteInto}
         />
       )}
 
@@ -391,9 +435,12 @@ function QueueBlock() {
               players={players}
               selection={selection}
               onToggle={toggleSelect}
-              onSend={() => trySend(entry)}
-              hasOpenSlot={hasOpenSlot}
+              onSendSide={(side) => trySend(entry, side)}
+              slotAOpen={slotAOpen}
+              slotBOpen={slotBOpen}
               onRemovePlayer={removePlayer}
+              onRemoveEntry={removeFromQueue}
+              onPasteInto={pasteInto}
             />
           ) : (
             <QueueRow
@@ -405,19 +452,23 @@ function QueueBlock() {
               players={players}
               selection={selection}
               onToggle={toggleSelect}
-              onSend={() => trySend(entry)}
-              hasOpenSlot={hasOpenSlot}
+              onSendSide={(side) => trySend(entry, side)}
+              slotAOpen={slotAOpen}
+              slotBOpen={slotBOpen}
               onRemovePlayer={removePlayer}
+              onRemoveEntry={removeFromQueue}
+              onPasteInto={pasteInto}
             />
           ),
         )}
       </div>
 
       <CooldownDialog
-        entry={cooldownConfirm}
+        entry={cooldownConfirm?.entry ?? null}
         onCancel={() => setCooldownConfirm(null)}
         onConfirm={() => {
-          if (cooldownConfirm) sendToCourt(cooldownConfirm, { forceCooldown: true });
+          if (cooldownConfirm)
+            sendToCourtSide(cooldownConfirm.entry, cooldownConfirm.side, { forceCooldown: true });
           setCooldownConfirm(null);
         }}
         teams={teams}
@@ -436,12 +487,31 @@ function QueueRow(props: {
   players: ReturnType<typeof usePelada.getState>["players"];
   selection: ID[];
   onToggle: (id: ID) => void;
-  onSend: () => void;
-  hasOpenSlot: boolean;
+  onSendSide: (side: "A" | "B") => void;
+  slotAOpen: boolean;
+  slotBOpen: boolean;
   onRemovePlayer: (id: ID) => void;
+  onRemoveEntry: (entry: QueueEntry) => void;
+  onPasteInto: (teamId: ID) => void;
 }) {
-  const { kind, position, team, player, players, selection, onToggle, onSend, hasOpenSlot, onRemovePlayer } = props;
+  const {
+    kind,
+    position,
+    entry,
+    team,
+    player,
+    players,
+    selection,
+    onToggle,
+    onSendSide,
+    slotAOpen,
+    slotBOpen,
+    onRemovePlayer,
+    onRemoveEntry,
+    onPasteInto,
+  } = props;
   const isChampion = kind === "champion";
+  const hasAny = slotAOpen || slotBOpen;
 
   return (
     <div
@@ -492,24 +562,68 @@ function QueueRow(props: {
                   e.stopPropagation();
                   if (confirm(`Remover ${p.name}?`)) onRemovePlayer(pid);
                 }}
-                className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
+                className="opacity-60 hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
               >
                 <X className="h-3.5 w-3.5" />
               </span>
             </button>
           );
         })}
+        {team && selection.length > 0 && !selection.every((s) => team.memberIds.includes(s)) && (
+          <button
+            className="rounded-lg border-2 border-dashed border-primary/60 px-3 py-2 text-xs font-medium text-primary hover:bg-primary/5"
+            onClick={() => onPasteInto(team.id)}
+          >
+            <Plus className="inline h-3 w-3" /> colar {selection.length} aqui
+          </button>
+        )}
       </div>
 
-      <Button
-        size="lg"
-        variant={isChampion ? "default" : "outline"}
-        disabled={!hasOpenSlot}
-        onClick={onSend}
-        className={cn(isChampion && "bg-champion text-champion-foreground hover:bg-champion/90")}
-      >
-        Entrar na quadra →
-      </Button>
+      <div className="flex items-center gap-2">
+        <Button
+          size="lg"
+          variant={isChampion ? "default" : "outline"}
+          disabled={!slotAOpen}
+          onClick={() => onSendSide("A")}
+          className={cn(
+            "min-w-[72px]",
+            isChampion && slotAOpen && "bg-champion text-champion-foreground hover:bg-champion/90",
+          )}
+          title="Enviar para o slot A"
+        >
+          → A
+        </Button>
+        <Button
+          size="lg"
+          variant={isChampion ? "default" : "outline"}
+          disabled={!slotBOpen}
+          onClick={() => onSendSide("B")}
+          className={cn(
+            "min-w-[72px]",
+            isChampion && slotBOpen && "bg-champion text-champion-foreground hover:bg-champion/90",
+          )}
+          title="Enviar para o slot B"
+        >
+          → B
+        </Button>
+        {!hasAny && (
+          <span className="text-xs text-muted-foreground italic px-1">quadra cheia</span>
+        )}
+        {!isChampion && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-muted-foreground hover:text-destructive"
+            onClick={() => {
+              const label = team ? `TIME ${team.number}` : player?.name ?? "esta entrada";
+              if (confirm(`Remover ${label} da fila?`)) onRemoveEntry(entry);
+            }}
+            title="Remover da fila"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
