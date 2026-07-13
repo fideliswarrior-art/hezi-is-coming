@@ -59,8 +59,12 @@ export interface PeladaState {
   pasteSelectionIntoTeam: (teamId: ID) => void;
   /** Send a queue entry to court in the first empty slot. */
   sendToCourt: (entry: QueueEntry, opts?: { forceCooldown?: boolean }) => void;
+  /** Send a queue entry to a specific court side. */
+  sendToCourtSide: (entry: QueueEntry, side: "A" | "B", opts?: { forceCooldown?: boolean }) => void;
   /** Remove any queue entry (player or team) */
   removeFromQueue: (entry: QueueEntry) => void;
+  /** Remove the entire team on a court side (team + its player records). */
+  removeCourtTeam: (side: "A" | "B") => void;
 
   // Timer
   startTimer: () => void;
