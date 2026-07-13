@@ -331,23 +331,28 @@ function QueueBlock() {
   const formTeam = usePelada((s) => s.formTeamFromSelection);
   const clearSelection = usePelada((s) => s.clearSelection);
   const addPlayer = usePelada((s) => s.addPlayer);
-  const sendToCourt = usePelada((s) => s.sendToCourt);
+  const sendToCourtSide = usePelada((s) => s.sendToCourtSide);
   const removePlayer = usePelada((s) => s.removePlayer);
+  const removeFromQueue = usePelada((s) => s.removeFromQueue);
+  const pasteInto = usePelada((s) => s.pasteSelectionIntoTeam);
   const court = usePelada((s) => s.court);
 
   const [name, setName] = useState("");
-  const [cooldownConfirm, setCooldownConfirm] = useState<QueueEntry | null>(null);
+  const [cooldownConfirm, setCooldownConfirm] = useState<
+    { entry: QueueEntry; side: "A" | "B" } | null
+  >(null);
 
-  const hasOpenSlot = !court.teamAId || !court.teamBId;
+  const slotAOpen = !court.teamAId;
+  const slotBOpen = !court.teamBId;
 
-  function trySend(entry: QueueEntry) {
+  function trySend(entry: QueueEntry, side: "A" | "B") {
     const memberIds = entry.kind === "player" ? [entry.id] : teams[entry.id]?.memberIds ?? [];
     const blocked = memberIds.some((m) => players[m]?.justPlayed);
     if (blocked) {
-      setCooldownConfirm(entry);
+      setCooldownConfirm({ entry, side });
       return;
     }
-    sendToCourt(entry);
+    sendToCourtSide(entry, side);
   }
 
   return (
@@ -403,9 +408,12 @@ function QueueBlock() {
           players={players}
           selection={selection}
           onToggle={toggleSelect}
-          onSend={() => trySend({ kind: "team", id: waitingChampion })}
-          hasOpenSlot={hasOpenSlot}
+          onSendSide={(side) => trySend({ kind: "team", id: waitingChampion }, side)}
+          slotAOpen={slotAOpen}
+          slotBOpen={slotBOpen}
           onRemovePlayer={removePlayer}
+          onRemoveEntry={removeFromQueue}
+          onPasteInto={pasteInto}
         />
       )}
 
@@ -427,9 +435,12 @@ function QueueBlock() {
               players={players}
               selection={selection}
               onToggle={toggleSelect}
-              onSend={() => trySend(entry)}
-              hasOpenSlot={hasOpenSlot}
+              onSendSide={(side) => trySend(entry, side)}
+              slotAOpen={slotAOpen}
+              slotBOpen={slotBOpen}
               onRemovePlayer={removePlayer}
+              onRemoveEntry={removeFromQueue}
+              onPasteInto={pasteInto}
             />
           ) : (
             <QueueRow
@@ -441,19 +452,23 @@ function QueueBlock() {
               players={players}
               selection={selection}
               onToggle={toggleSelect}
-              onSend={() => trySend(entry)}
-              hasOpenSlot={hasOpenSlot}
+              onSendSide={(side) => trySend(entry, side)}
+              slotAOpen={slotAOpen}
+              slotBOpen={slotBOpen}
               onRemovePlayer={removePlayer}
+              onRemoveEntry={removeFromQueue}
+              onPasteInto={pasteInto}
             />
           ),
         )}
       </div>
 
       <CooldownDialog
-        entry={cooldownConfirm}
+        entry={cooldownConfirm?.entry ?? null}
         onCancel={() => setCooldownConfirm(null)}
         onConfirm={() => {
-          if (cooldownConfirm) sendToCourt(cooldownConfirm, { forceCooldown: true });
+          if (cooldownConfirm)
+            sendToCourtSide(cooldownConfirm.entry, cooldownConfirm.side, { forceCooldown: true });
           setCooldownConfirm(null);
         }}
         teams={teams}
