@@ -731,6 +731,7 @@ function QueueBlock() {
             ) : (
               <SortableQueueRow
                 key={`p-${entry.id}`}
+                kind="player"
                 id={`qentry:player:${entry.id}`}
                 position={i + 1}
                 entry={entry}
