@@ -551,10 +551,15 @@ function RenameDialogController() {
   const [value, setValue] = useState("");
   const players = usePelada((s) => s.players);
   const renamePlayer = usePelada((s) => s.renamePlayer);
-  useEffect(() => renameBus.on((pid) => {
-    setId(pid);
-    setValue(players[pid]?.name ?? "");
-  }), [players]);
+  useEffect(() => {
+    const off = renameBus.on((pid) => {
+      setId(pid);
+      setValue(usePelada.getState().players[pid]?.name ?? "");
+    });
+    return () => {
+      off();
+    };
+  }, []);
   const open = !!id;
   return (
     <Dialog open={open} onOpenChange={(o) => !o && setId(null)}>
