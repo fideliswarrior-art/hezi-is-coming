@@ -589,17 +589,15 @@ export const usePelada = create<PeladaState>()(
           draft.court.suddenDeathUsed = false;
           draft.court.inSuddenDeath = false;
 
-          // Fill only the loser's slot from the queue.
-          // If winner was promoted, its slot stays open (champion waits at top).
-          // Do NOT use popNext here — that would pull the just-promoted champion
-          // right back onto court.
-          const loserSide: "A" | "B" = side === "A" ? "B" : "A";
-          const loserSlotEmpty =
-            (loserSide === "A" ? draft.court.teamAId : draft.court.teamBId) === null;
-          if (loserSlotEmpty) {
-            const next = draft.queue.shift();
-            if (next) placeOnCourt(draft, loserSide, next);
-          }
+          // Loser's slot stays open — the operator manually sends the next
+          // team from the queue. No auto-fill.
+
+          return draft;
+        }),
+
+      declareDrawNoOp_marker: undefined as never,
+    }).__proto__ as never,
+
 
           return draft;
         }),
