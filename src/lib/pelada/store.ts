@@ -667,6 +667,7 @@ export const usePelada = create<PeladaState>()(
         court: s.court,
         nextTeamNumber: s.nextTeamNumber,
         adminPin: s.adminPin,
+        screenLocked: s.screenLocked,
       }),
     },
   ),
