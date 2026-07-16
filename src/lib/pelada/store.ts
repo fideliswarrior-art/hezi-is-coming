@@ -270,7 +270,61 @@ export const usePelada = create<PeladaState>()(
       },
       nextTeamNumber: 1,
       adminPin: "",
+      screenLocked: false,
       selection: [],
+
+      lockScreen: () => set((s) => ({ ...s, screenLocked: true, selection: [] })),
+      unlockScreen: (pin) => {
+        const s = get();
+        if (!s.adminPin || pin === s.adminPin) {
+          set({ ...s, screenLocked: false });
+          return true;
+        }
+        return false;
+      },
+
+      renamePlayer: (id, name) =>
+        set((s) => {
+          const trimmed = name.trim();
+          if (!trimmed || !s.players[id]) return s;
+          return {
+            ...s,
+            players: { ...s.players, [id]: { ...s.players[id], name: trimmed } },
+          };
+        }),
+
+      reorderQueue: (fromIdx, toIdx) =>
+        set((s) => {
+          if (fromIdx === toIdx || fromIdx < 0 || toIdx < 0) return s;
+          if (fromIdx >= s.queue.length || toIdx >= s.queue.length) return s;
+          const next = [...s.queue];
+          const [item] = next.splice(fromIdx, 1);
+          next.splice(toIdx, 0, item);
+          return { ...s, queue: next };
+        }),
+
+      movePlayerToTeam: (playerId, teamId) =>
+        set((s) => {
+          const draft: PeladaState = cloneState(s);
+          const target = draft.teams[teamId];
+          if (!target) return s;
+          if (target.memberIds.includes(playerId)) return s;
+          removePlayerFromAll(draft, playerId);
+          draft.teams[teamId].memberIds.push(playerId);
+          draft.selection = draft.selection.filter((x) => x !== playerId);
+          return draft;
+        }),
+
+      detachPlayerToQueue: (playerId, toIndex) =>
+        set((s) => {
+          const draft: PeladaState = cloneState(s);
+          if (!draft.players[playerId]) return s;
+          removePlayerFromAll(draft, playerId);
+          const entry: QueueEntry = { kind: "player", id: playerId };
+          const idx = typeof toIndex === "number" ? Math.min(toIndex, draft.queue.length) : draft.queue.length;
+          draft.queue.splice(idx, 0, entry);
+          return draft;
+        }),
 
       addPlayer: (name) =>
         set((s) => {
