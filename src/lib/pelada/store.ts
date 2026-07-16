@@ -45,13 +45,20 @@ export interface PeladaState {
   court: CourtState;
   nextTeamNumber: number;
   adminPin: string; // "" = no pin set
+  screenLocked: boolean;
 
   // ephemeral (not persisted meaningfully but fine)
   selection: ID[]; // selected player ids for team-forming / substitution
 
   // ---- actions ----
   addPlayer: (name: string) => void;
+  renamePlayer: (id: ID, name: string) => void;
   removePlayer: (id: ID) => void;
+  reorderQueue: (fromIdx: number, toIdx: number) => void;
+  movePlayerToTeam: (playerId: ID, teamId: ID) => void;
+  detachPlayerToQueue: (playerId: ID, toIndex?: number) => void;
+  lockScreen: () => void;
+  unlockScreen: (pin: string) => boolean;
   toggleSelect: (id: ID) => void;
   clearSelection: () => void;
   formTeamFromSelection: () => void;
@@ -263,7 +270,61 @@ export const usePelada = create<PeladaState>()(
       },
       nextTeamNumber: 1,
       adminPin: "",
+      screenLocked: false,
       selection: [],
+
+      lockScreen: () => set((s) => ({ ...s, screenLocked: true, selection: [] })),
+      unlockScreen: (pin) => {
+        const s = get();
+        if (!s.adminPin || pin === s.adminPin) {
+          set({ ...s, screenLocked: false });
+          return true;
+        }
+        return false;
+      },
+
+      renamePlayer: (id, name) =>
+        set((s) => {
+          const trimmed = name.trim();
+          if (!trimmed || !s.players[id]) return s;
+          return {
+            ...s,
+            players: { ...s.players, [id]: { ...s.players[id], name: trimmed } },
+          };
+        }),
+
+      reorderQueue: (fromIdx, toIdx) =>
+        set((s) => {
+          if (fromIdx === toIdx || fromIdx < 0 || toIdx < 0) return s;
+          if (fromIdx >= s.queue.length || toIdx >= s.queue.length) return s;
+          const next = [...s.queue];
+          const [item] = next.splice(fromIdx, 1);
+          next.splice(toIdx, 0, item);
+          return { ...s, queue: next };
+        }),
+
+      movePlayerToTeam: (playerId, teamId) =>
+        set((s) => {
+          const draft: PeladaState = cloneState(s);
+          const target = draft.teams[teamId];
+          if (!target) return s;
+          if (target.memberIds.includes(playerId)) return s;
+          removePlayerFromAll(draft, playerId);
+          draft.teams[teamId].memberIds.push(playerId);
+          draft.selection = draft.selection.filter((x) => x !== playerId);
+          return draft;
+        }),
+
+      detachPlayerToQueue: (playerId, toIndex) =>
+        set((s) => {
+          const draft: PeladaState = cloneState(s);
+          if (!draft.players[playerId]) return s;
+          removePlayerFromAll(draft, playerId);
+          const entry: QueueEntry = { kind: "player", id: playerId };
+          const idx = typeof toIndex === "number" ? Math.min(toIndex, draft.queue.length) : draft.queue.length;
+          draft.queue.splice(idx, 0, entry);
+          return draft;
+        }),
 
       addPlayer: (name) =>
         set((s) => {
@@ -528,20 +589,13 @@ export const usePelada = create<PeladaState>()(
           draft.court.suddenDeathUsed = false;
           draft.court.inSuddenDeath = false;
 
-          // Fill only the loser's slot from the queue.
-          // If winner was promoted, its slot stays open (champion waits at top).
-          // Do NOT use popNext here — that would pull the just-promoted champion
-          // right back onto court.
-          const loserSide: "A" | "B" = side === "A" ? "B" : "A";
-          const loserSlotEmpty =
-            (loserSide === "A" ? draft.court.teamAId : draft.court.teamBId) === null;
-          if (loserSlotEmpty) {
-            const next = draft.queue.shift();
-            if (next) placeOnCourt(draft, loserSide, next);
-          }
+          // Loser's slot stays open — the operator manually sends the next
+          // team from the queue. No auto-fill.
 
           return draft;
         }),
+
+
 
       declareDraw: () =>
         set((s) => {
@@ -613,6 +667,7 @@ export const usePelada = create<PeladaState>()(
         court: s.court,
         nextTeamNumber: s.nextTeamNumber,
         adminPin: s.adminPin,
+        screenLocked: s.screenLocked,
       }),
     },
   ),

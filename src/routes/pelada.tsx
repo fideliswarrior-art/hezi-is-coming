@@ -1,10 +1,40 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
-import { Crown, Ban, Play, Pause, Timer as TimerIcon, Shuffle, Trophy, Plus, X, Users, Settings } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Crown,
+  Ban,
+  Play,
+  Pause,
+  Timer as TimerIcon,
+  Shuffle,
+  Trophy,
+  Plus,
+  X,
+  Users,
+  Settings,
+  Lock,
+  Unlock,
+  Pencil,
+  GripVertical,
+  MoreVertical,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import {
   usePelada,
@@ -14,20 +44,39 @@ import {
   type ID,
   MATCH_MS,
 } from "@/lib/pelada/store";
+import {
+  DndContext,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+  useDroppable,
+  useDraggable,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import heziLogo from "@/assets/hezi-logo.png.asset.json";
 
 export const Route = createFileRoute("/pelada")({
   head: () => ({
     meta: [
-      { title: "Pelada — Totem 3x3 | Hezi" },
+      { title: "Pelada — Totem 3x3 | Hezi Fam" },
       {
         name: "description",
         content:
-          "Gerencie a fila, os times e o cronômetro da pelada 3x3 direto do totem: quem joga, quem espera e o Rei da Quadra.",
+          "Totem oficial da Hezi Fam para gerenciar pelada 3x3: fila, times, cronômetro e Rei da Quadra.",
       },
-      { property: "og:title", content: "Pelada — Totem 3x3" },
+      { property: "og:title", content: "Pelada — Totem Hezi Fam" },
       {
         property: "og:description",
-        content: "Totem para organizar a pelada 3x3: fila, times, cronômetro e Rei da Quadra.",
+        content: "Gerencie a pelada 3x3 direto do celular ou tablet.",
       },
       { property: "og:type", content: "website" },
     ],
@@ -36,7 +85,7 @@ export const Route = createFileRoute("/pelada")({
 });
 
 // ---------------------------------------------------------------------------
-// Timer hook — ticks every 250ms while running, fires alarm at end.
+// Ticks, alarm
 // ---------------------------------------------------------------------------
 function useTick(intervalMs = 250) {
   const [, setN] = useState(0);
@@ -74,39 +123,125 @@ function playBeep() {
 }
 
 // ---------------------------------------------------------------------------
-// Root page
+// Root page — DnD context wraps everything
 // ---------------------------------------------------------------------------
 function PeladaPage() {
+  const reorderQueue = usePelada((s) => s.reorderQueue);
+  const movePlayerToTeam = usePelada((s) => s.movePlayerToTeam);
+  const detachPlayerToQueue = usePelada((s) => s.detachPlayerToQueue);
+  const queue = usePelada((s) => s.queue);
+  const screenLocked = usePelada((s) => s.screenLocked);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+  );
+
+  function onDragEnd(e: DragEndEvent) {
+    const { active, over } = e;
+    if (!over) return;
+    const aId = String(active.id);
+    const oId = String(over.id);
+    // Queue entry sortable
+    if (aId.startsWith("qentry:") && oId.startsWith("qentry:")) {
+      const from = queue.findIndex((q) => `qentry:${q.kind}:${q.id}` === aId);
+      const to = queue.findIndex((q) => `qentry:${q.kind}:${q.id}` === oId);
+      if (from >= 0 && to >= 0) reorderQueue(from, to);
+      return;
+    }
+    // Player dropped on a team
+    if (aId.startsWith("player:") && oId.startsWith("team:")) {
+      const pid = aId.slice("player:".length);
+      const tid = oId.slice("team:".length);
+      movePlayerToTeam(pid, tid);
+      return;
+    }
+    // Player dropped on queue background → detach as lone entry at end
+    if (aId.startsWith("player:") && oId === "queue-drop") {
+      detachPlayerToQueue(aId.slice("player:".length));
+    }
+  }
+
   return (
-    <div className="min-h-screen bg-background text-foreground select-none">
-      <div className="mx-auto max-w-[1600px] px-4 py-4 lg:px-8 lg:py-6 space-y-6">
-        <Header />
-        <CourtBlock />
-        <QueueBlock />
-      </div>
+    <div className="min-h-dvh bg-background text-foreground select-none">
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+        <div className="mx-auto max-w-[900px] px-3 py-3 sm:px-4 sm:py-4 space-y-4 pb-24">
+          <Header />
+          <CourtBlock />
+          <QueueBlock />
+        </div>
+      </DndContext>
+      {screenLocked && <LockOverlay />}
+      <RenameDialogController />
     </div>
   );
 }
 
+// ---------------------------------------------------------------------------
+// HEADER
+// ---------------------------------------------------------------------------
 function Header() {
   const [adminOpen, setAdminOpen] = useState(false);
+  const [lockPrompt, setLockPrompt] = useState(false);
+  const adminPin = usePelada((s) => s.adminPin);
+  const lockScreen = usePelada((s) => s.lockScreen);
+
+  function onLock() {
+    if (!adminPin) {
+      setLockPrompt(true);
+      return;
+    }
+    lockScreen();
+  }
+
   return (
-    <header className="flex items-center justify-between">
-      <div className="flex items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-full bg-court text-court-foreground font-display text-2xl">
-          H
-        </div>
-        <div>
-          <h1 className="font-display text-3xl leading-none tracking-wide">PELADA · 3x3</h1>
-          <p className="text-xs uppercase tracking-widest text-muted-foreground">
-            hezi.com.br / totem
+    <header className="flex items-center justify-between gap-2">
+      <div className="flex items-center gap-2 min-w-0">
+        <img src={heziLogo.url} alt="Hezi Fam" className="h-10 w-10 shrink-0 object-contain invert-0 dark:invert" />
+        <div className="min-w-0">
+          <h1 className="font-display text-2xl leading-none tracking-wide truncate">
+            PELADA <span className="text-primary">3x3</span>
+          </h1>
+          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
+            Hezi Fam · Totem
           </p>
         </div>
       </div>
-      <Button variant="outline" size="lg" onClick={() => setAdminOpen(true)}>
-        <Settings /> Admin
-      </Button>
+      <div className="flex items-center gap-1 shrink-0">
+        <Button size="icon" variant="outline" onClick={() => setAdminOpen(true)} title="Admin">
+          <Settings className="h-5 w-5" />
+        </Button>
+        <Button
+          size="icon"
+          className="bg-primary text-primary-foreground hover:bg-primary/90"
+          onClick={onLock}
+          title="Bloquear tela"
+        >
+          <Lock className="h-5 w-5" />
+        </Button>
+      </div>
       <AdminDialog open={adminOpen} onOpenChange={setAdminOpen} />
+      <Dialog open={lockPrompt} onOpenChange={setLockPrompt}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Defina um PIN primeiro</DialogTitle>
+            <DialogDescription>
+              Para bloquear a tela é preciso configurar um PIN de 4 dígitos no menu Admin.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLockPrompt(false)}>Fechar</Button>
+            <Button
+              onClick={() => {
+                setLockPrompt(false);
+                setAdminOpen(true);
+              }}
+            >
+              Abrir Admin
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </header>
   );
 }
@@ -131,7 +266,6 @@ function CourtBlock() {
   const remaining = Math.max(0, total - elapsed);
   const finished = remaining === 0 && !!court.runningSince;
 
-  // Alarm on finish
   const firedRef = useRef(false);
   useEffect(() => {
     if (finished && !firedRef.current) {
@@ -149,64 +283,77 @@ function CourtBlock() {
 
   const teamA = court.teamAId ? teams[court.teamAId] : null;
   const teamB = court.teamBId ? teams[court.teamBId] : null;
-
   const canDeclare = !!teamA && !!teamB;
 
   return (
-    <section className="rounded-3xl border-2 border-border bg-court text-court-foreground p-4 lg:p-6 shadow-lg">
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-4 items-stretch">
-        <CourtTeamCard side="A" team={teamA} players={players} onWin={() => declareWinner("A")} canDeclare={canDeclare} />
-
-        {/* Center: timer + controls */}
-        <div className="flex flex-col items-center justify-center gap-3 min-w-[260px] px-4">
-          {court.inSuddenDeath && (
-            <Badge className="bg-cooldown text-cooldown-foreground font-display tracking-widest">
-              MORTE SÚBITA
-            </Badge>
+    <section className="rounded-2xl border-2 border-primary/40 bg-court text-court-foreground p-3 sm:p-4 shadow-lg space-y-3">
+      <div className="text-center">
+        {court.inSuddenDeath && (
+          <Badge className="bg-cooldown text-cooldown-foreground font-display tracking-widest mb-1">
+            MORTE SÚBITA
+          </Badge>
+        )}
+        <div
+          className={cn(
+            "font-display text-6xl sm:text-7xl leading-none tabular-nums transition-colors",
+            remaining < 30000 && "text-cooldown",
           )}
+        >
+          {timeStr}
+        </div>
+        <div className="h-2 w-full rounded-full bg-black/40 overflow-hidden mt-2">
           <div
-            className={cn(
-              "font-display text-[7rem] leading-none tabular-nums transition-colors",
-              remaining < 30000 && "text-cooldown",
-            )}
-          >
-            {timeStr}
-          </div>
-          <div className="h-2 w-full rounded-full bg-black/30 overflow-hidden">
-            <div
-              className="h-full bg-champion transition-[width] duration-200"
-              style={{ width: `${100 - pct}%` }}
-            />
-          </div>
-          <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
-            {court.runningSince ? (
-              <Button size="lg" variant="secondary" onClick={pauseTimer}>
-                <Pause /> Pausar
-              </Button>
-            ) : (
-              <Button size="lg" className="bg-victory text-victory-foreground hover:bg-victory/90" onClick={startTimer} disabled={!canDeclare}>
-                <Play /> Iniciar
-              </Button>
-            )}
+            className="h-full bg-primary transition-[width] duration-200"
+            style={{ width: `${100 - pct}%` }}
+          />
+        </div>
+        <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+          {court.runningSince ? (
+            <Button size="lg" variant="secondary" onClick={pauseTimer}>
+              <Pause /> Pausar
+            </Button>
+          ) : (
             <Button
               size="lg"
-              variant="secondary"
-              onClick={useSuddenDeath}
-              disabled={court.suddenDeathUsed || !canDeclare}
-              title={court.suddenDeathUsed ? "Já usado nesta partida (só admin libera)" : "1º empate — 1min extra"}
+              className="bg-victory text-victory-foreground hover:bg-victory/90"
+              onClick={startTimer}
+              disabled={!canDeclare}
             >
-              <TimerIcon /> +1 min
+              <Play /> Iniciar
             </Button>
-            <Button size="lg" variant="secondary" onClick={declareDraw} disabled={!canDeclare}>
-              <Shuffle /> Empate
-            </Button>
-            <Button size="sm" variant="ghost" className="text-court-foreground/70" onClick={resetTimer}>
-              Zerar tempo
-            </Button>
-          </div>
+          )}
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={useSuddenDeath}
+            disabled={court.suddenDeathUsed || !canDeclare}
+          >
+            <TimerIcon /> +1 min
+          </Button>
+          <Button size="sm" variant="secondary" onClick={declareDraw} disabled={!canDeclare}>
+            <Shuffle /> Empate
+          </Button>
+          <Button size="sm" variant="ghost" className="text-court-foreground/70" onClick={resetTimer}>
+            Zerar
+          </Button>
         </div>
+      </div>
 
-        <CourtTeamCard side="B" team={teamB} players={players} onWin={() => declareWinner("B")} canDeclare={canDeclare} />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <CourtTeamCard
+          side="A"
+          team={teamA}
+          players={players}
+          onWin={() => declareWinner("A")}
+          canDeclare={canDeclare}
+        />
+        <CourtTeamCard
+          side="B"
+          team={teamB}
+          players={players}
+          onWin={() => declareWinner("B")}
+          canDeclare={canDeclare}
+        />
       </div>
     </section>
   );
@@ -225,96 +372,223 @@ function CourtTeamCard({
   onWin: () => void;
   canDeclare: boolean;
 }) {
-  const pasteInto = usePelada((s) => s.pasteSelectionIntoTeam);
-  const selection = usePelada((s) => s.selection);
-  const toggleSelect = usePelada((s) => s.toggleSelect);
-  const removePlayer = usePelada((s) => s.removePlayer);
   const removeCourtTeam = usePelada((s) => s.removeCourtTeam);
   const sideColor = side === "A" ? "bg-team-a" : "bg-team-b";
+  const dropId = team ? `team:${team.id}` : `court-slot:${side}`;
+  const { setNodeRef, isOver } = useDroppable({ id: dropId });
+
   return (
-    <div className="rounded-2xl bg-background/95 text-foreground p-4 flex flex-col gap-3 min-h-[240px]">
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "rounded-xl bg-background/95 text-foreground p-3 flex flex-col gap-2 min-h-[180px] transition-all",
+        isOver && "ring-2 ring-primary scale-[1.01]",
+      )}
+    >
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <span className={cn("h-8 w-8 rounded-full flex items-center justify-center text-white font-display text-lg", sideColor)}>
+        <div className="flex items-center gap-2 min-w-0">
+          <span
+            className={cn(
+              "h-8 w-8 rounded-full flex items-center justify-center text-white font-display text-lg shrink-0",
+              sideColor,
+            )}
+          >
             {side}
           </span>
-          <span className="font-display text-2xl tracking-wide">
-            {team ? `TIME ${team.number}` : "Aguardando"}
+          <span className="font-display text-xl tracking-wide truncate">
+            {team ? `TIME ${team.number}` : "Vazio"}
           </span>
           {team && team.wins > 0 && (
-            <Badge variant="secondary" className="font-display">
-              {team.wins}ª vitória
+            <Badge variant="secondary" className="font-display text-xs">
+              {team.wins}ª vit.
             </Badge>
           )}
         </div>
         {team && (
           <Button
-            size="sm"
+            size="icon"
             variant="ghost"
-            className="text-destructive hover:bg-destructive/10"
+            className="text-destructive hover:bg-destructive/10 h-8 w-8"
             onClick={() => {
-              if (confirm(`Remover TIME ${team.number} da quadra? Os jogadores serão apagados.`)) {
-                removeCourtTeam(side);
-              }
+              if (confirm(`Remover TIME ${team.number} da quadra?`)) removeCourtTeam(side);
             }}
-            title="Remover time inteiro"
+            title="Remover time"
           >
-            <X className="h-4 w-4" /> Remover time
+            <X className="h-4 w-4" />
           </Button>
         )}
       </div>
 
-      <div className="flex-1 flex flex-wrap gap-2 content-start">
+      <div className="flex-1 flex flex-wrap gap-1.5 content-start">
         {team?.memberIds.map((pid) => {
           const p = players[pid];
           if (!p) return null;
-          const selected = selection.includes(pid);
-          return (
-            <button
-              key={pid}
-              onClick={() => toggleSelect(pid)}
-              className={cn(
-                "group relative rounded-lg border px-3 py-2 text-sm font-medium min-h-[44px] flex items-center gap-2 transition-all",
-                selected
-                  ? "border-primary bg-primary text-primary-foreground scale-105 shadow-md"
-                  : "border-border bg-secondary hover:border-primary/50",
-              )}
-            >
-              {p.justPlayed && <Ban className="h-3.5 w-3.5 text-cooldown" />}
-              <span>{p.name}</span>
-              <span
-                role="button"
-                tabIndex={-1}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (confirm(`Remover ${p.name}?`)) removePlayer(pid);
-                }}
-                className="opacity-60 hover:opacity-100 hover:text-destructive transition-opacity"
-              >
-                <X className="h-3.5 w-3.5" />
-              </span>
-            </button>
-          );
+          return <PlayerPill key={pid} playerId={pid} name={p.name} justPlayed={p.justPlayed} />;
         })}
-        {team && selection.length > 0 && (
-          <button
-            className="rounded-lg border-2 border-dashed border-primary/50 px-3 py-2 text-xs text-primary hover:bg-primary/5"
-            onClick={() => pasteInto(team.id)}
-          >
-            <Plus className="inline h-3 w-3" /> colar {selection.length}
-          </button>
+        {!team && (
+          <p className="text-xs text-muted-foreground italic self-center mx-auto">
+            Envie um time da fila →
+          </p>
         )}
       </div>
 
       <Button
         size="lg"
-        className="bg-victory text-victory-foreground hover:bg-victory/90 h-14 text-base font-display tracking-wider"
+        className="bg-victory text-victory-foreground hover:bg-victory/90 h-12 font-display tracking-wider"
         disabled={!canDeclare}
         onClick={onWin}
       >
         <Trophy /> TIME {side} VENCEU
       </Button>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// PLAYER PILL — selectable + draggable + action menu
+// ---------------------------------------------------------------------------
+function PlayerPill({
+  playerId,
+  name,
+  justPlayed,
+}: {
+  playerId: ID;
+  name: string;
+  justPlayed: boolean;
+}) {
+  const selection = usePelada((s) => s.selection);
+  const toggleSelect = usePelada((s) => s.toggleSelect);
+  const removePlayer = usePelada((s) => s.removePlayer);
+  const detachPlayerToQueue = usePelada((s) => s.detachPlayerToQueue);
+  const selected = selection.includes(playerId);
+
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `player:${playerId}`,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), touchAction: "manipulation" }}
+      className={cn(
+        "group relative rounded-lg border-2 flex items-stretch min-h-[44px] transition-all",
+        selected
+          ? "border-primary bg-primary text-primary-foreground shadow-md"
+          : justPlayed
+            ? "border-cooldown/50 bg-cooldown/10"
+            : "border-border bg-secondary",
+        isDragging && "opacity-40",
+      )}
+    >
+      <button
+        type="button"
+        onClick={() => toggleSelect(playerId)}
+        className="flex-1 flex items-center gap-1.5 px-2.5 py-1.5 text-sm font-medium text-left"
+      >
+        {justPlayed && <Ban className="h-3.5 w-3.5 text-cooldown shrink-0" />}
+        <span className="truncate max-w-[110px]">{name}</span>
+      </button>
+      <button
+        type="button"
+        {...listeners}
+        {...attributes}
+        className="px-1 flex items-center border-l border-current/20 opacity-40 hover:opacity-100 cursor-grab touch-none"
+        title="Arrastar"
+        aria-label="Arrastar jogador"
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className="px-1.5 flex items-center border-l border-current/20 opacity-60 hover:opacity-100"
+            onClick={(e) => e.stopPropagation()}
+            aria-label="Ações"
+          >
+            <MoreVertical className="h-4 w-4" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem
+            onSelect={() => {
+              renameBus.emit(playerId);
+            }}
+          >
+            <Pencil className="h-4 w-4 mr-2" /> Renomear
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => detachPlayerToQueue(playerId)}>
+            <Users className="h-4 w-4 mr-2" /> Desagrupar (para fila)
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="text-destructive"
+            onSelect={() => {
+              if (confirm(`Remover ${name}?`)) removePlayer(playerId);
+            }}
+          >
+            <X className="h-4 w-4 mr-2" /> Remover
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
+
+// tiny event bus for rename
+const renameBus = (() => {
+  const listeners = new Set<(id: ID) => void>();
+  return {
+    emit: (id: ID) => listeners.forEach((l) => l(id)),
+    on: (l: (id: ID) => void) => {
+      listeners.add(l);
+      return () => listeners.delete(l);
+    },
+  };
+})();
+
+function RenameDialogController() {
+  const [id, setId] = useState<ID | null>(null);
+  const [value, setValue] = useState("");
+  const players = usePelada((s) => s.players);
+  const renamePlayer = usePelada((s) => s.renamePlayer);
+  useEffect(() => {
+    const off = renameBus.on((pid) => {
+      setId(pid);
+      setValue(usePelada.getState().players[pid]?.name ?? "");
+    });
+    return () => {
+      off();
+    };
+  }, []);
+  const open = !!id;
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && setId(null)}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Renomear jogador</DialogTitle>
+          <DialogDescription>Altere o nome exibido no totem.</DialogDescription>
+        </DialogHeader>
+        <Input
+          autoFocus
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          className="h-12 text-base"
+        />
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setId(null)}>Cancelar</Button>
+          <Button
+            onClick={() => {
+              if (id && value.trim()) {
+                renamePlayer(id, value);
+                setId(null);
+              }
+            }}
+          >
+            Salvar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -327,12 +601,10 @@ function QueueBlock() {
   const teams = usePelada((s) => s.teams);
   const players = usePelada((s) => s.players);
   const selection = usePelada((s) => s.selection);
-  const toggleSelect = usePelada((s) => s.toggleSelect);
   const formTeam = usePelada((s) => s.formTeamFromSelection);
   const clearSelection = usePelada((s) => s.clearSelection);
   const addPlayer = usePelada((s) => s.addPlayer);
   const sendToCourtSide = usePelada((s) => s.sendToCourtSide);
-  const removePlayer = usePelada((s) => s.removePlayer);
   const removeFromQueue = usePelada((s) => s.removeFromQueue);
   const pasteInto = usePelada((s) => s.pasteSelectionIntoTeam);
   const court = usePelada((s) => s.court);
@@ -345,6 +617,10 @@ function QueueBlock() {
   const slotAOpen = !court.teamAId;
   const slotBOpen = !court.teamBId;
 
+  const queueIds = useMemo(() => queue.map((e) => `qentry:${e.kind}:${e.id}`), [queue]);
+
+  const { setNodeRef: setQueueDropRef } = useDroppable({ id: "queue-drop" });
+
   function trySend(entry: QueueEntry, side: "A" | "B") {
     const memberIds = entry.kind === "player" ? [entry.id] : teams[entry.id]?.memberIds ?? [];
     const blocked = memberIds.some((m) => players[m]?.justPlayed);
@@ -355,112 +631,122 @@ function QueueBlock() {
     sendToCourtSide(entry, side);
   }
 
+  const selectedNames = selection.map((id) => players[id]?.name).filter(Boolean).join(", ");
+
   return (
-    <section className="rounded-3xl border-2 border-border bg-card p-4 lg:p-6 space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="font-display text-3xl tracking-wide">FILA</h2>
-        <div className="flex items-center gap-2">
-          <form
-            className="flex items-center gap-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (name.trim()) {
-                addPlayer(name);
-                setName("");
-              }
-            }}
-          >
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Nome do jogador"
-              className="h-12 w-56 text-base"
-            />
-            <Button size="lg" type="submit">
-              <Plus /> Adicionar
-            </Button>
-          </form>
-        </div>
+    <section className="rounded-2xl border-2 border-border bg-card p-3 sm:p-4 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="font-display text-2xl tracking-wide">
+          FILA <span className="text-primary">·</span>{" "}
+          <span className="text-muted-foreground text-lg">{queue.length}</span>
+        </h2>
       </div>
 
-      {/* Selection bar */}
+      <form
+        className="flex items-center gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (name.trim()) {
+            addPlayer(name);
+            setName("");
+          }
+        }}
+      >
+        <Input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Nome do jogador"
+          className="h-12 text-base"
+        />
+        <Button size="lg" type="submit" className="shrink-0">
+          <Plus /> Add
+        </Button>
+      </form>
+
       {selection.length > 0 && (
-        <div className="sticky top-2 z-10 flex flex-wrap items-center gap-2 rounded-xl border border-primary bg-primary/10 px-3 py-2">
-          <span className="text-sm font-medium">
-            {selection.length} selecionado{selection.length > 1 ? "s" : ""}
-          </span>
-          <div className="flex-1" />
-          <Button size="sm" variant="outline" onClick={clearSelection}>
-            Limpar
-          </Button>
-          <Button size="sm" onClick={formTeam} disabled={selection.length < 2}>
-            <Users /> Formar Time
-          </Button>
+        <div className="sticky top-2 z-10 rounded-xl border-2 border-primary bg-primary/10 backdrop-blur px-3 py-2 space-y-2">
+          <div className="text-xs text-muted-foreground truncate">
+            <span className="font-semibold text-primary">{selection.length} selecionado(s):</span>{" "}
+            {selectedNames}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" onClick={formTeam} disabled={selection.length < 2}>
+              <Users /> Formar Time
+            </Button>
+            {selection.length === 1 && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => renameBus.emit(selection[0])}
+              >
+                <Pencil /> Renomear
+              </Button>
+            )}
+            <Button size="sm" variant="outline" onClick={clearSelection}>
+              Limpar
+            </Button>
+          </div>
         </div>
       )}
 
-      {/* Champion slot */}
       {waitingChampion && teams[waitingChampion] && (
         <QueueRow
           kind="champion"
           entry={{ kind: "team", id: waitingChampion }}
           team={teams[waitingChampion]}
           players={players}
-          selection={selection}
-          onToggle={toggleSelect}
           onSendSide={(side) => trySend({ kind: "team", id: waitingChampion }, side)}
           slotAOpen={slotAOpen}
           slotBOpen={slotBOpen}
-          onRemovePlayer={removePlayer}
           onRemoveEntry={removeFromQueue}
           onPasteInto={pasteInto}
+          selectionCount={selection.length}
         />
       )}
 
-      {/* Queue list */}
-      <div className="space-y-2">
-        {queue.length === 0 && !waitingChampion && (
-          <p className="text-sm text-muted-foreground italic py-6 text-center">
-            Ninguém na fila. Adicione jogadores acima.
-          </p>
-        )}
-        {queue.map((entry, i) =>
-          entry.kind === "team" ? (
-            <QueueRow
-              key={`t-${entry.id}`}
-              kind="team"
-              position={i + 1}
-              entry={entry}
-              team={teams[entry.id]}
-              players={players}
-              selection={selection}
-              onToggle={toggleSelect}
-              onSendSide={(side) => trySend(entry, side)}
-              slotAOpen={slotAOpen}
-              slotBOpen={slotBOpen}
-              onRemovePlayer={removePlayer}
-              onRemoveEntry={removeFromQueue}
-              onPasteInto={pasteInto}
-            />
-          ) : (
-            <QueueRow
-              key={`p-${entry.id}`}
-              kind="player"
-              position={i + 1}
-              entry={entry}
-              player={players[entry.id]}
-              players={players}
-              selection={selection}
-              onToggle={toggleSelect}
-              onSendSide={(side) => trySend(entry, side)}
-              slotAOpen={slotAOpen}
-              slotBOpen={slotBOpen}
-              onRemovePlayer={removePlayer}
-              onRemoveEntry={removeFromQueue}
-              onPasteInto={pasteInto}
-            />
-          ),
-        )}
+      <div ref={setQueueDropRef} className="space-y-2 min-h-[40px]">
+        <SortableContext items={queueIds} strategy={verticalListSortingStrategy}>
+          {queue.length === 0 && !waitingChampion && (
+            <p className="text-sm text-muted-foreground italic py-6 text-center">
+              Ninguém na fila. Adicione jogadores acima.
+            </p>
+          )}
+          {queue.map((entry, i) =>
+            entry.kind === "team" ? (
+              <SortableQueueRow
+                key={`t-${entry.id}`}
+                kind="team"
+                id={`qentry:team:${entry.id}`}
+                position={i + 1}
+                entry={entry}
+                team={teams[entry.id]}
+                players={players}
+                onSendSide={(side) => trySend(entry, side)}
+                slotAOpen={slotAOpen}
+                slotBOpen={slotBOpen}
+                onRemoveEntry={removeFromQueue}
+                onPasteInto={pasteInto}
+                selectionCount={selection.length}
+              />
+            ) : (
+              <SortableQueueRow
+                key={`p-${entry.id}`}
+                kind="player"
+                id={`qentry:player:${entry.id}`}
+                position={i + 1}
+                entry={entry}
+                player={players[entry.id]}
+                players={players}
+                onSendSide={(side) => trySend(entry, side)}
+                slotAOpen={slotAOpen}
+                slotBOpen={slotBOpen}
+                onRemoveEntry={removeFromQueue}
+                onPasteInto={pasteInto}
+                selectionCount={selection.length}
+              />
+            ),
+          )}
+        </SortableContext>
       </div>
 
       <CooldownDialog
@@ -478,22 +764,43 @@ function QueueBlock() {
   );
 }
 
-function QueueRow(props: {
+interface QueueRowBaseProps {
   kind: "champion" | "team" | "player";
   position?: number;
   entry: QueueEntry;
   team?: ReturnType<typeof usePelada.getState>["teams"][string];
   player?: ReturnType<typeof usePelada.getState>["players"][string];
   players: ReturnType<typeof usePelada.getState>["players"];
-  selection: ID[];
-  onToggle: (id: ID) => void;
   onSendSide: (side: "A" | "B") => void;
   slotAOpen: boolean;
   slotBOpen: boolean;
-  onRemovePlayer: (id: ID) => void;
   onRemoveEntry: (entry: QueueEntry) => void;
   onPasteInto: (teamId: ID) => void;
-}) {
+  selectionCount: number;
+}
+
+function SortableQueueRow(props: QueueRowBaseProps & { id: string }) {
+  const { id, ...rest } = props;
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+      }}
+    >
+      <QueueRow {...rest} dragHandleProps={{ ...attributes, ...listeners }} />
+    </div>
+  );
+}
+
+function QueueRow(
+  props: QueueRowBaseProps & {
+    dragHandleProps?: Record<string, unknown>;
+  },
+) {
   const {
     kind,
     position,
@@ -501,80 +808,81 @@ function QueueRow(props: {
     team,
     player,
     players,
-    selection,
-    onToggle,
     onSendSide,
     slotAOpen,
     slotBOpen,
-    onRemovePlayer,
     onRemoveEntry,
     onPasteInto,
+    selectionCount,
+    dragHandleProps,
   } = props;
   const isChampion = kind === "champion";
   const hasAny = slotAOpen || slotBOpen;
 
+  const dropId = team ? `team:${team.id}` : `qentry-drop:${entry.kind}:${entry.id}`;
+  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: dropId });
+
   return (
     <div
+      ref={setDropRef}
       className={cn(
-        "rounded-xl border-2 p-3 flex flex-wrap items-center gap-3 transition-colors",
+        "rounded-xl border-2 p-2 sm:p-3 space-y-2 transition-colors",
         isChampion
           ? "border-champion bg-champion/10"
-          : "border-border bg-secondary/40 hover:bg-secondary/70",
+          : "border-border bg-secondary/40",
+        isOver && "ring-2 ring-primary",
       )}
     >
-      <div className="flex items-center gap-2 min-w-[80px]">
+      <div className="flex items-center gap-2">
+        <button
+          {...dragHandleProps}
+          className="p-1 text-muted-foreground hover:text-primary cursor-grab touch-none"
+          title="Arrastar posição"
+          aria-label="Arrastar"
+        >
+          <GripVertical className="h-5 w-5" />
+        </button>
         {isChampion ? (
-          <Crown className="h-6 w-6 text-champion" />
+          <Crown className="h-6 w-6 text-champion shrink-0" />
         ) : (
-          <span className="font-display text-2xl text-muted-foreground w-8 text-center">
+          <span className="font-display text-xl text-muted-foreground w-6 text-center">
             {position}
           </span>
         )}
         {team && (
-          <Badge variant="outline" className="font-display tracking-wide">
+          <Badge variant="outline" className="font-display tracking-wide border-primary/60 text-primary">
             TIME {team.number}
           </Badge>
         )}
+        <div className="flex-1" />
+        {!isChampion && (
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+            onClick={() => {
+              const label = team ? `TIME ${team.number}` : player?.name ?? "esta entrada";
+              if (confirm(`Remover ${label} da fila?`)) onRemoveEntry(entry);
+            }}
+            title="Remover"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        )}
       </div>
 
-      <div className="flex-1 flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-1.5">
         {(team ? team.memberIds : player ? [player.id] : []).map((pid) => {
           const p = players[pid];
           if (!p) return null;
-          const selected = selection.includes(pid);
-          return (
-            <button
-              key={pid}
-              onClick={() => onToggle(pid)}
-              className={cn(
-                "group relative rounded-lg border px-3 py-2 text-sm font-medium min-h-[44px] flex items-center gap-2 transition-all",
-                selected
-                  ? "border-primary bg-primary text-primary-foreground scale-105 shadow-md"
-                  : "border-border bg-background hover:border-primary/50",
-              )}
-            >
-              {p.justPlayed && <Ban className="h-3.5 w-3.5 text-cooldown" />}
-              <span>{p.name}</span>
-              <span
-                role="button"
-                tabIndex={-1}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (confirm(`Remover ${p.name}?`)) onRemovePlayer(pid);
-                }}
-                className="opacity-60 hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
-              >
-                <X className="h-3.5 w-3.5" />
-              </span>
-            </button>
-          );
+          return <PlayerPill key={pid} playerId={pid} name={p.name} justPlayed={p.justPlayed} />;
         })}
-        {team && selection.length > 0 && !selection.every((s) => team.memberIds.includes(s)) && (
+        {team && selectionCount > 0 && (
           <button
-            className="rounded-lg border-2 border-dashed border-primary/60 px-3 py-2 text-xs font-medium text-primary hover:bg-primary/5"
+            className="rounded-lg border-2 border-dashed border-primary/60 px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary/5"
             onClick={() => onPasteInto(team.id)}
           >
-            <Plus className="inline h-3 w-3" /> colar {selection.length} aqui
+            <Plus className="inline h-3 w-3" /> colar {selectionCount} aqui
           </button>
         )}
       </div>
@@ -582,46 +890,32 @@ function QueueRow(props: {
       <div className="flex items-center gap-2">
         <Button
           size="lg"
-          variant={isChampion ? "default" : "outline"}
+          className={cn(
+            "flex-1 h-11",
+            isChampion && slotAOpen
+              ? "bg-champion text-champion-foreground hover:bg-champion/90"
+              : "bg-team-a text-white hover:bg-team-a/90",
+          )}
           disabled={!slotAOpen}
           onClick={() => onSendSide("A")}
-          className={cn(
-            "min-w-[72px]",
-            isChampion && slotAOpen && "bg-champion text-champion-foreground hover:bg-champion/90",
-          )}
-          title="Enviar para o slot A"
         >
           → A
         </Button>
         <Button
           size="lg"
-          variant={isChampion ? "default" : "outline"}
+          className={cn(
+            "flex-1 h-11",
+            isChampion && slotBOpen
+              ? "bg-champion text-champion-foreground hover:bg-champion/90"
+              : "bg-team-b text-white hover:bg-team-b/90",
+          )}
           disabled={!slotBOpen}
           onClick={() => onSendSide("B")}
-          className={cn(
-            "min-w-[72px]",
-            isChampion && slotBOpen && "bg-champion text-champion-foreground hover:bg-champion/90",
-          )}
-          title="Enviar para o slot B"
         >
           → B
         </Button>
         {!hasAny && (
           <span className="text-xs text-muted-foreground italic px-1">quadra cheia</span>
-        )}
-        {!isChampion && (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="text-muted-foreground hover:text-destructive"
-            onClick={() => {
-              const label = team ? `TIME ${team.number}` : player?.name ?? "esta entrada";
-              if (confirm(`Remover ${label} da fila?`)) onRemoveEntry(entry);
-            }}
-            title="Remover da fila"
-          >
-            <X className="h-4 w-4" />
-          </Button>
         )}
       </div>
     </div>
@@ -629,7 +923,63 @@ function QueueRow(props: {
 }
 
 // ---------------------------------------------------------------------------
-// Dialogs
+// LOCK OVERLAY
+// ---------------------------------------------------------------------------
+function LockOverlay() {
+  const unlock = usePelada((s) => s.unlockScreen);
+  const adminPin = usePelada((s) => s.adminPin);
+  const [pin, setPin] = useState("");
+  const [error, setError] = useState(false);
+
+  function trySubmit() {
+    if (unlock(pin)) {
+      setPin("");
+      setError(false);
+    } else {
+      setError(true);
+      setPin("");
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-court/95 backdrop-blur-sm flex items-center justify-center p-6">
+      <div className="w-full max-w-sm space-y-4 text-court-foreground text-center">
+        <img src={heziLogo.url} alt="Hezi Fam" className="h-24 w-24 mx-auto object-contain" />
+        <Lock className="h-10 w-10 mx-auto text-primary" />
+        <h2 className="font-display text-3xl tracking-wide">TELA BLOQUEADA</h2>
+        <p className="text-sm text-court-foreground/70">
+          {adminPin ? "Digite o PIN para desbloquear." : "Nenhum PIN definido — toque em desbloquear."}
+        </p>
+        <Input
+          autoFocus
+          inputMode="numeric"
+          maxLength={4}
+          value={pin}
+          onChange={(e) => {
+            setPin(e.target.value.replace(/\D/g, ""));
+            setError(false);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") trySubmit();
+          }}
+          placeholder="••••"
+          className="text-center text-3xl tracking-[0.6em] h-16 bg-background text-foreground"
+        />
+        {error && <p className="text-cooldown text-sm">PIN incorreto</p>}
+        <Button
+          size="lg"
+          className="w-full h-14 bg-primary text-primary-foreground hover:bg-primary/90"
+          onClick={trySubmit}
+        >
+          <Unlock /> Desbloquear
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Cooldown dialog
 // ---------------------------------------------------------------------------
 function CooldownDialog({
   entry,
@@ -659,8 +1009,7 @@ function CooldownDialog({
             <Ban className="h-5 w-5 text-cooldown" /> Acabou de jogar
           </DialogTitle>
           <DialogDescription>
-            {blocked.join(", ")} acabou de jogar. A regra é aguardar uma partida. Confirmar mesmo assim (sem opção
-            de outros jogadores)?
+            {blocked.join(", ")} acabou de jogar. A regra é aguardar uma partida. Confirmar mesmo assim?
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
@@ -676,6 +1025,9 @@ function CooldownDialog({
   );
 }
 
+// ---------------------------------------------------------------------------
+// Admin dialog
+// ---------------------------------------------------------------------------
 function AdminDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   const adminPin = usePelada((s) => s.adminPin);
   const setAdminPin = usePelada((s) => s.setAdminPin);
@@ -723,7 +1075,7 @@ function AdminDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: 
         ) : (
           <div className="space-y-4">
             <div className="space-y-2">
-              <p className="text-sm font-medium">PIN de administrador</p>
+              <p className="text-sm font-medium">PIN de administrador / bloqueio</p>
               <div className="flex gap-2">
                 <Input
                   inputMode="numeric"
@@ -743,7 +1095,7 @@ function AdminDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: 
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Deixe em branco para desativar. Guardado apenas neste totem.
+                O mesmo PIN é usado para entrar no Admin e para desbloquear a tela.
               </p>
             </div>
 
@@ -777,5 +1129,4 @@ function AdminDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: 
   );
 }
 
-// prevent unused import warning if MATCH_MS not read elsewhere
 void MATCH_MS;
