@@ -45,13 +45,20 @@ export interface PeladaState {
   court: CourtState;
   nextTeamNumber: number;
   adminPin: string; // "" = no pin set
+  screenLocked: boolean;
 
   // ephemeral (not persisted meaningfully but fine)
   selection: ID[]; // selected player ids for team-forming / substitution
 
   // ---- actions ----
   addPlayer: (name: string) => void;
+  renamePlayer: (id: ID, name: string) => void;
   removePlayer: (id: ID) => void;
+  reorderQueue: (fromIdx: number, toIdx: number) => void;
+  movePlayerToTeam: (playerId: ID, teamId: ID) => void;
+  detachPlayerToQueue: (playerId: ID, toIndex?: number) => void;
+  lockScreen: () => void;
+  unlockScreen: (pin: string) => boolean;
   toggleSelect: (id: ID) => void;
   clearSelection: () => void;
   formTeamFromSelection: () => void;
