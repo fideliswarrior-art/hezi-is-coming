@@ -595,8 +595,6 @@ export const usePelada = create<PeladaState>()(
           return draft;
         }),
 
-      declareDrawNoOp_marker: undefined as never,
-    }).__proto__ as never,
 
 
           return draft;
