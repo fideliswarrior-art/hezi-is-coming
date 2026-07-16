@@ -597,9 +597,6 @@ export const usePelada = create<PeladaState>()(
 
 
 
-          return draft;
-        }),
-
       declareDraw: () =>
         set((s) => {
           const draft: PeladaState = cloneState(s);
