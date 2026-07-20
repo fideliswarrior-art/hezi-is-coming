@@ -17,6 +17,7 @@ import {
   Pencil,
   GripVertical,
   MoreVertical,
+  ClipboardList,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -129,8 +130,19 @@ function PeladaPage() {
   const reorderQueue = usePelada((s) => s.reorderQueue);
   const movePlayerToTeam = usePelada((s) => s.movePlayerToTeam);
   const detachPlayerToQueue = usePelada((s) => s.detachPlayerToQueue);
+  const swapPlayers = usePelada((s) => s.swapPlayers);
   const queue = usePelada((s) => s.queue);
   const screenLocked = usePelada((s) => s.screenLocked);
+
+  // Force dark theme on this route (persists across component tree incl. portals)
+  useEffect(() => {
+    const root = document.documentElement;
+    const had = root.classList.contains("dark");
+    root.classList.add("dark");
+    return () => {
+      if (!had) root.classList.remove("dark");
+    };
+  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -142,6 +154,13 @@ function PeladaPage() {
     if (!over) return;
     const aId = String(active.id);
     const oId = String(over.id);
+    // Player dropped onto another player → swap
+    if (aId.startsWith("player:") && oId.startsWith("player:")) {
+      const pa = aId.slice("player:".length);
+      const pb = oId.slice("player:".length);
+      if (pa !== pb) swapPlayers(pa, pb);
+      return;
+    }
     // Queue entry sortable
     if (aId.startsWith("qentry:") && oId.startsWith("qentry:")) {
       const from = queue.findIndex((q) => `qentry:${q.kind}:${q.id}` === aId);
@@ -163,7 +182,7 @@ function PeladaPage() {
   }
 
   return (
-    <div className="min-h-dvh bg-background text-foreground select-none">
+    <div className="dark min-h-dvh bg-background text-foreground select-none">
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <div className="mx-auto max-w-[900px] px-3 py-3 sm:px-4 sm:py-4 space-y-4 pb-24">
           <Header />
@@ -173,6 +192,8 @@ function PeladaPage() {
       </DndContext>
       {screenLocked && <LockOverlay />}
       <RenameDialogController />
+      <TeamRenameDialogController />
+      <HistoryDialogController />
     </div>
   );
 }
@@ -208,6 +229,14 @@ function Header() {
         </div>
       </div>
       <div className="flex items-center gap-1 shrink-0">
+        <Button
+          size="icon"
+          variant="outline"
+          onClick={() => historyBus.open()}
+          title="Histórico"
+        >
+          <ClipboardList className="h-5 w-5" />
+        </Button>
         <Button size="icon" variant="outline" onClick={() => setAdminOpen(true)} title="Admin">
           <Settings className="h-5 w-5" />
         </Button>
@@ -252,7 +281,10 @@ function Header() {
 function CourtBlock() {
   useTick(250);
   const court = usePelada((s) => s.court);
+  const matchMs = usePelada((s) => s.matchMs);
+  const suddenDeathMs = usePelada((s) => s.suddenDeathMs);
   const teams = usePelada((s) => s.teams);
+  const teamNames = usePelada((s) => s.teamNames);
   const players = usePelada((s) => s.players);
   const startTimer = usePelada((s) => s.startTimer);
   const pauseTimer = usePelada((s) => s.pauseTimer);
@@ -261,7 +293,7 @@ function CourtBlock() {
   const declareWinner = usePelada((s) => s.declareWinner);
   const declareDraw = usePelada((s) => s.declareDraw);
 
-  const total = currentDurationMs(court);
+  const total = currentDurationMs({ court, matchMs, suddenDeathMs });
   const elapsed = Math.min(computeElapsed(court, Date.now()), total);
   const remaining = Math.max(0, total - elapsed);
   const finished = remaining === 0 && !!court.runningSince;
@@ -373,6 +405,7 @@ function CourtTeamCard({
   canDeclare: boolean;
 }) {
   const removeCourtTeam = usePelada((s) => s.removeCourtTeam);
+  const customName = usePelada((s) => (team ? s.teamNames[team.id] : undefined));
   const sideColor = side === "A" ? "bg-team-a" : "bg-team-b";
   const dropId = team ? `team:${team.id}` : `court-slot:${side}`;
   const { setNodeRef, isOver } = useDroppable({ id: dropId });
@@ -395,9 +428,16 @@ function CourtTeamCard({
           >
             {side}
           </span>
-          <span className="font-display text-xl tracking-wide truncate">
-            {team ? `TIME ${team.number}` : "Vazio"}
-          </span>
+          <button
+            type="button"
+            onClick={() => team && teamRenameBus.emit(team.id)}
+            className="font-display text-xl tracking-wide truncate inline-flex items-center gap-1 hover:text-primary transition-colors"
+            disabled={!team}
+            title={team ? "Renomear time" : undefined}
+          >
+            {team ? customName ?? `TIME ${team.number}` : "Vazio"}
+            {team && <Pencil className="h-3 w-3 opacity-50" />}
+          </button>
           {team && team.wins > 0 && (
             <Badge variant="secondary" className="font-display text-xs">
               {team.wins}ª vit.
@@ -818,6 +858,7 @@ function QueueRow(
   } = props;
   const isChampion = kind === "champion";
   const hasAny = slotAOpen || slotBOpen;
+  const customName = usePelada((s) => (team ? s.teamNames[team.id] : undefined));
 
   const dropId = team ? `team:${team.id}` : `qentry-drop:${entry.kind}:${entry.id}`;
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: dropId });
@@ -850,9 +891,20 @@ function QueueRow(
           </span>
         )}
         {team && (
-          <Badge variant="outline" className="font-display tracking-wide border-primary/60 text-primary">
-            TIME {team.number}
-          </Badge>
+          <button
+            type="button"
+            onClick={() => teamRenameBus.emit(team.id)}
+            className="inline-flex items-center"
+            title="Renomear time"
+          >
+            <Badge
+              variant="outline"
+              className="font-display tracking-wide border-primary/60 text-primary hover:bg-primary/10"
+            >
+              {customName ?? `TIME ${team.number}`}
+              <Pencil className="h-3 w-3 ml-1 opacity-50" />
+            </Badge>
+          </button>
         )}
         <div className="flex-1" />
         {!isChampion && (
@@ -1034,6 +1086,17 @@ function AdminDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: 
   const adminResetSuddenDeath = usePelada((s) => s.adminResetSuddenDeath);
   const resetNight = usePelada((s) => s.resetNight);
   const court = usePelada((s) => s.court);
+  const matchMs = usePelada((s) => s.matchMs);
+  const suddenDeathMs = usePelada((s) => s.suddenDeathMs);
+  const setMatchDuration = usePelada((s) => s.setMatchDuration);
+  const setSuddenDeathDuration = usePelada((s) => s.setSuddenDeathDuration);
+
+  const [matchMin, setMatchMin] = useState(String(matchMs / 60000));
+  const [sdMin, setSdMin] = useState(String(suddenDeathMs / 60000));
+  useEffect(() => {
+    setMatchMin(String(matchMs / 60000));
+    setSdMin(String(suddenDeathMs / 60000));
+  }, [matchMs, suddenDeathMs]);
 
   const [pin, setPin] = useState("");
   const [authed, setAuthed] = useState(false);
@@ -1100,6 +1163,46 @@ function AdminDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: 
             </div>
 
             <div className="space-y-2">
+              <p className="text-sm font-medium">Tempos de partida (minutos)</p>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="text-xs text-muted-foreground space-y-1 block">
+                  Partida
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    min={0.5}
+                    max={30}
+                    step={0.5}
+                    value={matchMin}
+                    onChange={(e) => setMatchMin(e.target.value)}
+                    onBlur={() => {
+                      const v = Number(matchMin);
+                      if (Number.isFinite(v) && v > 0) setMatchDuration(v * 60000);
+                    }}
+                    className="h-11 text-base"
+                  />
+                </label>
+                <label className="text-xs text-muted-foreground space-y-1 block">
+                  Morte súbita
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    min={0.25}
+                    max={10}
+                    step={0.25}
+                    value={sdMin}
+                    onChange={(e) => setSdMin(e.target.value)}
+                    onBlur={() => {
+                      const v = Number(sdMin);
+                      if (Number.isFinite(v) && v > 0) setSuddenDeathDuration(v * 60000);
+                    }}
+                    className="h-11 text-base"
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div className="space-y-2">
               <p className="text-sm font-medium">Ações rápidas</p>
               <Button
                 variant="outline"
@@ -1130,3 +1233,223 @@ function AdminDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: 
 }
 
 void MATCH_MS;
+
+// ---------------------------------------------------------------------------
+// Team rename event bus + dialog
+// ---------------------------------------------------------------------------
+const teamRenameBus = (() => {
+  const listeners = new Set<(id: ID) => void>();
+  return {
+    emit: (id: ID) => listeners.forEach((l) => l(id)),
+    on: (l: (id: ID) => void) => {
+      listeners.add(l);
+      return () => listeners.delete(l);
+    },
+  };
+})();
+
+function TeamRenameDialogController() {
+  const [id, setId] = useState<ID | null>(null);
+  const [value, setValue] = useState("");
+  const teams = usePelada((s) => s.teams);
+  const teamNames = usePelada((s) => s.teamNames);
+  const renameTeam = usePelada((s) => s.renameTeam);
+  useEffect(() => {
+    const off = teamRenameBus.on((tid) => {
+      setId(tid);
+      setValue(usePelada.getState().teamNames[tid] ?? "");
+    });
+    return () => {
+      off();
+    };
+  }, []);
+  const open = !!id;
+  const team = id ? teams[id] : null;
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && setId(null)}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Renomear time</DialogTitle>
+          <DialogDescription>
+            {team
+              ? `Time ${team.number} — apelido opcional (deixe vazio para usar só o número).`
+              : ""}
+          </DialogDescription>
+        </DialogHeader>
+        <Input
+          autoFocus
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder={team ? `TIME ${team.number}` : ""}
+          className="h-12 text-base"
+        />
+        <DialogFooter className="gap-2">
+          {id && teamNames[id] && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (id) renameTeam(id, "");
+                setId(null);
+              }}
+            >
+              Remover apelido
+            </Button>
+          )}
+          <Button variant="outline" onClick={() => setId(null)}>
+            Cancelar
+          </Button>
+          <Button
+            onClick={() => {
+              if (id) renameTeam(id, value);
+              setId(null);
+            }}
+          >
+            Salvar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// History dialog (stats + action log)
+// ---------------------------------------------------------------------------
+const historyBus = (() => {
+  const listeners = new Set<() => void>();
+  return {
+    open: () => listeners.forEach((l) => l()),
+    on: (l: () => void) => {
+      listeners.add(l);
+      return () => listeners.delete(l);
+    },
+  };
+})();
+
+function HistoryDialogController() {
+  const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<"stats" | "log">("stats");
+  const teamStats = usePelada((s) => s.teamStats);
+  const actionLog = usePelada((s) => s.actionLog);
+  const clearActionLog = usePelada((s) => s.clearActionLog);
+  const clearStats = usePelada((s) => s.clearStats);
+
+  useEffect(() => {
+    const off = historyBus.on(() => setOpen(true));
+    return () => {
+      off();
+    };
+  }, []);
+
+  const rows = Object.values(teamStats).sort((a, b) => {
+    const sa = a.wins * 3 + a.draws;
+    const sb = b.wins * 3 + b.draws;
+    if (sa !== sb) return sb - sa;
+    return a.number - b.number;
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Histórico da noite</DialogTitle>
+          <DialogDescription>
+            Estatísticas dos times e registro de ações.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex gap-1 border-b border-border">
+          {(["stats", "log"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={cn(
+                "px-3 py-2 text-sm font-medium border-b-2 -mb-px",
+                tab === t
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground",
+              )}
+            >
+              {t === "stats" ? "Estatísticas" : "Registro"}
+            </button>
+          ))}
+        </div>
+        {tab === "stats" ? (
+          <div className="max-h-[50vh] overflow-auto space-y-1">
+            {rows.length === 0 && (
+              <p className="text-sm text-muted-foreground italic py-6 text-center">
+                Nenhum jogo registrado ainda.
+              </p>
+            )}
+            {rows.map((r) => (
+              <div
+                key={r.teamId}
+                className="flex items-center gap-2 rounded-lg border border-border p-2"
+              >
+                <span className="font-display text-lg w-14 shrink-0">
+                  T{r.number}
+                </span>
+                <div className="flex-1 min-w-0">
+                  {r.customName && (
+                    <div className="text-sm font-semibold truncate">
+                      {r.customName}
+                    </div>
+                  )}
+                  <div className="text-xs text-muted-foreground truncate">
+                    {r.memberSnapshot.join(" · ")}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 text-xs font-medium">
+                  <span className="rounded bg-victory/20 text-victory px-1.5 py-0.5">
+                    {r.wins}V
+                  </span>
+                  <span className="rounded bg-muted px-1.5 py-0.5">
+                    {r.draws}E
+                  </span>
+                  <span className="rounded bg-cooldown/20 text-cooldown px-1.5 py-0.5">
+                    {r.losses}D
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="max-h-[50vh] overflow-auto space-y-1">
+            {actionLog.length === 0 && (
+              <p className="text-sm text-muted-foreground italic py-6 text-center">
+                Nenhuma ação registrada ainda.
+              </p>
+            )}
+            {actionLog.map((e) => (
+              <div
+                key={e.ts}
+                className="text-xs flex gap-2 py-1 border-b border-border/50"
+              >
+                <span className="text-muted-foreground tabular-nums shrink-0">
+                  {new Date(e.ts).toLocaleTimeString("pt-BR", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </span>
+                <span className="truncate">{e.msg}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        <DialogFooter className="gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              tab === "stats" ? clearStats() : clearActionLog()
+            }
+          >
+            Limpar {tab === "stats" ? "estatísticas" : "registro"}
+          </Button>
+          <Button size="sm" onClick={() => setOpen(false)}>
+            Fechar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

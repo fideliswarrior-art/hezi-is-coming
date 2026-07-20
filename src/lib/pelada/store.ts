@@ -37,6 +37,21 @@ export interface CourtState {
   inSuddenDeath: boolean;
 }
 
+export interface TeamStat {
+  teamId: ID;
+  number: number;
+  customName?: string;
+  memberSnapshot: string[]; // names captured at match time
+  wins: number;
+  losses: number;
+  draws: number;
+}
+
+export interface ActionLogEntry {
+  ts: number;
+  msg: string;
+}
+
 export interface PeladaState {
   players: Record<ID, Player>;
   teams: Record<ID, Team>;
@@ -46,6 +61,15 @@ export interface PeladaState {
   nextTeamNumber: number;
   adminPin: string; // "" = no pin set
   screenLocked: boolean;
+
+  // Settings
+  matchMs: number;
+  suddenDeathMs: number;
+
+  // Stats & history
+  teamNames: Record<ID, string>; // optional custom names, keyed by team id
+  teamStats: Record<ID, TeamStat>;
+  actionLog: ActionLogEntry[];
 
   // ephemeral (not persisted meaningfully but fine)
   selection: ID[]; // selected player ids for team-forming / substitution
@@ -72,6 +96,10 @@ export interface PeladaState {
   removeFromQueue: (entry: QueueEntry) => void;
   /** Remove the entire team on a court side (team + its player records). */
   removeCourtTeam: (side: "A" | "B") => void;
+  /** Swap the positions of two players (works across teams, court, and queue). */
+  swapPlayers: (playerAId: ID, playerBId: ID) => void;
+  /** Set a custom display name for a team (kept alongside sequential number). */
+  renameTeam: (teamId: ID, name: string) => void;
 
   // Timer
   startTimer: () => void;
@@ -86,6 +114,10 @@ export interface PeladaState {
 
   // Admin
   setAdminPin: (pin: string) => void;
+  setMatchDuration: (ms: number) => void;
+  setSuddenDeathDuration: (ms: number) => void;
+  clearActionLog: () => void;
+  clearStats: () => void;
   resetNight: () => void;
 }
 
@@ -214,6 +246,36 @@ function pushEntry(state: PeladaState, e: QueueEntry) {
   state.queue.push(e);
 }
 
+const MAX_LOG = 200;
+function logAction(state: PeladaState, msg: string) {
+  state.actionLog = [{ ts: Date.now(), msg }, ...state.actionLog].slice(0, MAX_LOG);
+}
+
+function teamLabel(state: PeladaState, t: Team) {
+  const custom = state.teamNames[t.id];
+  return custom ? `${custom} (T${t.number})` : `TIME ${t.number}`;
+}
+
+function bumpStat(state: PeladaState, t: Team, key: "wins" | "losses" | "draws") {
+  const cur = state.teamStats[t.id] ?? {
+    teamId: t.id,
+    number: t.number,
+    customName: state.teamNames[t.id],
+    memberSnapshot: t.memberIds.map((m) => state.players[m]?.name ?? "?"),
+    wins: 0,
+    losses: 0,
+    draws: 0,
+  };
+  state.teamStats[t.id] = {
+    ...cur,
+    customName: state.teamNames[t.id] ?? cur.customName,
+    memberSnapshot: t.memberIds.map((m) => state.players[m]?.name ?? cur.memberSnapshot[0] ?? "?"),
+    [key]: cur[key] + 1,
+  };
+}
+
+
+
 /** Pop the next queue entry to fill an empty court slot. Prefers waitingChampion. */
 function popNext(state: PeladaState): QueueEntry | null {
   if (state.waitingChampion && state.teams[state.waitingChampion]) {
@@ -271,6 +333,11 @@ export const usePelada = create<PeladaState>()(
       nextTeamNumber: 1,
       adminPin: "",
       screenLocked: false,
+      matchMs: MATCH_MS,
+      suddenDeathMs: SUDDEN_DEATH_MS,
+      teamNames: {},
+      teamStats: {},
+      actionLog: [],
       selection: [],
 
       lockScreen: () => set((s) => ({ ...s, screenLocked: true, selection: [] })),
@@ -553,6 +620,14 @@ export const usePelada = create<PeladaState>()(
           const loser = draft.teams[loserId];
           if (!winner || !loser) return s;
 
+          // stats
+          bumpStat(draft, winner, "wins");
+          bumpStat(draft, loser, "losses");
+          logAction(
+            draft,
+            `✅ ${teamLabel(draft, winner)} venceu ${teamLabel(draft, loser)}`,
+          );
+
           // cooldown flags
           updateCooldown(draft, loser.memberIds);
 
@@ -581,6 +656,7 @@ export const usePelada = create<PeladaState>()(
             draft.waitingChampion = winner.id;
             if (side === "A") draft.court.teamAId = null;
             else draft.court.teamBId = null;
+            logAction(draft, `👑 ${teamLabel(draft, winner)} vira campeão em espera`);
           }
 
           // reset timer & sudden death for next match
@@ -603,6 +679,10 @@ export const usePelada = create<PeladaState>()(
           const a = draft.court.teamAId ? draft.teams[draft.court.teamAId] : null;
           const b = draft.court.teamBId ? draft.teams[draft.court.teamBId] : null;
           if (!a || !b) return s;
+
+          bumpStat(draft, a, "draws");
+          bumpStat(draft, b, "draws");
+          logAction(draft, `🔀 Empate: ${teamLabel(draft, a)} × ${teamLabel(draft, b)}`);
 
           // No cooldown on draw (nobody "lost")
           updateCooldown(draft, []);
@@ -628,18 +708,82 @@ export const usePelada = create<PeladaState>()(
           draft.court.suddenDeathUsed = false;
           draft.court.inSuddenDeath = false;
 
-          for (const slot of ["A", "B"] as const) {
-            const next = popNext(draft);
-            if (!next) break;
-            placeOnCourt(draft, slot, next);
-          }
+          // NOTE: no auto-fill after draw — operator sends teams manually.
           return draft;
+        }),
+
+      swapPlayers: (aId, bId) =>
+        set((s) => {
+          if (aId === bId) return s;
+          const draft: PeladaState = cloneState(s);
+          if (!draft.players[aId] || !draft.players[bId]) return s;
+
+          // Find location: which team (queue-team, court-team) contains each player.
+          type Loc =
+            | { kind: "team"; teamId: ID; idx: number }
+            | null;
+          const findLoc = (pid: ID): Loc => {
+            for (const t of Object.values(draft.teams)) {
+              const idx = t.memberIds.indexOf(pid);
+              if (idx >= 0) return { kind: "team", teamId: t.id, idx };
+            }
+            return null;
+          };
+          const la = findLoc(aId);
+          const lb = findLoc(bId);
+          // Both in teams → swap indices
+          if (la && lb) {
+            draft.teams[la.teamId].memberIds[la.idx] = bId;
+            draft.teams[lb.teamId].memberIds[lb.idx] = aId;
+            draft.selection = [];
+            return draft;
+          }
+          // One in team, one lone in queue → replace
+          const findQueueIdx = (pid: ID) =>
+            draft.queue.findIndex((e) => e.kind === "player" && e.id === pid);
+          if (la && !lb) {
+            const qi = findQueueIdx(bId);
+            if (qi < 0) return s;
+            draft.teams[la.teamId].memberIds[la.idx] = bId;
+            draft.queue[qi] = { kind: "player", id: aId };
+          } else if (!la && lb) {
+            const qi = findQueueIdx(aId);
+            if (qi < 0) return s;
+            draft.teams[lb.teamId].memberIds[lb.idx] = aId;
+            draft.queue[qi] = { kind: "player", id: bId };
+          } else {
+            // both lone in queue → swap positions
+            const ia = findQueueIdx(aId);
+            const ib = findQueueIdx(bId);
+            if (ia < 0 || ib < 0) return s;
+            [draft.queue[ia], draft.queue[ib]] = [draft.queue[ib], draft.queue[ia]];
+          }
+          draft.selection = [];
+          return draft;
+        }),
+
+      renameTeam: (teamId, name) =>
+        set((s) => {
+          const trimmed = name.trim();
+          const next = { ...s.teamNames };
+          if (!trimmed) delete next[teamId];
+          else next[teamId] = trimmed;
+          return { ...s, teamNames: next };
         }),
 
       setAdminPin: (pin) => set((s) => ({ ...s, adminPin: pin })),
 
+      setMatchDuration: (ms) =>
+        set((s) => ({ ...s, matchMs: Math.max(30_000, Math.min(30 * 60_000, ms)) })),
+      setSuddenDeathDuration: (ms) =>
+        set((s) => ({ ...s, suddenDeathMs: Math.max(15_000, Math.min(10 * 60_000, ms)) })),
+
+      clearActionLog: () => set((s) => ({ ...s, actionLog: [] })),
+      clearStats: () => set((s) => ({ ...s, teamStats: {} })),
+
       resetNight: () =>
-        set(() => ({
+        set((s) => ({
+          ...s,
           players: {},
           teams: {},
           queue: [],
@@ -653,7 +797,9 @@ export const usePelada = create<PeladaState>()(
             inSuddenDeath: false,
           },
           nextTeamNumber: 1,
-          adminPin: get().adminPin,
+          teamNames: {},
+          teamStats: {},
+          actionLog: [{ ts: Date.now(), msg: "🔄 Noite reiniciada" }],
           selection: [],
         })),
     }),
@@ -668,14 +814,19 @@ export const usePelada = create<PeladaState>()(
         nextTeamNumber: s.nextTeamNumber,
         adminPin: s.adminPin,
         screenLocked: s.screenLocked,
+        matchMs: s.matchMs,
+        suddenDeathMs: s.suddenDeathMs,
+        teamNames: s.teamNames,
+        teamStats: s.teamStats,
+        actionLog: s.actionLog,
       }),
     },
   ),
 );
 
 // Selectors / derived helpers
-export function currentDurationMs(court: CourtState) {
-  return court.inSuddenDeath ? SUDDEN_DEATH_MS : MATCH_MS;
+export function currentDurationMs(state: Pick<PeladaState, "court" | "matchMs" | "suddenDeathMs">) {
+  return state.court.inSuddenDeath ? state.suddenDeathMs : state.matchMs;
 }
 
 export function computeElapsed(court: CourtState, now: number) {
