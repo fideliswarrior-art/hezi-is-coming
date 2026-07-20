@@ -427,9 +427,18 @@ function CourtTeamCard({
           >
             {side}
           </span>
-          <span className="font-display text-xl tracking-wide truncate">
-            {team ? `TIME ${team.number}` : "Vazio"}
-          </span>
+          <button
+            type="button"
+            onClick={() => team && teamRenameBus.emit(team.id)}
+            className="font-display text-xl tracking-wide truncate inline-flex items-center gap-1 hover:text-primary transition-colors"
+            disabled={!team}
+            title={team ? "Renomear time" : undefined}
+          >
+            {team
+              ? usePelada.getState().teamNames[team.id] ?? `TIME ${team.number}`
+              : "Vazio"}
+            {team && <Pencil className="h-3 w-3 opacity-50" />}
+          </button>
           {team && team.wins > 0 && (
             <Badge variant="secondary" className="font-display text-xs">
               {team.wins}ª vit.
