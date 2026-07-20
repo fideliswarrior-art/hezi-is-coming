@@ -252,7 +252,10 @@ function Header() {
 function CourtBlock() {
   useTick(250);
   const court = usePelada((s) => s.court);
+  const matchMs = usePelada((s) => s.matchMs);
+  const suddenDeathMs = usePelada((s) => s.suddenDeathMs);
   const teams = usePelada((s) => s.teams);
+  const teamNames = usePelada((s) => s.teamNames);
   const players = usePelada((s) => s.players);
   const startTimer = usePelada((s) => s.startTimer);
   const pauseTimer = usePelada((s) => s.pauseTimer);
@@ -261,7 +264,7 @@ function CourtBlock() {
   const declareWinner = usePelada((s) => s.declareWinner);
   const declareDraw = usePelada((s) => s.declareDraw);
 
-  const total = currentDurationMs(court);
+  const total = currentDurationMs({ court, matchMs, suddenDeathMs });
   const elapsed = Math.min(computeElapsed(court, Date.now()), total);
   const remaining = Math.max(0, total - elapsed);
   const finished = remaining === 0 && !!court.runningSince;
