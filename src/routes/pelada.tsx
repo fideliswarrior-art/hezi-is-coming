@@ -901,7 +901,7 @@ function QueueRow(
               variant="outline"
               className="font-display tracking-wide border-primary/60 text-primary hover:bg-primary/10"
             >
-              {usePelada.getState().teamNames[team.id] ?? `TIME ${team.number}`}
+              {customName ?? `TIME ${team.number}`}
               <Pencil className="h-3 w-3 ml-1 opacity-50" />
             </Badge>
           </button>
