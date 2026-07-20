@@ -229,6 +229,14 @@ function Header() {
         </div>
       </div>
       <div className="flex items-center gap-1 shrink-0">
+        <Button
+          size="icon"
+          variant="outline"
+          onClick={() => historyBus.open()}
+          title="Histórico"
+        >
+          <ClipboardList className="h-5 w-5" />
+        </Button>
         <Button size="icon" variant="outline" onClick={() => setAdminOpen(true)} title="Admin">
           <Settings className="h-5 w-5" />
         </Button>
