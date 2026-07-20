@@ -246,6 +246,33 @@ function pushEntry(state: PeladaState, e: QueueEntry) {
   state.queue.push(e);
 }
 
+const MAX_LOG = 200;
+function logAction(state: PeladaState, msg: string) {
+  state.actionLog = [{ ts: Date.now(), msg }, ...state.actionLog].slice(0, MAX_LOG);
+}
+
+function teamLabel(state: PeladaState, t: Team) {
+  const custom = state.teamNames[t.id];
+  return custom ? `${custom} (T${t.number})` : `TIME ${t.number}`;
+}
+
+function bumpStat(state: PeladaState, t: Team, key: "wins" | "losses" | "draws") {
+  const cur = state.teamStats[t.id] ?? {
+    teamId: t.id,
+    number: t.number,
+    customName: state.teamNames[t.id],
+    memberSnapshot: t.memberIds.map((m) => state.players[m]?.name ?? "?"),
+    wins: 0,
+    losses: 0,
+    draws: 0,
+  };
+  state.teamStats[t.id] = {
+    ...cur,
+    customName: state.teamNames[t.id] ?? cur.customName,
+    memberSnapshot: t.memberIds.map((m) => state.players[m]?.name ?? cur.memberSnapshot[0] ?? "?"),
+    [key]: cur[key] + 1,
+  };
+
 /** Pop the next queue entry to fill an empty court slot. Prefers waitingChampion. */
 function popNext(state: PeladaState): QueueEntry | null {
   if (state.waitingChampion && state.teams[state.waitingChampion]) {
