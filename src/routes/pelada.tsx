@@ -1153,3 +1153,223 @@ function AdminDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: 
 }
 
 void MATCH_MS;
+
+// ---------------------------------------------------------------------------
+// Team rename event bus + dialog
+// ---------------------------------------------------------------------------
+const teamRenameBus = (() => {
+  const listeners = new Set<(id: ID) => void>();
+  return {
+    emit: (id: ID) => listeners.forEach((l) => l(id)),
+    on: (l: (id: ID) => void) => {
+      listeners.add(l);
+      return () => listeners.delete(l);
+    },
+  };
+})();
+
+function TeamRenameDialogController() {
+  const [id, setId] = useState<ID | null>(null);
+  const [value, setValue] = useState("");
+  const teams = usePelada((s) => s.teams);
+  const teamNames = usePelada((s) => s.teamNames);
+  const renameTeam = usePelada((s) => s.renameTeam);
+  useEffect(() => {
+    const off = teamRenameBus.on((tid) => {
+      setId(tid);
+      setValue(usePelada.getState().teamNames[tid] ?? "");
+    });
+    return () => {
+      off();
+    };
+  }, []);
+  const open = !!id;
+  const team = id ? teams[id] : null;
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && setId(null)}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Renomear time</DialogTitle>
+          <DialogDescription>
+            {team
+              ? `Time ${team.number} — apelido opcional (deixe vazio para usar só o número).`
+              : ""}
+          </DialogDescription>
+        </DialogHeader>
+        <Input
+          autoFocus
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder={team ? `TIME ${team.number}` : ""}
+          className="h-12 text-base"
+        />
+        <DialogFooter className="gap-2">
+          {id && teamNames[id] && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (id) renameTeam(id, "");
+                setId(null);
+              }}
+            >
+              Remover apelido
+            </Button>
+          )}
+          <Button variant="outline" onClick={() => setId(null)}>
+            Cancelar
+          </Button>
+          <Button
+            onClick={() => {
+              if (id) renameTeam(id, value);
+              setId(null);
+            }}
+          >
+            Salvar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// History dialog (stats + action log)
+// ---------------------------------------------------------------------------
+const historyBus = (() => {
+  const listeners = new Set<() => void>();
+  return {
+    open: () => listeners.forEach((l) => l()),
+    on: (l: () => void) => {
+      listeners.add(l);
+      return () => listeners.delete(l);
+    },
+  };
+})();
+
+function HistoryDialogController() {
+  const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<"stats" | "log">("stats");
+  const teamStats = usePelada((s) => s.teamStats);
+  const actionLog = usePelada((s) => s.actionLog);
+  const clearActionLog = usePelada((s) => s.clearActionLog);
+  const clearStats = usePelada((s) => s.clearStats);
+
+  useEffect(() => {
+    const off = historyBus.on(() => setOpen(true));
+    return () => {
+      off();
+    };
+  }, []);
+
+  const rows = Object.values(teamStats).sort((a, b) => {
+    const sa = a.wins * 3 + a.draws;
+    const sb = b.wins * 3 + b.draws;
+    if (sa !== sb) return sb - sa;
+    return a.number - b.number;
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Histórico da noite</DialogTitle>
+          <DialogDescription>
+            Estatísticas dos times e registro de ações.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex gap-1 border-b border-border">
+          {(["stats", "log"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={cn(
+                "px-3 py-2 text-sm font-medium border-b-2 -mb-px",
+                tab === t
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground",
+              )}
+            >
+              {t === "stats" ? "Estatísticas" : "Registro"}
+            </button>
+          ))}
+        </div>
+        {tab === "stats" ? (
+          <div className="max-h-[50vh] overflow-auto space-y-1">
+            {rows.length === 0 && (
+              <p className="text-sm text-muted-foreground italic py-6 text-center">
+                Nenhum jogo registrado ainda.
+              </p>
+            )}
+            {rows.map((r) => (
+              <div
+                key={r.teamId}
+                className="flex items-center gap-2 rounded-lg border border-border p-2"
+              >
+                <span className="font-display text-lg w-14 shrink-0">
+                  T{r.number}
+                </span>
+                <div className="flex-1 min-w-0">
+                  {r.customName && (
+                    <div className="text-sm font-semibold truncate">
+                      {r.customName}
+                    </div>
+                  )}
+                  <div className="text-xs text-muted-foreground truncate">
+                    {r.memberSnapshot.join(" · ")}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 text-xs font-medium">
+                  <span className="rounded bg-victory/20 text-victory px-1.5 py-0.5">
+                    {r.wins}V
+                  </span>
+                  <span className="rounded bg-muted px-1.5 py-0.5">
+                    {r.draws}E
+                  </span>
+                  <span className="rounded bg-cooldown/20 text-cooldown px-1.5 py-0.5">
+                    {r.losses}D
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="max-h-[50vh] overflow-auto space-y-1">
+            {actionLog.length === 0 && (
+              <p className="text-sm text-muted-foreground italic py-6 text-center">
+                Nenhuma ação registrada ainda.
+              </p>
+            )}
+            {actionLog.map((e) => (
+              <div
+                key={e.ts}
+                className="text-xs flex gap-2 py-1 border-b border-border/50"
+              >
+                <span className="text-muted-foreground tabular-nums shrink-0">
+                  {new Date(e.ts).toLocaleTimeString("pt-BR", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </span>
+                <span className="truncate">{e.msg}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        <DialogFooter className="gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              tab === "stats" ? clearStats() : clearActionLog()
+            }
+          >
+            Limpar {tab === "stats" ? "estatísticas" : "registro"}
+          </Button>
+          <Button size="sm" onClick={() => setOpen(false)}>
+            Fechar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
