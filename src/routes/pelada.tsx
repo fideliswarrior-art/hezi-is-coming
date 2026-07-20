@@ -1086,6 +1086,17 @@ function AdminDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: 
   const adminResetSuddenDeath = usePelada((s) => s.adminResetSuddenDeath);
   const resetNight = usePelada((s) => s.resetNight);
   const court = usePelada((s) => s.court);
+  const matchMs = usePelada((s) => s.matchMs);
+  const suddenDeathMs = usePelada((s) => s.suddenDeathMs);
+  const setMatchDuration = usePelada((s) => s.setMatchDuration);
+  const setSuddenDeathDuration = usePelada((s) => s.setSuddenDeathDuration);
+
+  const [matchMin, setMatchMin] = useState(String(matchMs / 60000));
+  const [sdMin, setSdMin] = useState(String(suddenDeathMs / 60000));
+  useEffect(() => {
+    setMatchMin(String(matchMs / 60000));
+    setSdMin(String(suddenDeathMs / 60000));
+  }, [matchMs, suddenDeathMs]);
 
   const [pin, setPin] = useState("");
   const [authed, setAuthed] = useState(false);
