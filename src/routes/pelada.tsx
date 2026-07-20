@@ -129,8 +129,19 @@ function PeladaPage() {
   const reorderQueue = usePelada((s) => s.reorderQueue);
   const movePlayerToTeam = usePelada((s) => s.movePlayerToTeam);
   const detachPlayerToQueue = usePelada((s) => s.detachPlayerToQueue);
+  const swapPlayers = usePelada((s) => s.swapPlayers);
   const queue = usePelada((s) => s.queue);
   const screenLocked = usePelada((s) => s.screenLocked);
+
+  // Force dark theme on this route (persists across component tree incl. portals)
+  useEffect(() => {
+    const root = document.documentElement;
+    const had = root.classList.contains("dark");
+    root.classList.add("dark");
+    return () => {
+      if (!had) root.classList.remove("dark");
+    };
+  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -142,6 +153,13 @@ function PeladaPage() {
     if (!over) return;
     const aId = String(active.id);
     const oId = String(over.id);
+    // Player dropped onto another player → swap
+    if (aId.startsWith("player:") && oId.startsWith("player:")) {
+      const pa = aId.slice("player:".length);
+      const pb = oId.slice("player:".length);
+      if (pa !== pb) swapPlayers(pa, pb);
+      return;
+    }
     // Queue entry sortable
     if (aId.startsWith("qentry:") && oId.startsWith("qentry:")) {
       const from = queue.findIndex((q) => `qentry:${q.kind}:${q.id}` === aId);
@@ -163,7 +181,7 @@ function PeladaPage() {
   }
 
   return (
-    <div className="min-h-dvh bg-background text-foreground select-none">
+    <div className="dark min-h-dvh bg-background text-foreground select-none">
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <div className="mx-auto max-w-[900px] px-3 py-3 sm:px-4 sm:py-4 space-y-4 pb-24">
           <Header />
@@ -173,6 +191,8 @@ function PeladaPage() {
       </DndContext>
       {screenLocked && <LockOverlay />}
       <RenameDialogController />
+      <TeamRenameDialogController />
+      <HistoryDialogController />
     </div>
   );
 }
