@@ -890,9 +890,20 @@ function QueueRow(
           </span>
         )}
         {team && (
-          <Badge variant="outline" className="font-display tracking-wide border-primary/60 text-primary">
-            TIME {team.number}
-          </Badge>
+          <button
+            type="button"
+            onClick={() => teamRenameBus.emit(team.id)}
+            className="inline-flex items-center"
+            title="Renomear time"
+          >
+            <Badge
+              variant="outline"
+              className="font-display tracking-wide border-primary/60 text-primary hover:bg-primary/10"
+            >
+              {usePelada.getState().teamNames[team.id] ?? `TIME ${team.number}`}
+              <Pencil className="h-3 w-3 ml-1 opacity-50" />
+            </Badge>
+          </button>
         )}
         <div className="flex-1" />
         {!isChampion && (
