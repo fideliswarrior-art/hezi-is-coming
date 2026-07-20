@@ -1163,6 +1163,46 @@ function AdminDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: 
             </div>
 
             <div className="space-y-2">
+              <p className="text-sm font-medium">Tempos de partida (minutos)</p>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="text-xs text-muted-foreground space-y-1 block">
+                  Partida
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    min={0.5}
+                    max={30}
+                    step={0.5}
+                    value={matchMin}
+                    onChange={(e) => setMatchMin(e.target.value)}
+                    onBlur={() => {
+                      const v = Number(matchMin);
+                      if (Number.isFinite(v) && v > 0) setMatchDuration(v * 60000);
+                    }}
+                    className="h-11 text-base"
+                  />
+                </label>
+                <label className="text-xs text-muted-foreground space-y-1 block">
+                  Morte súbita
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    min={0.25}
+                    max={10}
+                    step={0.25}
+                    value={sdMin}
+                    onChange={(e) => setSdMin(e.target.value)}
+                    onBlur={() => {
+                      const v = Number(sdMin);
+                      if (Number.isFinite(v) && v > 0) setSuddenDeathDuration(v * 60000);
+                    }}
+                    className="h-11 text-base"
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div className="space-y-2">
               <p className="text-sm font-medium">Ações rápidas</p>
               <Button
                 variant="outline"
