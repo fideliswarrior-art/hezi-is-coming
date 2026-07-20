@@ -405,6 +405,7 @@ function CourtTeamCard({
   canDeclare: boolean;
 }) {
   const removeCourtTeam = usePelada((s) => s.removeCourtTeam);
+  const customName = usePelada((s) => (team ? s.teamNames[team.id] : undefined));
   const sideColor = side === "A" ? "bg-team-a" : "bg-team-b";
   const dropId = team ? `team:${team.id}` : `court-slot:${side}`;
   const { setNodeRef, isOver } = useDroppable({ id: dropId });
