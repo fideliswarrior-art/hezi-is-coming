@@ -435,9 +435,7 @@ function CourtTeamCard({
             disabled={!team}
             title={team ? "Renomear time" : undefined}
           >
-            {team
-              ? usePelada.getState().teamNames[team.id] ?? `TIME ${team.number}`
-              : "Vazio"}
+            {team ? customName ?? `TIME ${team.number}` : "Vazio"}
             {team && <Pencil className="h-3 w-3 opacity-50" />}
           </button>
           {team && team.wins > 0 && (
