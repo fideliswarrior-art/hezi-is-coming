@@ -96,6 +96,10 @@ export interface PeladaState {
   removeFromQueue: (entry: QueueEntry) => void;
   /** Remove the entire team on a court side (team + its player records). */
   removeCourtTeam: (side: "A" | "B") => void;
+  /** Swap the positions of two players (works across teams, court, and queue). */
+  swapPlayers: (playerAId: ID, playerBId: ID) => void;
+  /** Set a custom display name for a team (kept alongside sequential number). */
+  renameTeam: (teamId: ID, name: string) => void;
 
   // Timer
   startTimer: () => void;
@@ -110,6 +114,10 @@ export interface PeladaState {
 
   // Admin
   setAdminPin: (pin: string) => void;
+  setMatchDuration: (ms: number) => void;
+  setSuddenDeathDuration: (ms: number) => void;
+  clearActionLog: () => void;
+  clearStats: () => void;
   resetNight: () => void;
 }
 
