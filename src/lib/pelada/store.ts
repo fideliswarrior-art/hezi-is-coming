@@ -272,6 +272,9 @@ function bumpStat(state: PeladaState, t: Team, key: "wins" | "losses" | "draws")
     memberSnapshot: t.memberIds.map((m) => state.players[m]?.name ?? cur.memberSnapshot[0] ?? "?"),
     [key]: cur[key] + 1,
   };
+}
+
+
 
 /** Pop the next queue entry to fill an empty court slot. Prefers waitingChampion. */
 function popNext(state: PeladaState): QueueEntry | null {
