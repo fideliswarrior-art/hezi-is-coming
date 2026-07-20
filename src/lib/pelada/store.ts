@@ -303,6 +303,11 @@ export const usePelada = create<PeladaState>()(
       nextTeamNumber: 1,
       adminPin: "",
       screenLocked: false,
+      matchMs: MATCH_MS,
+      suddenDeathMs: SUDDEN_DEATH_MS,
+      teamNames: {},
+      teamStats: {},
+      actionLog: [],
       selection: [],
 
       lockScreen: () => set((s) => ({ ...s, screenLocked: true, selection: [] })),
