@@ -37,6 +37,21 @@ export interface CourtState {
   inSuddenDeath: boolean;
 }
 
+export interface TeamStat {
+  teamId: ID;
+  number: number;
+  customName?: string;
+  memberSnapshot: string[]; // names captured at match time
+  wins: number;
+  losses: number;
+  draws: number;
+}
+
+export interface ActionLogEntry {
+  ts: number;
+  msg: string;
+}
+
 export interface PeladaState {
   players: Record<ID, Player>;
   teams: Record<ID, Team>;
@@ -46,6 +61,15 @@ export interface PeladaState {
   nextTeamNumber: number;
   adminPin: string; // "" = no pin set
   screenLocked: boolean;
+
+  // Settings
+  matchMs: number;
+  suddenDeathMs: number;
+
+  // Stats & history
+  teamNames: Record<ID, string>; // optional custom names, keyed by team id
+  teamStats: Record<ID, TeamStat>;
+  actionLog: ActionLogEntry[];
 
   // ephemeral (not persisted meaningfully but fine)
   selection: ID[]; // selected player ids for team-forming / substitution
