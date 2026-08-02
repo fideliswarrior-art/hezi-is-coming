@@ -126,6 +126,8 @@ export interface PeladaState {
   setAdminPin: (pin: string) => void;
   setMatchDuration: (ms: number) => void;
   setSuddenDeathDuration: (ms: number) => void;
+  setChampionRule: (enabled: boolean) => void;
+
   clearActionLog: () => void;
   clearStats: () => void;
   resetNight: () => void;
