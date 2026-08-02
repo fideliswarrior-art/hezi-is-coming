@@ -105,7 +105,7 @@ export interface PeladaState {
   /** Remove any queue entry (player or team) */
   removeFromQueue: (entry: QueueEntry) => void;
   /** Remove the entire team on a court side (team + its player records). */
-  removeCourtTeam: (side: "A" | "B") => void;
+  removeCourtTeam: (side: "A" | "B", opts?: { deletePlayers?: boolean }) => void;
   /** Swap the positions of two players (works across teams, court, and queue). */
   swapPlayers: (playerAId: ID, playerBId: ID) => void;
   /** Set a custom display name for a team (kept alongside sequential number). */
