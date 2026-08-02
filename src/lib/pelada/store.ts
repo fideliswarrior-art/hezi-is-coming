@@ -539,32 +539,57 @@ export const usePelada = create<PeladaState>()(
         }),
 
       removeFromQueue: (entry) =>
-        set((s) => ({
-          ...s,
-          queue: s.queue.filter((e) => !(e.kind === entry.kind && e.id === entry.id)),
-        })),
+        set((s) => {
+          const draft: PeladaState = cloneState(s);
+          const members = entryMembers(draft, entry);
+          draft.queue = draft.queue.filter(
+            (e) => !(e.kind === entry.kind && e.id === entry.id),
+          );
+          if (entry.kind === "team") delete draft.teams[entry.id];
+          for (const pid of members) {
+            delete draft.players[pid];
+            draft.selection = draft.selection.filter((x) => x !== pid);
+          }
+          return draft;
+        }),
 
-      removeCourtTeam: (side) =>
+      removeCourtTeam: (side, opts) =>
         set((s) => {
           const draft: PeladaState = cloneState(s);
           const tid = side === "A" ? draft.court.teamAId : draft.court.teamBId;
           if (!tid) return s;
           const team = draft.teams[tid];
           if (team) {
-            for (const pid of team.memberIds) {
-              delete draft.players[pid];
-              draft.selection = draft.selection.filter((x) => x !== pid);
+            if (opts?.deletePlayers) {
+              for (const pid of team.memberIds) {
+                delete draft.players[pid];
+                draft.selection = draft.selection.filter((x) => x !== pid);
+              }
+              delete draft.teams[tid];
+            } else if (team.memberIds.length >= 2) {
+              // back to the end of the queue, keeping the team together
+              draft.teams[tid] = { ...team, wins: 0 };
+              draft.queue.push({ kind: "team", id: tid });
+            } else if (team.memberIds.length === 1) {
+              const lone = team.memberIds[0];
+              delete draft.teams[tid];
+              draft.queue.push({ kind: "player", id: lone });
+            } else {
+              delete draft.teams[tid];
             }
-            delete draft.teams[tid];
           }
           if (side === "A") draft.court.teamAId = null;
           else draft.court.teamBId = null;
-          draft.court.elapsedMs = 0;
-          draft.court.runningSince = null;
-          draft.court.suddenDeathUsed = false;
-          draft.court.inSuddenDeath = false;
+          // Only reset the clock when the court becomes empty.
+          if (!draft.court.teamAId && !draft.court.teamBId) {
+            draft.court.elapsedMs = 0;
+            draft.court.runningSince = null;
+            draft.court.suddenDeathUsed = false;
+            draft.court.inSuddenDeath = false;
+          }
           return draft;
         }),
+
 
       startTimer: () =>
         set((s) => {
