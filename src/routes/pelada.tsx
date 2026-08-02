@@ -706,6 +706,9 @@ function QueueBlock() {
   const clearSelection = usePelada((s) => s.clearSelection);
   const addPlayer = usePelada((s) => s.addPlayer);
   const sendToCourtSide = usePelada((s) => s.sendToCourtSide);
+  const sendPlayerToCourtSide = usePelada((s) => s.sendPlayerToCourtSide);
+  const moveSelectionInQueue = usePelada((s) => s.moveSelectionInQueue);
+
   const removeFromQueue = usePelada((s) => s.removeFromQueue);
   const pasteInto = usePelada((s) => s.pasteSelectionIntoTeam);
   const court = usePelada((s) => s.court);
