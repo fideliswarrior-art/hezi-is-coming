@@ -481,17 +481,20 @@ export const usePelada = create<PeladaState>()(
         set((s) => {
           if (s.selection.length === 0) return s;
           const draft: PeladaState = cloneState(s);
-          const target = draft.teams[teamId];
-          if (!target) return s;
+          if (!draft.teams[teamId]) return s;
           for (const pid of s.selection) {
-            if (target.memberIds.includes(pid)) continue;
+            const target = draft.teams[teamId];
+            if (!target || target.memberIds.includes(pid)) continue;
             removePlayerFromAll(draft, pid);
-            target.memberIds.push(pid);
+            // removePlayerFromAll may have replaced the team object — re-read it.
+            const fresh = draft.teams[teamId];
+            if (!fresh) continue;
+            draft.teams[teamId] = { ...fresh, memberIds: [...fresh.memberIds, pid] };
           }
-          draft.teams[teamId] = target;
           draft.selection = [];
           return draft;
         }),
+
 
       sendToCourt: (entry, opts) =>
         set((s) => {
