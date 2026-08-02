@@ -553,10 +553,16 @@ function PlayerPill({
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `player:${playerId}`,
   });
+  const { setNodeRef: setDropRef, isOver } = useDroppable({
+    id: `player:${playerId}`,
+  });
 
   return (
     <div
-      ref={setNodeRef}
+      ref={(el) => {
+        setNodeRef(el);
+        setDropRef(el);
+      }}
       style={{ transform: CSS.Translate.toString(transform), touchAction: "manipulation" }}
       className={cn(
         "group relative rounded-lg border-2 flex items-stretch min-h-[44px] transition-all",
@@ -565,9 +571,11 @@ function PlayerPill({
           : justPlayed
             ? "border-cooldown/50 bg-cooldown/10"
             : "border-border bg-secondary",
+        isOver && !isDragging && "ring-2 ring-primary ring-offset-1 ring-offset-background",
         isDragging && "opacity-40",
       )}
     >
+
       <button
         type="button"
         onClick={() => toggleSelect(playerId)}
