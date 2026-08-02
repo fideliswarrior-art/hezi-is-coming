@@ -18,6 +18,9 @@ import {
   GripVertical,
   MoreVertical,
   ClipboardList,
+  ChevronUp,
+  ChevronDown,
+
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,6 +56,8 @@ import {
   useSensors,
   closestCenter,
   useDroppable,
+  DragOverlay,
+
   useDraggable,
   type DragEndEvent,
 } from "@dnd-kit/core";
@@ -131,8 +136,11 @@ function PeladaPage() {
   const movePlayerToTeam = usePelada((s) => s.movePlayerToTeam);
   const detachPlayerToQueue = usePelada((s) => s.detachPlayerToQueue);
   const swapPlayers = usePelada((s) => s.swapPlayers);
+  const sendPlayerToCourtSide = usePelada((s) => s.sendPlayerToCourtSide);
   const queue = usePelada((s) => s.queue);
+  const players = usePelada((s) => s.players);
   const screenLocked = usePelada((s) => s.screenLocked);
+  const [activeId, setActiveId] = useState<string | null>(null);
 
   // Force dark theme on this route (persists across component tree incl. portals)
   useEffect(() => {
@@ -144,51 +152,95 @@ function PeladaPage() {
     };
   }, []);
 
+  // One sensor set that behaves the same on mouse and touch: a short press-and-hold
+  // starts the drag, so scrolling the page never triggers one by accident.
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+    useSensor(PointerSensor, { activationConstraint: { delay: 150, tolerance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 8 } }),
   );
 
   function onDragEnd(e: DragEndEvent) {
+    setActiveId(null);
     const { active, over } = e;
     if (!over) return;
     const aId = String(active.id);
     const oId = String(over.id);
-    // Player dropped onto another player → swap
-    if (aId.startsWith("player:") && oId.startsWith("player:")) {
-      const pa = aId.slice("player:".length);
-      const pb = oId.slice("player:".length);
-      if (pa !== pb) swapPlayers(pa, pb);
+    if (aId === oId) return;
+
+    const isPlayer = (v: string) => v.startsWith("player:");
+    const pid = (v: string) => v.slice("player:".length);
+
+    // --- dragging a player pill ---
+    if (isPlayer(aId)) {
+      const dragged = pid(aId);
+      // onto another player → swap places
+      if (isPlayer(oId)) {
+        swapPlayers(dragged, pid(oId));
+        return;
+      }
+      // onto a team (queue or court) → join that team
+      if (oId.startsWith("team:")) {
+        movePlayerToTeam(dragged, oId.slice("team:".length));
+        return;
+      }
+      // onto an empty court slot → goes on court alone
+      if (oId.startsWith("court-slot:")) {
+        sendPlayerToCourtSide(dragged, oId.slice("court-slot:".length) as "A" | "B");
+        return;
+      }
+      // onto a queue row wrapper → drop right at that position
+      if (oId.startsWith("qentry:") || oId.startsWith("qentry-drop:")) {
+        const suffix = oId.slice(oId.indexOf(":") + 1);
+        const idx = queue.findIndex((q) => `${q.kind}:${q.id}` === suffix);
+        detachPlayerToQueue(dragged, idx < 0 ? undefined : idx);
+        return;
+      }
+
+      // onto the empty queue area → becomes a lone entry at the end
+      if (oId === "queue-drop") {
+        detachPlayerToQueue(dragged);
+      }
       return;
     }
-    // Queue entry sortable
+
+    // --- reordering queue entries ---
     if (aId.startsWith("qentry:") && oId.startsWith("qentry:")) {
       const from = queue.findIndex((q) => `qentry:${q.kind}:${q.id}` === aId);
       const to = queue.findIndex((q) => `qentry:${q.kind}:${q.id}` === oId);
       if (from >= 0 && to >= 0) reorderQueue(from, to);
-      return;
-    }
-    // Player dropped on a team
-    if (aId.startsWith("player:") && oId.startsWith("team:")) {
-      const pid = aId.slice("player:".length);
-      const tid = oId.slice("team:".length);
-      movePlayerToTeam(pid, tid);
-      return;
-    }
-    // Player dropped on queue background → detach as lone entry at end
-    if (aId.startsWith("player:") && oId === "queue-drop") {
-      detachPlayerToQueue(aId.slice("player:".length));
     }
   }
 
+  const activeLabel =
+    activeId && activeId.startsWith("player:")
+      ? players[activeId.slice("player:".length)]?.name
+      : null;
+
   return (
     <div className="dark min-h-dvh bg-background text-foreground select-none">
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={(e) => setActiveId(String(e.active.id))}
+        onDragCancel={() => setActiveId(null)}
+        onDragEnd={onDragEnd}
+      >
         <div className="mx-auto max-w-[900px] px-3 py-3 sm:px-4 sm:py-4 space-y-4 pb-24">
           <Header />
           <CourtBlock />
           <QueueBlock />
         </div>
+        <DragOverlay dropAnimation={null}>
+          {activeLabel ? (
+            <div className="rounded-lg border-2 border-primary bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground shadow-xl">
+              {activeLabel}
+            </div>
+          ) : activeId?.startsWith("qentry:") ? (
+            <div className="rounded-xl border-2 border-primary bg-card px-4 py-3 text-sm font-semibold shadow-xl">
+              Movendo…
+            </div>
+          ) : null}
+        </DragOverlay>
       </DndContext>
       {screenLocked && <LockOverlay />}
       <RenameDialogController />
@@ -197,6 +249,7 @@ function PeladaPage() {
     </div>
   );
 }
+
 
 // ---------------------------------------------------------------------------
 // HEADER
@@ -445,18 +498,31 @@ function CourtTeamCard({
           )}
         </div>
         {team && (
-          <Button
-            size="icon"
-            variant="ghost"
-            className="text-destructive hover:bg-destructive/10 h-8 w-8"
-            onClick={() => {
-              if (confirm(`Remover TIME ${team.number} da quadra?`)) removeCourtTeam(side);
-            }}
-            title="Remover time"
-          >
-            <X className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8"
+              onClick={() => removeCourtTeam(side)}
+              title="Tirar da quadra e devolver para a fila"
+            >
+              ↩ Fila
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="text-destructive hover:bg-destructive/10 h-8 w-8"
+              onClick={() => {
+                if (confirm(`Excluir TIME ${team.number} e seus jogadores?`))
+                  removeCourtTeam(side, { deletePlayers: true });
+              }}
+              title="Excluir time e jogadores"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         )}
+
       </div>
 
       <div className="flex-1 flex flex-wrap gap-1.5 content-start">
@@ -505,10 +571,16 @@ function PlayerPill({
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `player:${playerId}`,
   });
+  const { setNodeRef: setDropRef, isOver } = useDroppable({
+    id: `player:${playerId}`,
+  });
 
   return (
     <div
-      ref={setNodeRef}
+      ref={(el) => {
+        setNodeRef(el);
+        setDropRef(el);
+      }}
       style={{ transform: CSS.Translate.toString(transform), touchAction: "manipulation" }}
       className={cn(
         "group relative rounded-lg border-2 flex items-stretch min-h-[44px] transition-all",
@@ -517,9 +589,11 @@ function PlayerPill({
           : justPlayed
             ? "border-cooldown/50 bg-cooldown/10"
             : "border-border bg-secondary",
+        isOver && !isDragging && "ring-2 ring-primary ring-offset-1 ring-offset-background",
         isDragging && "opacity-40",
       )}
     >
+
       <button
         type="button"
         onClick={() => toggleSelect(playerId)}
@@ -645,6 +719,9 @@ function QueueBlock() {
   const clearSelection = usePelada((s) => s.clearSelection);
   const addPlayer = usePelada((s) => s.addPlayer);
   const sendToCourtSide = usePelada((s) => s.sendToCourtSide);
+  const sendPlayerToCourtSide = usePelada((s) => s.sendPlayerToCourtSide);
+  const moveSelectionInQueue = usePelada((s) => s.moveSelectionInQueue);
+
   const removeFromQueue = usePelada((s) => s.removeFromQueue);
   const pasteInto = usePelada((s) => s.pasteSelectionIntoTeam);
   const court = usePelada((s) => s.court);
@@ -713,14 +790,48 @@ function QueueBlock() {
             <Button size="sm" onClick={formTeam} disabled={selection.length < 2}>
               <Users /> Formar Time
             </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => moveSelectionInQueue(-1)}
+              title="Subir na fila"
+            >
+              <ChevronUp /> Subir
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => moveSelectionInQueue(1)}
+              title="Descer na fila"
+            >
+              <ChevronDown /> Descer
+            </Button>
             {selection.length === 1 && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => renameBus.emit(selection[0])}
-              >
-                <Pencil /> Renomear
-              </Button>
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => renameBus.emit(selection[0])}
+                >
+                  <Pencil /> Renomear
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!slotAOpen}
+                  onClick={() => sendPlayerToCourtSide(selection[0], "A")}
+                >
+                  → A
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!slotBOpen}
+                  onClick={() => sendPlayerToCourtSide(selection[0], "B")}
+                >
+                  → B
+                </Button>
+              </>
             )}
             <Button size="sm" variant="outline" onClick={clearSelection}>
               Limpar
@@ -728,6 +839,7 @@ function QueueBlock() {
           </div>
         </div>
       )}
+
 
       {waitingChampion && teams[waitingChampion] && (
         <QueueRow
@@ -860,6 +972,7 @@ function QueueRow(
   const hasAny = slotAOpen || slotBOpen;
   const customName = usePelada((s) => (team ? s.teamNames[team.id] : undefined));
 
+  const moveQueueEntry = usePelada((s) => s.moveQueueEntry);
   const dropId = team ? `team:${team.id}` : `qentry-drop:${entry.kind}:${entry.id}`;
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: dropId });
 
@@ -908,20 +1021,43 @@ function QueueRow(
         )}
         <div className="flex-1" />
         {!isChampion && (
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-8 w-8 text-muted-foreground hover:text-destructive"
-            onClick={() => {
-              const label = team ? `TIME ${team.number}` : player?.name ?? "esta entrada";
-              if (confirm(`Remover ${label} da fila?`)) onRemoveEntry(entry);
-            }}
-            title="Remover"
-          >
-            <X className="h-4 w-4" />
-          </Button>
+          <>
+            <Button
+              size="icon"
+              variant="outline"
+              className="h-9 w-9"
+              onClick={() => moveQueueEntry(entry, -1)}
+              title="Subir na fila"
+              aria-label="Subir na fila"
+            >
+              <ChevronUp className="h-5 w-5" />
+            </Button>
+            <Button
+              size="icon"
+              variant="outline"
+              className="h-9 w-9"
+              onClick={() => moveQueueEntry(entry, 1)}
+              title="Descer na fila"
+              aria-label="Descer na fila"
+            >
+              <ChevronDown className="h-5 w-5" />
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-9 w-9 text-muted-foreground hover:text-destructive"
+              onClick={() => {
+                const label = team ? `TIME ${team.number}` : player?.name ?? "esta entrada";
+                if (confirm(`Remover ${label} da fila?`)) onRemoveEntry(entry);
+              }}
+              title="Remover"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </>
         )}
       </div>
+
 
       <div className="flex flex-wrap gap-1.5">
         {(team ? team.memberIds : player ? [player.id] : []).map((pid) => {
@@ -1090,6 +1226,9 @@ function AdminDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: 
   const suddenDeathMs = usePelada((s) => s.suddenDeathMs);
   const setMatchDuration = usePelada((s) => s.setMatchDuration);
   const setSuddenDeathDuration = usePelada((s) => s.setSuddenDeathDuration);
+  const championRuleEnabled = usePelada((s) => s.championRuleEnabled);
+  const setChampionRule = usePelada((s) => s.setChampionRule);
+
 
   const [matchMin, setMatchMin] = useState(String(matchMs / 60000));
   const [sdMin, setSdMin] = useState(String(suddenDeathMs / 60000));
@@ -1201,6 +1340,26 @@ function AdminDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: 
                 </label>
               </div>
             </div>
+
+            <div className="space-y-2 rounded-lg border border-border p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">Regra "ganhou 2 e sai" 👑</p>
+                  <p className="text-xs text-muted-foreground">
+                    {championRuleEnabled
+                      ? "Ativa: o time sai da quadra e vira campeão em espera."
+                      : "Desativada: o time fica na quadra enquanto vencer."}
+                  </p>
+                </div>
+                <Button
+                  variant={championRuleEnabled ? "default" : "outline"}
+                  onClick={() => setChampionRule(!championRuleEnabled)}
+                >
+                  {championRuleEnabled ? "Desativar" : "Ativar"}
+                </Button>
+              </div>
+            </div>
+
 
             <div className="space-y-2">
               <p className="text-sm font-medium">Ações rápidas</p>
