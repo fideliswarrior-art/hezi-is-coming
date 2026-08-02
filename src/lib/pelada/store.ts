@@ -789,6 +789,25 @@ export const usePelada = create<PeladaState>()(
         set((s) => ({ ...s, matchMs: Math.max(30_000, Math.min(30 * 60_000, ms)) })),
       setSuddenDeathDuration: (ms) =>
         set((s) => ({ ...s, suddenDeathMs: Math.max(15_000, Math.min(10 * 60_000, ms)) })),
+      setChampionRule: (enabled) =>
+        set((s) => {
+          const draft: PeladaState = cloneState(s);
+          draft.championRuleEnabled = enabled;
+          // Turning the rule off releases anyone already waiting as champion.
+          if (!enabled && draft.waitingChampion) {
+            const cid = draft.waitingChampion;
+            draft.waitingChampion = null;
+            if (draft.teams[cid]) draft.queue.unshift({ kind: "team", id: cid });
+          }
+          logAction(
+            draft,
+            enabled
+              ? "⚙️ Regra 'ganhou 2 e sai' ativada"
+              : "⚙️ Regra 'ganhou 2 e sai' desativada",
+          );
+          return draft;
+        }),
+
 
       clearActionLog: () => set((s) => ({ ...s, actionLog: [] })),
       clearStats: () => set((s) => ({ ...s, teamStats: {} })),
@@ -828,6 +847,8 @@ export const usePelada = create<PeladaState>()(
         screenLocked: s.screenLocked,
         matchMs: s.matchMs,
         suddenDeathMs: s.suddenDeathMs,
+        championRuleEnabled: s.championRuleEnabled,
+
         teamNames: s.teamNames,
         teamStats: s.teamStats,
         actionLog: s.actionLog,
