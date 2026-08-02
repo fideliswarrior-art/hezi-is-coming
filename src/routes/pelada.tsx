@@ -498,18 +498,31 @@ function CourtTeamCard({
           )}
         </div>
         {team && (
-          <Button
-            size="icon"
-            variant="ghost"
-            className="text-destructive hover:bg-destructive/10 h-8 w-8"
-            onClick={() => {
-              if (confirm(`Remover TIME ${team.number} da quadra?`)) removeCourtTeam(side);
-            }}
-            title="Remover time"
-          >
-            <X className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8"
+              onClick={() => removeCourtTeam(side)}
+              title="Tirar da quadra e devolver para a fila"
+            >
+              ↩ Fila
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="text-destructive hover:bg-destructive/10 h-8 w-8"
+              onClick={() => {
+                if (confirm(`Excluir TIME ${team.number} e seus jogadores?`))
+                  removeCourtTeam(side, { deletePlayers: true });
+              }}
+              title="Excluir time e jogadores"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         )}
+
       </div>
 
       <div className="flex-1 flex flex-wrap gap-1.5 content-start">
