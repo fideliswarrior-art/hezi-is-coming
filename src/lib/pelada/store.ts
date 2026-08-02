@@ -662,14 +662,22 @@ export const usePelada = create<PeladaState>()(
           else draft.court.teamAId = null;
 
           // winner: if 2 wins, becomes champion waiting (goes off court)
-          const promoted = winner.wins >= WINS_TO_ROTATE;
+          const promoted =
+            draft.championRuleEnabled && winner.wins >= WINS_TO_ROTATE;
           if (promoted) {
             winner.wins = 0;
+            // If someone was already waiting as champion, they keep priority at
+            // the front of the normal queue.
+            const previous = draft.waitingChampion;
+            if (previous && previous !== winner.id && draft.teams[previous]) {
+              draft.queue.unshift({ kind: "team", id: previous });
+            }
             draft.waitingChampion = winner.id;
             if (side === "A") draft.court.teamAId = null;
             else draft.court.teamBId = null;
             logAction(draft, `👑 ${teamLabel(draft, winner)} vira campeão em espera`);
           }
+
 
           // reset timer & sudden death for next match
           draft.court.elapsedMs = 0;
