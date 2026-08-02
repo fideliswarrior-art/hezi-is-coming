@@ -774,14 +774,48 @@ function QueueBlock() {
             <Button size="sm" onClick={formTeam} disabled={selection.length < 2}>
               <Users /> Formar Time
             </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => moveSelectionInQueue(-1)}
+              title="Subir na fila"
+            >
+              <ChevronUp /> Subir
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => moveSelectionInQueue(1)}
+              title="Descer na fila"
+            >
+              <ChevronDown /> Descer
+            </Button>
             {selection.length === 1 && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => renameBus.emit(selection[0])}
-              >
-                <Pencil /> Renomear
-              </Button>
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => renameBus.emit(selection[0])}
+                >
+                  <Pencil /> Renomear
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!slotAOpen}
+                  onClick={() => sendPlayerToCourtSide(selection[0], "A")}
+                >
+                  → A
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!slotBOpen}
+                  onClick={() => sendPlayerToCourtSide(selection[0], "B")}
+                >
+                  → B
+                </Button>
+              </>
             )}
             <Button size="sm" variant="outline" onClick={clearSelection}>
               Limpar
@@ -789,6 +823,7 @@ function QueueBlock() {
           </div>
         </div>
       )}
+
 
       {waitingChampion && teams[waitingChampion] && (
         <QueueRow
