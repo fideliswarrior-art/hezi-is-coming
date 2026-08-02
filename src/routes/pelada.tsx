@@ -186,11 +186,13 @@ function PeladaPage() {
         return;
       }
       // onto a queue row wrapper → drop right at that position
-      if (oId.startsWith("qentry:")) {
-        const idx = queue.findIndex((q) => `qentry:${q.kind}:${q.id}` === oId);
+      if (oId.startsWith("qentry:") || oId.startsWith("qentry-drop:")) {
+        const suffix = oId.slice(oId.indexOf(":") + 1);
+        const idx = queue.findIndex((q) => `${q.kind}:${q.id}` === suffix);
         detachPlayerToQueue(dragged, idx < 0 ? undefined : idx);
         return;
       }
+
       // onto the empty queue area → becomes a lone entry at the end
       if (oId === "queue-drop") {
         detachPlayerToQueue(dragged);
