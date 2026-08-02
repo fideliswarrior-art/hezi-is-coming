@@ -382,6 +382,40 @@ export const usePelada = create<PeladaState>()(
           return { ...s, queue: next };
         }),
 
+      moveQueueEntry: (entry, dir) =>
+        set((s) => {
+          const from = s.queue.findIndex(
+            (e) => e.kind === entry.kind && e.id === entry.id,
+          );
+          if (from < 0) return s;
+          const to = from + dir;
+          if (to < 0 || to >= s.queue.length) return s;
+          const next = [...s.queue];
+          [next[from], next[to]] = [next[to], next[from]];
+          return { ...s, queue: next };
+        }),
+
+      moveSelectionInQueue: (dir) =>
+        set((s) => {
+          if (s.selection.length === 0) return s;
+          // Find every queue entry that holds a selected player, then move them
+          // as a block one slot in the requested direction.
+          const idxs = new Set<number>();
+          s.queue.forEach((e, i) => {
+            const members = e.kind === "player" ? [e.id] : s.teams[e.id]?.memberIds ?? [];
+            if (members.some((m) => s.selection.includes(m))) idxs.add(i);
+          });
+          if (idxs.size === 0) return s;
+          const sorted = [...idxs].sort((a, b) => (dir === -1 ? a - b : b - a));
+          const next = [...s.queue];
+          for (const i of sorted) {
+            const j = i + dir;
+            if (j < 0 || j >= next.length || idxs.has(j)) continue;
+            [next[i], next[j]] = [next[j], next[i]];
+          }
+          return { ...s, queue: next };
+        }),
+
       movePlayerToTeam: (playerId, teamId) =>
         set((s) => {
           const draft: PeladaState = cloneState(s);
@@ -389,10 +423,38 @@ export const usePelada = create<PeladaState>()(
           if (!target) return s;
           if (target.memberIds.includes(playerId)) return s;
           removePlayerFromAll(draft, playerId);
-          draft.teams[teamId].memberIds.push(playerId);
+          const fresh = draft.teams[teamId];
+          if (!fresh) return s;
+          draft.teams[teamId] = { ...fresh, memberIds: [...fresh.memberIds, playerId] };
           draft.selection = draft.selection.filter((x) => x !== playerId);
           return draft;
         }),
+
+      sendPlayerToCourtSide: (playerId, side) =>
+        set((s) => {
+          const draft: PeladaState = cloneState(s);
+          if (!draft.players[playerId]) return s;
+          const occupiedId = side === "A" ? draft.court.teamAId : draft.court.teamBId;
+          if (occupiedId) {
+            // Slot busy → just join that team.
+            const t = draft.teams[occupiedId];
+            if (!t || t.memberIds.includes(playerId)) return s;
+            removePlayerFromAll(draft, playerId);
+            const fresh = draft.teams[occupiedId];
+            if (!fresh) return s;
+            draft.teams[occupiedId] = {
+              ...fresh,
+              memberIds: [...fresh.memberIds, playerId],
+            };
+            draft.selection = draft.selection.filter((x) => x !== playerId);
+            return draft;
+          }
+          removePlayerFromAll(draft, playerId);
+          placeOnCourt(draft, side, { kind: "player", id: playerId });
+          draft.selection = draft.selection.filter((x) => x !== playerId);
+          return draft;
+        }),
+
 
       detachPlayerToQueue: (playerId, toIndex) =>
         set((s) => {
