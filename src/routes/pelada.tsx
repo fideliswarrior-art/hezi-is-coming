@@ -918,6 +918,7 @@ function QueueRow(
   const hasAny = slotAOpen || slotBOpen;
   const customName = usePelada((s) => (team ? s.teamNames[team.id] : undefined));
 
+  const moveQueueEntry = usePelada((s) => s.moveQueueEntry);
   const dropId = team ? `team:${team.id}` : `qentry-drop:${entry.kind}:${entry.id}`;
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: dropId });
 
