@@ -1325,6 +1325,26 @@ function AdminDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: 
               </div>
             </div>
 
+            <div className="space-y-2 rounded-lg border border-border p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">Regra "ganhou 2 e sai" 👑</p>
+                  <p className="text-xs text-muted-foreground">
+                    {championRuleEnabled
+                      ? "Ativa: o time sai da quadra e vira campeão em espera."
+                      : "Desativada: o time fica na quadra enquanto vencer."}
+                  </p>
+                </div>
+                <Button
+                  variant={championRuleEnabled ? "default" : "outline"}
+                  onClick={() => setChampionRule(!championRuleEnabled)}
+                >
+                  {championRuleEnabled ? "Desativar" : "Ativar"}
+                </Button>
+              </div>
+            </div>
+
+
             <div className="space-y-2">
               <p className="text-sm font-medium">Ações rápidas</p>
               <Button
