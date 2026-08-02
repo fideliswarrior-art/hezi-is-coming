@@ -65,6 +65,9 @@ export interface PeladaState {
   // Settings
   matchMs: number;
   suddenDeathMs: number;
+  /** When false, a team never leaves the court for winning twice (👑 rule off). */
+  championRuleEnabled: boolean;
+
 
   // Stats & history
   teamNames: Record<ID, string>; // optional custom names, keyed by team id
@@ -79,8 +82,15 @@ export interface PeladaState {
   renamePlayer: (id: ID, name: string) => void;
   removePlayer: (id: ID) => void;
   reorderQueue: (fromIdx: number, toIdx: number) => void;
+  /** Move a queue entry one slot up (-1) or down (+1). */
+  moveQueueEntry: (entry: QueueEntry, dir: -1 | 1) => void;
+  /** Move whatever entry holds the current selection up/down in the queue. */
+  moveSelectionInQueue: (dir: -1 | 1) => void;
   movePlayerToTeam: (playerId: ID, teamId: ID) => void;
+  /** Put a lone player directly on an empty court side (creates a team). */
+  sendPlayerToCourtSide: (playerId: ID, side: "A" | "B") => void;
   detachPlayerToQueue: (playerId: ID, toIndex?: number) => void;
+
   lockScreen: () => void;
   unlockScreen: (pin: string) => boolean;
   toggleSelect: (id: ID) => void;
