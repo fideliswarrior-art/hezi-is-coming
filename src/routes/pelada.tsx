@@ -131,8 +131,11 @@ function PeladaPage() {
   const movePlayerToTeam = usePelada((s) => s.movePlayerToTeam);
   const detachPlayerToQueue = usePelada((s) => s.detachPlayerToQueue);
   const swapPlayers = usePelada((s) => s.swapPlayers);
+  const sendPlayerToCourtSide = usePelada((s) => s.sendPlayerToCourtSide);
   const queue = usePelada((s) => s.queue);
+  const players = usePelada((s) => s.players);
   const screenLocked = usePelada((s) => s.screenLocked);
+  const [activeId, setActiveId] = useState<string | null>(null);
 
   // Force dark theme on this route (persists across component tree incl. portals)
   useEffect(() => {
@@ -144,51 +147,93 @@ function PeladaPage() {
     };
   }, []);
 
+  // One sensor set that behaves the same on mouse and touch: a short press-and-hold
+  // starts the drag, so scrolling the page never triggers one by accident.
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+    useSensor(PointerSensor, { activationConstraint: { delay: 150, tolerance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 8 } }),
   );
 
   function onDragEnd(e: DragEndEvent) {
+    setActiveId(null);
     const { active, over } = e;
     if (!over) return;
     const aId = String(active.id);
     const oId = String(over.id);
-    // Player dropped onto another player → swap
-    if (aId.startsWith("player:") && oId.startsWith("player:")) {
-      const pa = aId.slice("player:".length);
-      const pb = oId.slice("player:".length);
-      if (pa !== pb) swapPlayers(pa, pb);
+    if (aId === oId) return;
+
+    const isPlayer = (v: string) => v.startsWith("player:");
+    const pid = (v: string) => v.slice("player:".length);
+
+    // --- dragging a player pill ---
+    if (isPlayer(aId)) {
+      const dragged = pid(aId);
+      // onto another player → swap places
+      if (isPlayer(oId)) {
+        swapPlayers(dragged, pid(oId));
+        return;
+      }
+      // onto a team (queue or court) → join that team
+      if (oId.startsWith("team:")) {
+        movePlayerToTeam(dragged, oId.slice("team:".length));
+        return;
+      }
+      // onto an empty court slot → goes on court alone
+      if (oId.startsWith("court-slot:")) {
+        sendPlayerToCourtSide(dragged, oId.slice("court-slot:".length) as "A" | "B");
+        return;
+      }
+      // onto a queue row wrapper → drop right at that position
+      if (oId.startsWith("qentry:")) {
+        const idx = queue.findIndex((q) => `qentry:${q.kind}:${q.id}` === oId);
+        detachPlayerToQueue(dragged, idx < 0 ? undefined : idx);
+        return;
+      }
+      // onto the empty queue area → becomes a lone entry at the end
+      if (oId === "queue-drop") {
+        detachPlayerToQueue(dragged);
+      }
       return;
     }
-    // Queue entry sortable
+
+    // --- reordering queue entries ---
     if (aId.startsWith("qentry:") && oId.startsWith("qentry:")) {
       const from = queue.findIndex((q) => `qentry:${q.kind}:${q.id}` === aId);
       const to = queue.findIndex((q) => `qentry:${q.kind}:${q.id}` === oId);
       if (from >= 0 && to >= 0) reorderQueue(from, to);
-      return;
-    }
-    // Player dropped on a team
-    if (aId.startsWith("player:") && oId.startsWith("team:")) {
-      const pid = aId.slice("player:".length);
-      const tid = oId.slice("team:".length);
-      movePlayerToTeam(pid, tid);
-      return;
-    }
-    // Player dropped on queue background → detach as lone entry at end
-    if (aId.startsWith("player:") && oId === "queue-drop") {
-      detachPlayerToQueue(aId.slice("player:".length));
     }
   }
 
+  const activeLabel =
+    activeId && activeId.startsWith("player:")
+      ? players[activeId.slice("player:".length)]?.name
+      : null;
+
   return (
     <div className="dark min-h-dvh bg-background text-foreground select-none">
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={(e) => setActiveId(String(e.active.id))}
+        onDragCancel={() => setActiveId(null)}
+        onDragEnd={onDragEnd}
+      >
         <div className="mx-auto max-w-[900px] px-3 py-3 sm:px-4 sm:py-4 space-y-4 pb-24">
           <Header />
           <CourtBlock />
           <QueueBlock />
         </div>
+        <DragOverlay dropAnimation={null}>
+          {activeLabel ? (
+            <div className="rounded-lg border-2 border-primary bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground shadow-xl">
+              {activeLabel}
+            </div>
+          ) : activeId?.startsWith("qentry:") ? (
+            <div className="rounded-xl border-2 border-primary bg-card px-4 py-3 text-sm font-semibold shadow-xl">
+              Movendo…
+            </div>
+          ) : null}
+        </DragOverlay>
       </DndContext>
       {screenLocked && <LockOverlay />}
       <RenameDialogController />
@@ -197,6 +242,7 @@ function PeladaPage() {
     </div>
   );
 }
+
 
 // ---------------------------------------------------------------------------
 // HEADER
