@@ -966,20 +966,43 @@ function QueueRow(
         )}
         <div className="flex-1" />
         {!isChampion && (
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-8 w-8 text-muted-foreground hover:text-destructive"
-            onClick={() => {
-              const label = team ? `TIME ${team.number}` : player?.name ?? "esta entrada";
-              if (confirm(`Remover ${label} da fila?`)) onRemoveEntry(entry);
-            }}
-            title="Remover"
-          >
-            <X className="h-4 w-4" />
-          </Button>
+          <>
+            <Button
+              size="icon"
+              variant="outline"
+              className="h-9 w-9"
+              onClick={() => moveQueueEntry(entry, -1)}
+              title="Subir na fila"
+              aria-label="Subir na fila"
+            >
+              <ChevronUp className="h-5 w-5" />
+            </Button>
+            <Button
+              size="icon"
+              variant="outline"
+              className="h-9 w-9"
+              onClick={() => moveQueueEntry(entry, 1)}
+              title="Descer na fila"
+              aria-label="Descer na fila"
+            >
+              <ChevronDown className="h-5 w-5" />
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-9 w-9 text-muted-foreground hover:text-destructive"
+              onClick={() => {
+                const label = team ? `TIME ${team.number}` : player?.name ?? "esta entrada";
+                if (confirm(`Remover ${label} da fila?`)) onRemoveEntry(entry);
+              }}
+              title="Remover"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </>
         )}
       </div>
+
 
       <div className="flex flex-wrap gap-1.5">
         {(team ? team.memberIds : player ? [player.id] : []).map((pid) => {
