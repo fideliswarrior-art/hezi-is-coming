@@ -1213,6 +1213,9 @@ function AdminDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: 
   const suddenDeathMs = usePelada((s) => s.suddenDeathMs);
   const setMatchDuration = usePelada((s) => s.setMatchDuration);
   const setSuddenDeathDuration = usePelada((s) => s.setSuddenDeathDuration);
+  const championRuleEnabled = usePelada((s) => s.championRuleEnabled);
+  const setChampionRule = usePelada((s) => s.setChampionRule);
+
 
   const [matchMin, setMatchMin] = useState(String(matchMs / 60000));
   const [sdMin, setSdMin] = useState(String(suddenDeathMs / 60000));
