@@ -347,6 +347,8 @@ export const usePelada = create<PeladaState>()(
       screenLocked: false,
       matchMs: MATCH_MS,
       suddenDeathMs: SUDDEN_DEATH_MS,
+      championRuleEnabled: true,
+
       teamNames: {},
       teamStats: {},
       actionLog: [],
