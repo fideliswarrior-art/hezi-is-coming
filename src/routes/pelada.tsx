@@ -988,6 +988,9 @@ function QueueRow(
   const customName = usePelada((s) => (team ? s.teamNames[team.id] : undefined));
 
   const moveQueueEntry = usePelada((s) => s.moveQueueEntry);
+  const selection = usePelada((s) => s.selection);
+  const rowMemberIds = team ? team.memberIds : player ? [player.id] : [];
+  const rowSelected = rowMemberIds.some((m) => selection.includes(m));
   const dropId = team ? `team:${team.id}` : `qentry-drop:${entry.kind}:${entry.id}`;
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: dropId });
 
