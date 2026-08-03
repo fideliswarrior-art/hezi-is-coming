@@ -67,6 +67,13 @@ export interface PeladaState {
   suddenDeathMs: number;
   /** When false, a team never leaves the court for winning twice (👑 rule off). */
   championRuleEnabled: boolean;
+  /** How many consecutive wins send a team off court as champion. */
+  winsToRotate: number;
+  /** Passive rule: shorten matches when many players are around. */
+  autoReduceEnabled: boolean;
+  autoReduceThreshold: number;
+  autoReduceMs: number;
+
 
 
   // Stats & history
