@@ -981,6 +981,10 @@ export const usePelada = create<PeladaState>()(
         matchMs: s.matchMs,
         suddenDeathMs: s.suddenDeathMs,
         championRuleEnabled: s.championRuleEnabled,
+        winsToRotate: s.winsToRotate,
+        autoReduceEnabled: s.autoReduceEnabled,
+        autoReduceThreshold: s.autoReduceThreshold,
+        autoReduceMs: s.autoReduceMs,
 
         teamNames: s.teamNames,
         teamStats: s.teamStats,
