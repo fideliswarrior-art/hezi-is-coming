@@ -392,6 +392,11 @@ function CourtBlock() {
             MORTE SÚBITA
           </Badge>
         )}
+        {!court.inSuddenDeath && autoReduceActive && (
+          <Badge className="bg-primary text-primary-foreground font-display tracking-widest mb-1">
+            TEMPO REDUZIDO · {Object.keys(players).length} JOGADORES
+          </Badge>
+        )}
         <div
           className={cn(
             "font-display text-6xl sm:text-7xl leading-none tabular-nums transition-colors",
