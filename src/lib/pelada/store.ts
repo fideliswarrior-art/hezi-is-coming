@@ -771,7 +771,7 @@ export const usePelada = create<PeladaState>()(
 
           // winner: if 2 wins, becomes champion waiting (goes off court)
           const promoted =
-            draft.championRuleEnabled && winner.wins >= WINS_TO_ROTATE;
+            draft.championRuleEnabled && winner.wins >= draft.winsToRotate;
           if (promoted) {
             winner.wins = 0;
             // If someone was already waiting as champion, they keep priority at
