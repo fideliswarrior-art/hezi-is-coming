@@ -133,7 +133,9 @@ export interface PeladaState {
   setAdminPin: (pin: string) => void;
   setMatchDuration: (ms: number) => void;
   setSuddenDeathDuration: (ms: number) => void;
+  setChampionRule: (enabled: boolean) => void;
   setWinsToRotate: (wins: number) => void;
+
   setAutoReduce: (cfg: { enabled?: boolean; threshold?: number; ms?: number }) => void;
 
 
