@@ -1366,7 +1366,9 @@ function AdminDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: 
             <div className="space-y-2 rounded-lg border border-border p-3">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-medium">Regra "ganhou 2 e sai" 👑</p>
+                  <p className="text-sm font-medium">
+                    Regra "ganhou {winsToRotate} e sai" 👑
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     {championRuleEnabled
                       ? "Ativa: o time sai da quadra e vira campeão em espera."
@@ -1380,7 +1382,84 @@ function AdminDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: 
                   {championRuleEnabled ? "Desativar" : "Ativar"}
                 </Button>
               </div>
+              <label className="text-xs text-muted-foreground space-y-1 block">
+                Vitórias seguidas para sair
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={20}
+                  step={1}
+                  disabled={!championRuleEnabled}
+                  value={winsInput}
+                  onChange={(e) => setWinsInput(e.target.value)}
+                  onBlur={() => {
+                    const v = Number(winsInput);
+                    if (Number.isFinite(v) && v >= 1) setWinsToRotate(v);
+                  }}
+                  className="h-11 text-base"
+                />
+              </label>
             </div>
+
+            <div className="space-y-2 rounded-lg border border-border p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">Tempo reduzido automático ⏱️</p>
+                  <p className="text-xs text-muted-foreground">
+                    {autoReduceEnabled
+                      ? `Com ${autoReduceThreshold}+ jogadores, a partida passa a ${autoReduceMs / 60000} min.`
+                      : "Desativado: a partida usa sempre o tempo padrão."}
+                  </p>
+                </div>
+                <Button
+                  variant={autoReduceEnabled ? "default" : "outline"}
+                  onClick={() => setAutoReduce({ enabled: !autoReduceEnabled })}
+                >
+                  {autoReduceEnabled ? "Desativar" : "Ativar"}
+                </Button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="text-xs text-muted-foreground space-y-1 block">
+                  A partir de (jogadores)
+                  <Input
+                    type="number"
+                    inputMode="numeric"
+                    min={2}
+                    max={200}
+                    step={1}
+                    disabled={!autoReduceEnabled}
+                    value={thresholdInput}
+                    onChange={(e) => setThresholdInput(e.target.value)}
+                    onBlur={() => {
+                      const v = Number(thresholdInput);
+                      if (Number.isFinite(v) && v >= 2) setAutoReduce({ threshold: v });
+                    }}
+                    className="h-11 text-base"
+                  />
+                </label>
+                <label className="text-xs text-muted-foreground space-y-1 block">
+                  Tempo reduzido (min)
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    min={0.5}
+                    max={30}
+                    step={0.5}
+                    disabled={!autoReduceEnabled}
+                    value={autoMinInput}
+                    onChange={(e) => setAutoMinInput(e.target.value)}
+                    onBlur={() => {
+                      const v = Number(autoMinInput);
+                      if (Number.isFinite(v) && v > 0) setAutoReduce({ ms: v * 60000 });
+                    }}
+                    className="h-11 text-base"
+                  />
+                </label>
+              </div>
+            </div>
+
+
 
 
             <div className="space-y-2">
