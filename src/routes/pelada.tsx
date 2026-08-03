@@ -1035,7 +1035,7 @@ function QueueRow(
           </button>
         )}
         <div className="flex-1" />
-        {!isChampion && (
+        {!isChampion && rowSelected && (
           <>
             <Button
               size="icon"
@@ -1057,6 +1057,10 @@ function QueueRow(
             >
               <ChevronDown className="h-5 w-5" />
             </Button>
+          </>
+        )}
+        {!isChampion && (
+          <>
             <Button
               size="icon"
               variant="ghost"
