@@ -271,15 +271,11 @@ function Header() {
   return (
     <header className="flex items-center justify-between gap-2">
       <div className="flex items-center gap-2 min-w-0">
-        <img src={heziLogo.url} alt="Hezi Fam" className="h-10 w-10 shrink-0 object-contain invert-0 dark:invert" />
-        <div className="min-w-0">
-          <h1 className="font-display text-2xl leading-none tracking-wide truncate">
-            PELADA <span className="text-primary">3x3</span>
-          </h1>
-          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
-            Hezi Fam · Totem
-          </p>
-        </div>
+        <img
+          src={heziLogo.url}
+          alt="Hezi Fam"
+          className="h-12 w-auto max-w-[180px] shrink-0 object-contain"
+        />
       </div>
       <div className="flex items-center gap-1 shrink-0">
         <Button
