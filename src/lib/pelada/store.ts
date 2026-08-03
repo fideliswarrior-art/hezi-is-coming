@@ -924,6 +924,23 @@ export const usePelada = create<PeladaState>()(
           return draft;
         }),
 
+      setWinsToRotate: (wins) =>
+        set((s) => ({ ...s, winsToRotate: Math.max(1, Math.min(20, Math.round(wins))) })),
+
+      setAutoReduce: (cfg) =>
+        set((s) => ({
+          ...s,
+          autoReduceEnabled: cfg.enabled ?? s.autoReduceEnabled,
+          autoReduceThreshold:
+            cfg.threshold === undefined
+              ? s.autoReduceThreshold
+              : Math.max(2, Math.min(200, Math.round(cfg.threshold))),
+          autoReduceMs:
+            cfg.ms === undefined
+              ? s.autoReduceMs
+              : Math.max(30_000, Math.min(30 * 60_000, cfg.ms)),
+        })),
+
 
       clearActionLog: () => set((s) => ({ ...s, actionLog: [] })),
       clearStats: () => set((s) => ({ ...s, teamStats: {} })),
