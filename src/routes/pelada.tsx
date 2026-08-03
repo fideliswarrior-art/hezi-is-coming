@@ -68,7 +68,7 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import heziLogo from "@/assets/hezi-logo.png.asset.json";
+import heziLogo from "@/assets/hezi-fam-logo.png.asset.json";
 
 export const Route = createFileRoute("/pelada")({
   head: () => ({
