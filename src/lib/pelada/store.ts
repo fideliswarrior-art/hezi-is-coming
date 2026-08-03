@@ -995,9 +995,31 @@ export const usePelada = create<PeladaState>()(
 );
 
 // Selectors / derived helpers
-export function currentDurationMs(state: Pick<PeladaState, "court" | "matchMs" | "suddenDeathMs">) {
-  return state.court.inSuddenDeath ? state.suddenDeathMs : state.matchMs;
+
+export type DurationState = Pick<
+  PeladaState,
+  | "court"
+  | "matchMs"
+  | "suddenDeathMs"
+  | "players"
+  | "autoReduceEnabled"
+  | "autoReduceThreshold"
+  | "autoReduceMs"
+>;
+
+/** Match length honoring the passive "many players → shorter match" rule. */
+export function effectiveMatchMs(state: DurationState) {
+  const total = Object.keys(state.players).length;
+  if (state.autoReduceEnabled && total >= state.autoReduceThreshold) {
+    return state.autoReduceMs;
+  }
+  return state.matchMs;
 }
+
+export function currentDurationMs(state: DurationState) {
+  return state.court.inSuddenDeath ? state.suddenDeathMs : effectiveMatchMs(state);
+}
+
 
 export function computeElapsed(court: CourtState, now: number) {
   return court.elapsedMs + (court.runningSince ? now - court.runningSince : 0);
