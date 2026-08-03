@@ -154,7 +154,7 @@
   --sidebar-accent-foreground: oklch(0.98 0.01 80);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.72 0.2 45);
-  --court: oklch(0.1 0.02 60);
+  --court: oklch(0 0 0);
   --court-foreground: oklch(0.98 0.02 85);
   --champion: oklch(0.82 0.17 70);
   --champion-foreground: oklch(0.2 0.05 60);
