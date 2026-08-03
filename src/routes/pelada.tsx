@@ -68,7 +68,7 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import heziLogo from "@/assets/hezi-logo.png.asset.json";
+import heziLogo from "@/assets/hezi-fam-logo.png.asset.json";
 
 export const Route = createFileRoute("/pelada")({
   head: () => ({
@@ -271,15 +271,11 @@ function Header() {
   return (
     <header className="flex items-center justify-between gap-2">
       <div className="flex items-center gap-2 min-w-0">
-        <img src={heziLogo.url} alt="Hezi Fam" className="h-10 w-10 shrink-0 object-contain invert-0 dark:invert" />
-        <div className="min-w-0">
-          <h1 className="font-display text-2xl leading-none tracking-wide truncate">
-            PELADA <span className="text-primary">3x3</span>
-          </h1>
-          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
-            Hezi Fam · Totem
-          </p>
-        </div>
+        <img
+          src={heziLogo.url}
+          alt="Hezi Fam"
+          className="h-12 w-auto max-w-[180px] shrink-0 object-contain"
+        />
       </div>
       <div className="flex items-center gap-1 shrink-0">
         <Button
@@ -336,6 +332,9 @@ function CourtBlock() {
   const court = usePelada((s) => s.court);
   const matchMs = usePelada((s) => s.matchMs);
   const suddenDeathMs = usePelada((s) => s.suddenDeathMs);
+  const autoReduceEnabled = usePelada((s) => s.autoReduceEnabled);
+  const autoReduceThreshold = usePelada((s) => s.autoReduceThreshold);
+  const autoReduceMs = usePelada((s) => s.autoReduceMs);
   const teams = usePelada((s) => s.teams);
   const teamNames = usePelada((s) => s.teamNames);
   const players = usePelada((s) => s.players);
@@ -346,7 +345,18 @@ function CourtBlock() {
   const declareWinner = usePelada((s) => s.declareWinner);
   const declareDraw = usePelada((s) => s.declareDraw);
 
-  const total = currentDurationMs({ court, matchMs, suddenDeathMs });
+  const durationState = {
+    court,
+    matchMs,
+    suddenDeathMs,
+    players,
+    autoReduceEnabled,
+    autoReduceThreshold,
+    autoReduceMs,
+  };
+  const autoReduceActive =
+    autoReduceEnabled && Object.keys(players).length >= autoReduceThreshold;
+  const total = currentDurationMs(durationState);
   const elapsed = Math.min(computeElapsed(court, Date.now()), total);
   const remaining = Math.max(0, total - elapsed);
   const finished = remaining === 0 && !!court.runningSince;
@@ -376,6 +386,11 @@ function CourtBlock() {
         {court.inSuddenDeath && (
           <Badge className="bg-cooldown text-cooldown-foreground font-display tracking-widest mb-1">
             MORTE SÚBITA
+          </Badge>
+        )}
+        {!court.inSuddenDeath && autoReduceActive && (
+          <Badge className="bg-primary text-primary-foreground font-display tracking-widest mb-1">
+            TEMPO REDUZIDO · {Object.keys(players).length} JOGADORES
           </Badge>
         )}
         <div
@@ -973,6 +988,9 @@ function QueueRow(
   const customName = usePelada((s) => (team ? s.teamNames[team.id] : undefined));
 
   const moveQueueEntry = usePelada((s) => s.moveQueueEntry);
+  const selection = usePelada((s) => s.selection);
+  const rowMemberIds = team ? team.memberIds : player ? [player.id] : [];
+  const rowSelected = rowMemberIds.some((m) => selection.includes(m));
   const dropId = team ? `team:${team.id}` : `qentry-drop:${entry.kind}:${entry.id}`;
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: dropId });
 
@@ -1020,7 +1038,7 @@ function QueueRow(
           </button>
         )}
         <div className="flex-1" />
-        {!isChampion && (
+        {!isChampion && rowSelected && (
           <>
             <Button
               size="icon"
@@ -1042,6 +1060,10 @@ function QueueRow(
             >
               <ChevronDown className="h-5 w-5" />
             </Button>
+          </>
+        )}
+        {!isChampion && (
+          <>
             <Button
               size="icon"
               variant="ghost"
@@ -1228,14 +1250,25 @@ function AdminDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: 
   const setSuddenDeathDuration = usePelada((s) => s.setSuddenDeathDuration);
   const championRuleEnabled = usePelada((s) => s.championRuleEnabled);
   const setChampionRule = usePelada((s) => s.setChampionRule);
-
+  const winsToRotate = usePelada((s) => s.winsToRotate);
+  const setWinsToRotate = usePelada((s) => s.setWinsToRotate);
+  const autoReduceEnabled = usePelada((s) => s.autoReduceEnabled);
+  const autoReduceThreshold = usePelada((s) => s.autoReduceThreshold);
+  const autoReduceMs = usePelada((s) => s.autoReduceMs);
+  const setAutoReduce = usePelada((s) => s.setAutoReduce);
 
   const [matchMin, setMatchMin] = useState(String(matchMs / 60000));
   const [sdMin, setSdMin] = useState(String(suddenDeathMs / 60000));
+  const [winsInput, setWinsInput] = useState(String(winsToRotate));
+  const [thresholdInput, setThresholdInput] = useState(String(autoReduceThreshold));
+  const [autoMinInput, setAutoMinInput] = useState(String(autoReduceMs / 60000));
   useEffect(() => {
     setMatchMin(String(matchMs / 60000));
     setSdMin(String(suddenDeathMs / 60000));
-  }, [matchMs, suddenDeathMs]);
+    setWinsInput(String(winsToRotate));
+    setThresholdInput(String(autoReduceThreshold));
+    setAutoMinInput(String(autoReduceMs / 60000));
+  }, [matchMs, suddenDeathMs, winsToRotate, autoReduceThreshold, autoReduceMs]);
 
   const [pin, setPin] = useState("");
   const [authed, setAuthed] = useState(false);
@@ -1344,7 +1377,9 @@ function AdminDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: 
             <div className="space-y-2 rounded-lg border border-border p-3">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-medium">Regra "ganhou 2 e sai" 👑</p>
+                  <p className="text-sm font-medium">
+                    Regra "ganhou {winsToRotate} e sai" 👑
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     {championRuleEnabled
                       ? "Ativa: o time sai da quadra e vira campeão em espera."
@@ -1358,7 +1393,84 @@ function AdminDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: 
                   {championRuleEnabled ? "Desativar" : "Ativar"}
                 </Button>
               </div>
+              <label className="text-xs text-muted-foreground space-y-1 block">
+                Vitórias seguidas para sair
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={20}
+                  step={1}
+                  disabled={!championRuleEnabled}
+                  value={winsInput}
+                  onChange={(e) => setWinsInput(e.target.value)}
+                  onBlur={() => {
+                    const v = Number(winsInput);
+                    if (Number.isFinite(v) && v >= 1) setWinsToRotate(v);
+                  }}
+                  className="h-11 text-base"
+                />
+              </label>
             </div>
+
+            <div className="space-y-2 rounded-lg border border-border p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">Tempo reduzido automático ⏱️</p>
+                  <p className="text-xs text-muted-foreground">
+                    {autoReduceEnabled
+                      ? `Com ${autoReduceThreshold}+ jogadores, a partida passa a ${autoReduceMs / 60000} min.`
+                      : "Desativado: a partida usa sempre o tempo padrão."}
+                  </p>
+                </div>
+                <Button
+                  variant={autoReduceEnabled ? "default" : "outline"}
+                  onClick={() => setAutoReduce({ enabled: !autoReduceEnabled })}
+                >
+                  {autoReduceEnabled ? "Desativar" : "Ativar"}
+                </Button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="text-xs text-muted-foreground space-y-1 block">
+                  A partir de (jogadores)
+                  <Input
+                    type="number"
+                    inputMode="numeric"
+                    min={2}
+                    max={200}
+                    step={1}
+                    disabled={!autoReduceEnabled}
+                    value={thresholdInput}
+                    onChange={(e) => setThresholdInput(e.target.value)}
+                    onBlur={() => {
+                      const v = Number(thresholdInput);
+                      if (Number.isFinite(v) && v >= 2) setAutoReduce({ threshold: v });
+                    }}
+                    className="h-11 text-base"
+                  />
+                </label>
+                <label className="text-xs text-muted-foreground space-y-1 block">
+                  Tempo reduzido (min)
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    min={0.5}
+                    max={30}
+                    step={0.5}
+                    disabled={!autoReduceEnabled}
+                    value={autoMinInput}
+                    onChange={(e) => setAutoMinInput(e.target.value)}
+                    onBlur={() => {
+                      const v = Number(autoMinInput);
+                      if (Number.isFinite(v) && v > 0) setAutoReduce({ ms: v * 60000 });
+                    }}
+                    className="h-11 text-base"
+                  />
+                </label>
+              </div>
+            </div>
+
+
 
 
             <div className="space-y-2">

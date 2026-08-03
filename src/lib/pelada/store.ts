@@ -67,6 +67,13 @@ export interface PeladaState {
   suddenDeathMs: number;
   /** When false, a team never leaves the court for winning twice (👑 rule off). */
   championRuleEnabled: boolean;
+  /** How many consecutive wins send a team off court as champion. */
+  winsToRotate: number;
+  /** Passive rule: shorten matches when many players are around. */
+  autoReduceEnabled: boolean;
+  autoReduceThreshold: number;
+  autoReduceMs: number;
+
 
 
   // Stats & history
@@ -127,6 +134,10 @@ export interface PeladaState {
   setMatchDuration: (ms: number) => void;
   setSuddenDeathDuration: (ms: number) => void;
   setChampionRule: (enabled: boolean) => void;
+  setWinsToRotate: (wins: number) => void;
+
+  setAutoReduce: (cfg: { enabled?: boolean; threshold?: number; ms?: number }) => void;
+
 
   clearActionLog: () => void;
   clearStats: () => void;
@@ -348,6 +359,11 @@ export const usePelada = create<PeladaState>()(
       matchMs: MATCH_MS,
       suddenDeathMs: SUDDEN_DEATH_MS,
       championRuleEnabled: true,
+      winsToRotate: WINS_TO_ROTATE,
+      autoReduceEnabled: true,
+      autoReduceThreshold: 20,
+      autoReduceMs: 6 * 60 * 1000,
+
 
       teamNames: {},
       teamStats: {},
@@ -755,7 +771,7 @@ export const usePelada = create<PeladaState>()(
 
           // winner: if 2 wins, becomes champion waiting (goes off court)
           const promoted =
-            draft.championRuleEnabled && winner.wins >= WINS_TO_ROTATE;
+            draft.championRuleEnabled && winner.wins >= draft.winsToRotate;
           if (promoted) {
             winner.wins = 0;
             // If someone was already waiting as champion, they keep priority at
@@ -908,6 +924,23 @@ export const usePelada = create<PeladaState>()(
           return draft;
         }),
 
+      setWinsToRotate: (wins) =>
+        set((s) => ({ ...s, winsToRotate: Math.max(1, Math.min(20, Math.round(wins))) })),
+
+      setAutoReduce: (cfg) =>
+        set((s) => ({
+          ...s,
+          autoReduceEnabled: cfg.enabled ?? s.autoReduceEnabled,
+          autoReduceThreshold:
+            cfg.threshold === undefined
+              ? s.autoReduceThreshold
+              : Math.max(2, Math.min(200, Math.round(cfg.threshold))),
+          autoReduceMs:
+            cfg.ms === undefined
+              ? s.autoReduceMs
+              : Math.max(30_000, Math.min(30 * 60_000, cfg.ms)),
+        })),
+
 
       clearActionLog: () => set((s) => ({ ...s, actionLog: [] })),
       clearStats: () => set((s) => ({ ...s, teamStats: {} })),
@@ -948,6 +981,10 @@ export const usePelada = create<PeladaState>()(
         matchMs: s.matchMs,
         suddenDeathMs: s.suddenDeathMs,
         championRuleEnabled: s.championRuleEnabled,
+        winsToRotate: s.winsToRotate,
+        autoReduceEnabled: s.autoReduceEnabled,
+        autoReduceThreshold: s.autoReduceThreshold,
+        autoReduceMs: s.autoReduceMs,
 
         teamNames: s.teamNames,
         teamStats: s.teamStats,
@@ -958,9 +995,31 @@ export const usePelada = create<PeladaState>()(
 );
 
 // Selectors / derived helpers
-export function currentDurationMs(state: Pick<PeladaState, "court" | "matchMs" | "suddenDeathMs">) {
-  return state.court.inSuddenDeath ? state.suddenDeathMs : state.matchMs;
+
+export type DurationState = Pick<
+  PeladaState,
+  | "court"
+  | "matchMs"
+  | "suddenDeathMs"
+  | "players"
+  | "autoReduceEnabled"
+  | "autoReduceThreshold"
+  | "autoReduceMs"
+>;
+
+/** Match length honoring the passive "many players → shorter match" rule. */
+export function effectiveMatchMs(state: DurationState) {
+  const total = Object.keys(state.players).length;
+  if (state.autoReduceEnabled && total >= state.autoReduceThreshold) {
+    return state.autoReduceMs;
+  }
+  return state.matchMs;
 }
+
+export function currentDurationMs(state: DurationState) {
+  return state.court.inSuddenDeath ? state.suddenDeathMs : effectiveMatchMs(state);
+}
+
 
 export function computeElapsed(court: CourtState, now: number) {
   return court.elapsedMs + (court.runningSince ? now - court.runningSince : 0);
