@@ -1250,14 +1250,25 @@ function AdminDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: 
   const setSuddenDeathDuration = usePelada((s) => s.setSuddenDeathDuration);
   const championRuleEnabled = usePelada((s) => s.championRuleEnabled);
   const setChampionRule = usePelada((s) => s.setChampionRule);
-
+  const winsToRotate = usePelada((s) => s.winsToRotate);
+  const setWinsToRotate = usePelada((s) => s.setWinsToRotate);
+  const autoReduceEnabled = usePelada((s) => s.autoReduceEnabled);
+  const autoReduceThreshold = usePelada((s) => s.autoReduceThreshold);
+  const autoReduceMs = usePelada((s) => s.autoReduceMs);
+  const setAutoReduce = usePelada((s) => s.setAutoReduce);
 
   const [matchMin, setMatchMin] = useState(String(matchMs / 60000));
   const [sdMin, setSdMin] = useState(String(suddenDeathMs / 60000));
+  const [winsInput, setWinsInput] = useState(String(winsToRotate));
+  const [thresholdInput, setThresholdInput] = useState(String(autoReduceThreshold));
+  const [autoMinInput, setAutoMinInput] = useState(String(autoReduceMs / 60000));
   useEffect(() => {
     setMatchMin(String(matchMs / 60000));
     setSdMin(String(suddenDeathMs / 60000));
-  }, [matchMs, suddenDeathMs]);
+    setWinsInput(String(winsToRotate));
+    setThresholdInput(String(autoReduceThreshold));
+    setAutoMinInput(String(autoReduceMs / 60000));
+  }, [matchMs, suddenDeathMs, winsToRotate, autoReduceThreshold, autoReduceMs]);
 
   const [pin, setPin] = useState("");
   const [authed, setAuthed] = useState(false);
