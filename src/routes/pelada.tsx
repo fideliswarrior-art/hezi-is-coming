@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Crown,
@@ -20,7 +20,7 @@ import {
   ClipboardList,
   ChevronUp,
   ChevronDown,
-
+  ArrowLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,6 +48,7 @@ import {
   type ID,
   MATCH_MS,
 } from "@/lib/pelada/store";
+import { useRealtimeSync } from "@/lib/hezi/sync";
 import {
   DndContext,
   PointerSensor,
@@ -57,7 +58,6 @@ import {
   closestCenter,
   useDroppable,
   DragOverlay,
-
   useDraggable,
   type DragEndEvent,
 } from "@dnd-kit/core";
@@ -65,21 +65,19 @@ import {
   SortableContext,
   useSortable,
   verticalListSortingStrategy,
-  arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import heziLogo from "@/assets/hezi-fam-logo.png.asset.json";
 
 export const Route = createFileRoute("/pelada")({
   head: () => ({
     meta: [
-      { title: "Pelada — Totem 3x3 | Hezi Fam" },
+      { title: "HEZI FAM® - Moving the Game | Pelada & Totem 3x3" },
       {
         name: "description",
         content:
           "Totem oficial da Hezi Fam para gerenciar pelada 3x3: fila, times, cronômetro e Rei da Quadra.",
       },
-      { property: "og:title", content: "Pelada — Totem Hezi Fam" },
+      { property: "og:title", content: "HEZI FAM® - Pelada Totem 3x3" },
       {
         property: "og:description",
         content: "Gerencie a pelada 3x3 direto do celular ou tablet.",
@@ -93,7 +91,7 @@ export const Route = createFileRoute("/pelada")({
 // ---------------------------------------------------------------------------
 // Ticks, alarm
 // ---------------------------------------------------------------------------
-function useTick(intervalMs = 250) {
+export function useTick(intervalMs = 250) {
   const [, setN] = useState(0);
   useEffect(() => {
     const id = window.setInterval(() => setN((n) => n + 1), intervalMs);
@@ -104,7 +102,8 @@ function useTick(intervalMs = 250) {
 function playBeep() {
   try {
     const Ctx = (window.AudioContext ||
-      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext) as typeof AudioContext;
+      (window as unknown as { webkitAudioContext: typeof AudioContext })
+        .webkitAudioContext) as typeof AudioContext;
     const ctx = new Ctx();
     const now = ctx.currentTime;
     for (let i = 0; i < 4; i++) {
@@ -129,9 +128,9 @@ function playBeep() {
 }
 
 // ---------------------------------------------------------------------------
-// Root page — DnD context wraps everything
+// Embeddable Court Master Organizer (used in Admin panel AND standalone /pelada)
 // ---------------------------------------------------------------------------
-function PeladaPage() {
+export function CourtMasterOrganizer({ embedded = false }: { embedded?: boolean }) {
   const reorderQueue = usePelada((s) => s.reorderQueue);
   const movePlayerToTeam = usePelada((s) => s.movePlayerToTeam);
   const detachPlayerToQueue = usePelada((s) => s.detachPlayerToQueue);
@@ -142,18 +141,6 @@ function PeladaPage() {
   const screenLocked = usePelada((s) => s.screenLocked);
   const [activeId, setActiveId] = useState<string | null>(null);
 
-  // Force dark theme on this route (persists across component tree incl. portals)
-  useEffect(() => {
-    const root = document.documentElement;
-    const had = root.classList.contains("dark");
-    root.classList.add("dark");
-    return () => {
-      if (!had) root.classList.remove("dark");
-    };
-  }, []);
-
-  // One sensor set that behaves the same on mouse and touch: a short press-and-hold
-  // starts the drag, so scrolling the page never triggers one by accident.
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { delay: 150, tolerance: 8 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 8 } }),
@@ -170,40 +157,32 @@ function PeladaPage() {
     const isPlayer = (v: string) => v.startsWith("player:");
     const pid = (v: string) => v.slice("player:".length);
 
-    // --- dragging a player pill ---
     if (isPlayer(aId)) {
       const dragged = pid(aId);
-      // onto another player → swap places
       if (isPlayer(oId)) {
         swapPlayers(dragged, pid(oId));
         return;
       }
-      // onto a team (queue or court) → join that team
       if (oId.startsWith("team:")) {
         movePlayerToTeam(dragged, oId.slice("team:".length));
         return;
       }
-      // onto an empty court slot → goes on court alone
       if (oId.startsWith("court-slot:")) {
         sendPlayerToCourtSide(dragged, oId.slice("court-slot:".length) as "A" | "B");
         return;
       }
-      // onto a queue row wrapper → drop right at that position
       if (oId.startsWith("qentry:") || oId.startsWith("qentry-drop:")) {
         const suffix = oId.slice(oId.indexOf(":") + 1);
         const idx = queue.findIndex((q) => `${q.kind}:${q.id}` === suffix);
         detachPlayerToQueue(dragged, idx < 0 ? undefined : idx);
         return;
       }
-
-      // onto the empty queue area → becomes a lone entry at the end
       if (oId === "queue-drop") {
         detachPlayerToQueue(dragged);
       }
       return;
     }
 
-    // --- reordering queue entries ---
     if (aId.startsWith("qentry:") && oId.startsWith("qentry:")) {
       const from = queue.findIndex((q) => `qentry:${q.kind}:${q.id}` === aId);
       const to = queue.findIndex((q) => `qentry:${q.kind}:${q.id}` === oId);
@@ -217,7 +196,7 @@ function PeladaPage() {
       : null;
 
   return (
-    <div className="dark min-h-dvh bg-background text-foreground select-none">
+    <div className="select-none space-y-6">
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -225,18 +204,16 @@ function PeladaPage() {
         onDragCancel={() => setActiveId(null)}
         onDragEnd={onDragEnd}
       >
-        <div className="mx-auto max-w-[900px] px-3 py-3 sm:px-4 sm:py-4 space-y-4 pb-24">
-          <Header />
-          <CourtBlock />
-          <QueueBlock />
-        </div>
+        {embedded && <EmbeddedToolbar />}
+        <CourtBlock />
+        <QueueBlock />
         <DragOverlay dropAnimation={null}>
           {activeLabel ? (
-            <div className="rounded-lg border-2 border-primary bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground shadow-xl">
+            <div className="border-2 border-brand-orange bg-brand-orange px-3 py-2 font-condensed text-sm font-black uppercase tracking-wider text-white shadow-xl">
               {activeLabel}
             </div>
           ) : activeId?.startsWith("qentry:") ? (
-            <div className="rounded-xl border-2 border-primary bg-card px-4 py-3 text-sm font-semibold shadow-xl">
+            <div className="border-2 border-brand-orange bg-white px-4 py-3 font-condensed text-sm font-black uppercase tracking-wider text-brand-dark shadow-xl">
               Movendo…
             </div>
           ) : null}
@@ -250,15 +227,35 @@ function PeladaPage() {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Root page for standalone /pelada route
+// ---------------------------------------------------------------------------
+export function PeladaPage() {
+  useRealtimeSync();
+
+  useEffect(() => {
+    document.documentElement.classList.remove("dark");
+  }, []);
+
+  return (
+    <div className="min-h-dvh bg-brand-bg text-brand-dark font-sans select-none pb-24 selection:bg-brand-orange selection:text-white">
+      <Header />
+      <main className="mx-auto max-w-4xl px-4 mt-6">
+        <CourtMasterOrganizer embedded={false} />
+      </main>
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
-// HEADER
+// Embedded Toolbar when rendered inside the unified Admin Panel
 // ---------------------------------------------------------------------------
-function Header() {
+function EmbeddedToolbar() {
   const [adminOpen, setAdminOpen] = useState(false);
   const [lockPrompt, setLockPrompt] = useState(false);
   const adminPin = usePelada((s) => s.adminPin);
   const lockScreen = usePelada((s) => s.lockScreen);
+  const playersCount = usePelada((s) => Object.keys(s.players).length);
 
   function onLock() {
     if (!adminPin) {
@@ -269,51 +266,198 @@ function Header() {
   }
 
   return (
-    <header className="flex items-center justify-between gap-2">
-      <div className="flex items-center gap-2 min-w-0">
-        <img
-          src={heziLogo.url}
-          alt="Hezi Fam"
-          className="h-12 w-auto max-w-[180px] shrink-0 object-contain"
-        />
+    <div className="border border-brand-border bg-white p-4 flex flex-wrap items-center justify-between gap-3 shadow-sm">
+      <div className="flex items-center gap-3">
+        <div className="w-9 h-9 bg-brand-orange flex items-center justify-center font-black text-white font-condensed text-lg">
+          3X3
+        </div>
+        <div>
+          <span className="text-[10px] font-condensed font-black text-brand-orange uppercase tracking-widest block">
+            TOTEM OFICIAL // SINCRONIZADO COM OS CELULARES
+          </span>
+          <h3 className="font-bebas text-2xl text-brand-dark leading-none">
+            ORGANIZADOR DE PELADA COURT MASTER ({playersCount} ATLETAS)
+          </h3>
+        </div>
       </div>
-      <div className="flex items-center gap-1 shrink-0">
-        <Button
-          size="icon"
-          variant="outline"
+
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
           onClick={() => historyBus.open()}
-          title="Histórico"
+          className="bg-brand-subtle hover:bg-brand-border text-brand-dark border border-brand-border-strong font-condensed font-black uppercase text-xs tracking-wider px-3 py-2 transition-colors inline-flex items-center gap-1.5"
         >
-          <ClipboardList className="h-5 w-5" />
-        </Button>
-        <Button size="icon" variant="outline" onClick={() => setAdminOpen(true)} title="Admin">
-          <Settings className="h-5 w-5" />
-        </Button>
-        <Button
-          size="icon"
-          className="bg-primary text-primary-foreground hover:bg-primary/90"
+          <ClipboardList className="h-4 w-4 text-brand-orange" />
+          HISTÓRICO DA NOITE
+        </button>
+        <button
+          type="button"
+          onClick={() => setAdminOpen(true)}
+          className="bg-brand-subtle hover:bg-brand-border text-brand-dark border border-brand-border-strong font-condensed font-black uppercase text-xs tracking-wider px-3 py-2 transition-colors inline-flex items-center gap-1.5"
+        >
+          <Settings className="h-4 w-4 text-brand-dark" />
+          REGRAS & TEMPOS
+        </button>
+        <button
+          type="button"
           onClick={onLock}
-          title="Bloquear tela"
+          className="bg-brand-orange hover:bg-brand-orange-hover text-white font-condensed font-black uppercase text-xs tracking-wider px-3.5 py-2 transition-colors shadow-sm inline-flex items-center gap-1.5"
         >
-          <Lock className="h-5 w-5" />
-        </Button>
+          <Lock className="h-4 w-4" />
+          MODO TOTEM (BLOQUEAR)
+        </button>
       </div>
+
       <AdminDialog open={adminOpen} onOpenChange={setAdminOpen} />
       <Dialog open={lockPrompt} onOpenChange={setLockPrompt}>
-        <DialogContent>
+        <DialogContent className="rounded-none border border-brand-border bg-white">
           <DialogHeader>
-            <DialogTitle>Defina um PIN primeiro</DialogTitle>
-            <DialogDescription>
-              Para bloquear a tela é preciso configurar um PIN de 4 dígitos no menu Admin.
+            <DialogTitle className="font-bebas text-3xl tracking-wide text-brand-dark uppercase">
+              Defina um PIN primeiro
+            </DialogTitle>
+            <DialogDescription className="font-condensed text-xs uppercase text-brand-muted">
+              Para bloquear a tela é preciso configurar um PIN de 4 dígitos em Regras & Tempos.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setLockPrompt(false)}>Fechar</Button>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setLockPrompt(false)}
+              className="rounded-none border-brand-border-strong font-condensed font-black uppercase text-xs"
+            >
+              Fechar
+            </Button>
             <Button
               onClick={() => {
                 setLockPrompt(false);
                 setAdminOpen(true);
               }}
+              className="rounded-none bg-brand-orange hover:bg-brand-orange-hover text-white font-condensed font-black uppercase text-xs"
+            >
+              Configurar PIN
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// HEADER — Standalone /pelada route
+// ---------------------------------------------------------------------------
+function Header() {
+  const [adminOpen, setAdminOpen] = useState(false);
+  const [lockPrompt, setLockPrompt] = useState(false);
+  const adminPin = usePelada((s) => s.adminPin);
+  const lockScreen = usePelada((s) => s.lockScreen);
+  const playersCount = usePelada((s) => Object.keys(s.players).length);
+
+  function onLock() {
+    if (!adminPin) {
+      setLockPrompt(true);
+      return;
+    }
+    lockScreen();
+  }
+
+  return (
+    <header className="bg-white border-b border-brand-border sticky top-0 z-40 shadow-sm">
+      <div className="flex items-center justify-between py-2 px-4 border-b border-brand-border/60 text-xs font-condensed">
+        <div className="flex items-center space-x-2">
+          <span className="inline-block w-2 h-2 rounded-full bg-brand-orange" />
+          <span className="font-extrabold uppercase tracking-wider text-brand-dark text-[11px]">
+            PLATAFORMA OFICIAL HEZI FAM®
+          </span>
+        </div>
+
+        <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2 bg-brand-subtle px-2.5 py-1 border border-brand-border rounded-none">
+            <span className="w-2 h-2 rounded-full bg-brand-orange" />
+            <span className="font-condensed font-black text-[11px] text-brand-dark uppercase">
+              COURT MASTER // {playersCount} ATLETAS
+            </span>
+          </div>
+          <Link
+            to="/"
+            className="text-[11px] font-condensed font-black uppercase text-brand-orange hover:text-brand-orange-hover transition-colors inline-flex items-center gap-1"
+          >
+            <ArrowLeft className="h-3 w-3" /> PLATAFORMA COMPLETA
+          </Link>
+        </div>
+      </div>
+
+      <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
+        <Link to="/" className="flex items-center space-x-3 min-w-0">
+          <div className="w-8 h-8 bg-brand-orange flex items-center justify-center font-black text-white font-condensed text-xl shadow-sm shrink-0">
+            HF
+          </div>
+          <div className="min-w-0">
+            <span className="font-bebas text-2xl tracking-wider text-brand-dark flex items-center gap-1 leading-none">
+              HEZI FAM<span className="text-brand-orange text-lg">®</span>
+            </span>
+            <span className="text-[9px] text-brand-muted font-condensed tracking-widest block uppercase font-bold truncate">
+              STREETWEAR & BASKETBALL
+            </span>
+          </div>
+        </Link>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => historyBus.open()}
+            title="Histórico"
+            className="bg-white hover:bg-brand-subtle text-brand-dark border border-brand-border-strong font-condensed font-black uppercase text-xs tracking-wider px-3 py-2 transition-colors inline-flex items-center gap-1.5"
+          >
+            <ClipboardList className="h-4 w-4 text-brand-orange" />
+            <span className="hidden sm:inline">HISTÓRICO</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setAdminOpen(true)}
+            title="Admin"
+            className="bg-white hover:bg-brand-subtle text-brand-dark border border-brand-border-strong font-condensed font-black uppercase text-xs tracking-wider px-3 py-2 transition-colors inline-flex items-center gap-1.5"
+          >
+            <Settings className="h-4 w-4 text-brand-dark" />
+            <span className="hidden sm:inline">CONFIG / ADMIN</span>
+          </button>
+          <button
+            type="button"
+            onClick={onLock}
+            title="Bloquear tela"
+            className="bg-brand-orange hover:bg-brand-orange-hover text-white font-condensed font-black uppercase text-xs tracking-wider px-3.5 py-2 transition-colors shadow-sm inline-flex items-center gap-1.5"
+          >
+            <Lock className="h-4 w-4" />
+            <span className="hidden sm:inline">BLOQUEAR</span>
+          </button>
+        </div>
+      </div>
+
+      <AdminDialog open={adminOpen} onOpenChange={setAdminOpen} />
+      <Dialog open={lockPrompt} onOpenChange={setLockPrompt}>
+        <DialogContent className="rounded-none border border-brand-border bg-white">
+          <DialogHeader>
+            <DialogTitle className="font-bebas text-3xl tracking-wide text-brand-dark uppercase">
+              Defina um PIN primeiro
+            </DialogTitle>
+            <DialogDescription className="font-condensed text-xs uppercase text-brand-muted">
+              Para bloquear a tela é preciso configurar um PIN de 4 dígitos no menu Admin.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setLockPrompt(false)}
+              className="rounded-none border-brand-border-strong font-condensed font-black uppercase text-xs"
+            >
+              Fechar
+            </Button>
+            <Button
+              onClick={() => {
+                setLockPrompt(false);
+                setAdminOpen(true);
+              }}
+              className="rounded-none bg-brand-orange hover:bg-brand-orange-hover text-white font-condensed font-black uppercase text-xs"
             >
               Abrir Admin
             </Button>
@@ -336,7 +480,6 @@ function CourtBlock() {
   const autoReduceThreshold = usePelada((s) => s.autoReduceThreshold);
   const autoReduceMs = usePelada((s) => s.autoReduceMs);
   const teams = usePelada((s) => s.teams);
-  const teamNames = usePelada((s) => s.teamNames);
   const players = usePelada((s) => s.players);
   const startTimer = usePelada((s) => s.startTimer);
   const pauseTimer = usePelada((s) => s.pauseTimer);
@@ -381,45 +524,65 @@ function CourtBlock() {
   const canDeclare = !!teamA && !!teamB;
 
   return (
-    <section className="rounded-2xl border-2 border-primary/40 bg-court text-court-foreground p-3 sm:p-4 shadow-lg space-y-3">
-      <div className="text-center">
-        {court.inSuddenDeath && (
-          <Badge className="bg-cooldown text-cooldown-foreground font-display tracking-widest mb-1">
-            MORTE SÚBITA
-          </Badge>
-        )}
-        {!court.inSuddenDeath && autoReduceActive && (
-          <Badge className="bg-primary text-primary-foreground font-display tracking-widest mb-1">
-            TEMPO REDUZIDO · {Object.keys(players).length} JOGADORES
-          </Badge>
-        )}
+    <section className="border border-brand-border bg-white p-5 md:p-6 shadow-sm space-y-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-brand-border pb-4">
+        <div>
+          <div className="inline-block bg-brand-orange/10 text-brand-orange border border-brand-orange/30 font-condensed font-black text-[11px] uppercase px-2.5 py-0.5 tracking-wider mb-1">
+            STREET BASKETBALL MOVEMENT // QUADRA ATUAL
+          </div>
+          <h1 className="font-bebas text-3xl sm:text-4xl text-brand-dark tracking-wide uppercase leading-none">
+            PAINEL DE QUADRA & CRONÔMETRO
+          </h1>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {court.inSuddenDeath && (
+            <Badge className="rounded-none bg-red-600 text-white font-condensed font-black uppercase tracking-widest text-xs px-2.5 py-1">
+              ⚡ MORTE SÚBITA
+            </Badge>
+          )}
+          {!court.inSuddenDeath && autoReduceActive && (
+            <Badge className="rounded-none bg-brand-orange text-white font-condensed font-black uppercase tracking-widest text-xs px-2.5 py-1">
+              TEMPO REDUZIDO · {Object.keys(players).length} JOGADORES
+            </Badge>
+          )}
+        </div>
+      </div>
+
+      <div className="border border-brand-border bg-brand-subtle/60 p-4 sm:p-5 text-center space-y-3">
         <div
           className={cn(
-            "font-display text-6xl sm:text-7xl leading-none tabular-nums transition-colors",
-            remaining < 30000 && "text-cooldown",
+            "font-bebas text-7xl sm:text-8xl leading-none tabular-nums tracking-wider transition-colors text-brand-dark",
+            remaining < 30000 && "text-red-600",
           )}
         >
           {timeStr}
         </div>
-        <div className="h-2 w-full rounded-full bg-black/40 overflow-hidden mt-2">
+
+        <div className="w-full bg-white border border-brand-border h-4 overflow-hidden p-0.5">
           <div
-            className="h-full bg-primary transition-[width] duration-200"
+            className="h-full bg-brand-orange transition-[width] duration-200"
             style={{ width: `${100 - pct}%` }}
           />
         </div>
+
         <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
           {court.runningSince ? (
-            <Button size="lg" variant="secondary" onClick={pauseTimer}>
-              <Pause /> Pausar
+            <Button
+              size="lg"
+              variant="secondary"
+              onClick={pauseTimer}
+              className="rounded-none border border-brand-border-strong bg-white hover:bg-brand-subtle text-brand-dark font-condensed font-black uppercase tracking-wider text-sm px-6"
+            >
+              <Pause className="h-4 w-4" /> Pausar
             </Button>
           ) : (
             <Button
               size="lg"
-              className="bg-victory text-victory-foreground hover:bg-victory/90"
               onClick={startTimer}
               disabled={!canDeclare}
+              className="rounded-none bg-brand-orange hover:bg-brand-orange-hover text-white font-condensed font-black uppercase tracking-widest text-sm px-6 shadow-sm"
             >
-              <Play /> Iniciar
+              <Play className="h-4 w-4" /> Iniciar Partida
             </Button>
           )}
           <Button
@@ -427,19 +590,31 @@ function CourtBlock() {
             variant="secondary"
             onClick={useSuddenDeath}
             disabled={court.suddenDeathUsed || !canDeclare}
+            className="rounded-none border border-brand-border-strong bg-white hover:bg-brand-subtle text-brand-dark font-condensed font-black uppercase tracking-wider text-xs px-4 h-10"
           >
-            <TimerIcon /> +1 min
+            <TimerIcon className="h-4 w-4 text-brand-orange" /> +1 min
           </Button>
-          <Button size="sm" variant="secondary" onClick={declareDraw} disabled={!canDeclare}>
-            <Shuffle /> Empate
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={declareDraw}
+            disabled={!canDeclare}
+            className="rounded-none border border-brand-border-strong bg-white hover:bg-brand-subtle text-brand-dark font-condensed font-black uppercase tracking-wider text-xs px-4 h-10"
+          >
+            <Shuffle className="h-4 w-4" /> Empate
           </Button>
-          <Button size="sm" variant="ghost" className="text-court-foreground/70" onClick={resetTimer}>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={resetTimer}
+            className="rounded-none text-brand-muted hover:text-brand-dark hover:bg-brand-subtle font-condensed font-bold uppercase tracking-wider text-xs px-3 h-10"
+          >
             Zerar
           </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <CourtTeamCard
           side="A"
           team={teamA}
@@ -474,7 +649,7 @@ function CourtTeamCard({
 }) {
   const removeCourtTeam = usePelada((s) => s.removeCourtTeam);
   const customName = usePelada((s) => (team ? s.teamNames[team.id] : undefined));
-  const sideColor = side === "A" ? "bg-team-a" : "bg-team-b";
+  const sideColor = side === "A" ? "bg-brand-orange" : "bg-brand-dark";
   const dropId = team ? `team:${team.id}` : `court-slot:${side}`;
   const { setNodeRef, isOver } = useDroppable({ id: dropId });
 
@@ -482,15 +657,16 @@ function CourtTeamCard({
     <div
       ref={setNodeRef}
       className={cn(
-        "rounded-xl bg-background/95 text-foreground p-3 flex flex-col gap-2 min-h-[180px] transition-all",
-        isOver && "ring-2 ring-primary scale-[1.01]",
+        "border border-brand-border bg-white p-4 flex flex-col gap-3 min-h-[200px] transition-all shadow-xs",
+        side === "A" ? "border-t-4 border-t-brand-orange" : "border-t-4 border-t-brand-dark",
+        isOver && "ring-2 ring-brand-orange bg-brand-orange/5",
       )}
     >
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
+      <div className="flex items-center justify-between gap-2 border-b border-brand-border pb-2.5">
+        <div className="flex items-center gap-2.5 min-w-0">
           <span
             className={cn(
-              "h-8 w-8 rounded-full flex items-center justify-center text-white font-display text-lg shrink-0",
+              "h-8 w-8 flex items-center justify-center text-white font-bebas text-xl shrink-0 shadow-xs",
               sideColor,
             )}
           >
@@ -499,17 +675,17 @@ function CourtTeamCard({
           <button
             type="button"
             onClick={() => team && teamRenameBus.emit(team.id)}
-            className="font-display text-xl tracking-wide truncate inline-flex items-center gap-1 hover:text-primary transition-colors"
+            className="font-bebas text-2xl tracking-wide text-brand-dark truncate inline-flex items-center gap-1.5 hover:text-brand-orange transition-colors"
             disabled={!team}
             title={team ? "Renomear time" : undefined}
           >
-            {team ? customName ?? `TIME ${team.number}` : "Vazio"}
-            {team && <Pencil className="h-3 w-3 opacity-50" />}
+            {team ? customName ?? `TIME ${team.number}` : "LADO VAZIO"}
+            {team && <Pencil className="h-3.5 w-3.5 text-brand-muted" />}
           </button>
           {team && team.wins > 0 && (
-            <Badge variant="secondary" className="font-display text-xs">
-              {team.wins}ª vit.
-            </Badge>
+            <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-condensed font-black px-2 py-0.5 uppercase tracking-widest">
+              {team.wins}ª VIT.
+            </span>
           )}
         </div>
         {team && (
@@ -517,7 +693,7 @@ function CourtTeamCard({
             <Button
               size="sm"
               variant="outline"
-              className="h-8"
+              className="h-8 rounded-none border-brand-border-strong bg-brand-subtle hover:bg-brand-border text-brand-dark font-condensed font-black uppercase text-xs"
               onClick={() => removeCourtTeam(side)}
               title="Tirar da quadra e devolver para a fila"
             >
@@ -526,7 +702,7 @@ function CourtTeamCard({
             <Button
               size="icon"
               variant="ghost"
-              className="text-destructive hover:bg-destructive/10 h-8 w-8"
+              className="rounded-none text-red-600 hover:bg-red-50 h-8 w-8"
               onClick={() => {
                 if (confirm(`Excluir TIME ${team.number} e seus jogadores?`))
                   removeCourtTeam(side, { deletePlayers: true });
@@ -537,29 +713,41 @@ function CourtTeamCard({
             </Button>
           </div>
         )}
-
       </div>
 
-      <div className="flex-1 flex flex-wrap gap-1.5 content-start">
+      <div className="flex-1 flex flex-wrap gap-1.5 content-start py-1">
         {team?.memberIds.map((pid) => {
           const p = players[pid];
           if (!p) return null;
-          return <PlayerPill key={pid} playerId={pid} name={p.name} justPlayed={p.justPlayed} />;
+          return (
+            <PlayerPill
+              key={pid}
+              playerId={pid}
+              name={p.name}
+              justPlayed={p.justPlayed}
+              role={p.role}
+            />
+          );
         })}
         {!team && (
-          <p className="text-xs text-muted-foreground italic self-center mx-auto">
-            Envie um time da fila →
+          <p className="text-xs font-condensed uppercase text-brand-muted self-center mx-auto tracking-wider">
+            Envie um time da fila para o Lado {side} →
           </p>
         )}
       </div>
 
       <Button
         size="lg"
-        className="bg-victory text-victory-foreground hover:bg-victory/90 h-12 font-display tracking-wider"
+        className={cn(
+          "rounded-none h-11 font-condensed font-black uppercase tracking-widest text-sm text-white transition-colors shadow-xs",
+          side === "A"
+            ? "bg-brand-orange hover:bg-brand-orange-hover"
+            : "bg-brand-dark hover:bg-black",
+        )}
         disabled={!canDeclare}
         onClick={onWin}
       >
-        <Trophy /> TIME {side} VENCEU
+        <Trophy className="h-4 w-4" /> TIME {side} VENCEU
       </Button>
     </div>
   );
@@ -572,10 +760,12 @@ function PlayerPill({
   playerId,
   name,
   justPlayed,
+  role,
 }: {
   playerId: ID;
   name: string;
   justPlayed: boolean;
+  role?: "aluno" | "convencional";
 }) {
   const selection = usePelada((s) => s.selection);
   const toggleSelect = usePelada((s) => s.toggleSelect);
@@ -598,30 +788,39 @@ function PlayerPill({
       }}
       style={{ transform: CSS.Translate.toString(transform), touchAction: "manipulation" }}
       className={cn(
-        "group relative rounded-lg border-2 flex items-stretch min-h-[44px] transition-all",
+        "group relative border flex items-stretch min-h-[40px] transition-all",
         selected
-          ? "border-primary bg-primary text-primary-foreground shadow-md"
+          ? "border-brand-orange bg-brand-orange text-white shadow-sm"
           : justPlayed
-            ? "border-cooldown/50 bg-cooldown/10"
-            : "border-border bg-secondary",
-        isOver && !isDragging && "ring-2 ring-primary ring-offset-1 ring-offset-background",
+            ? "border-red-300 bg-red-50 text-red-900"
+            : "border-brand-border-strong bg-brand-subtle text-brand-dark hover:border-brand-orange",
+        isOver && !isDragging && "ring-2 ring-brand-orange ring-offset-1 ring-offset-white",
         isDragging && "opacity-40",
       )}
     >
-
       <button
         type="button"
         onClick={() => toggleSelect(playerId)}
-        className="flex-1 flex items-center gap-1.5 px-2.5 py-1.5 text-sm font-medium text-left"
+        className="flex-1 flex items-center gap-1.5 px-2.5 py-1 font-condensed text-sm font-black uppercase tracking-wide text-left"
       >
-        {justPlayed && <Ban className="h-3.5 w-3.5 text-cooldown shrink-0" />}
-        <span className="truncate max-w-[110px]">{name}</span>
+        {justPlayed && <Ban className="h-3.5 w-3.5 text-red-600 shrink-0" />}
+        <span className="truncate max-w-[115px]">{name}</span>
+        {role === "aluno" && (
+          <span
+            className={cn(
+              "text-[9px] px-1 font-black shrink-0",
+              selected ? "bg-white text-brand-orange" : "bg-brand-orange text-white",
+            )}
+          >
+            ALUNO
+          </span>
+        )}
       </button>
       <button
         type="button"
         {...listeners}
         {...attributes}
-        className="px-1 flex items-center border-l border-current/20 opacity-40 hover:opacity-100 cursor-grab touch-none"
+        className="px-1 flex items-center border-l border-current/15 opacity-50 hover:opacity-100 cursor-grab touch-none"
         title="Arrastar"
         aria-label="Arrastar jogador"
       >
@@ -631,26 +830,33 @@ function PlayerPill({
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className="px-1.5 flex items-center border-l border-current/20 opacity-60 hover:opacity-100"
+            className="px-1.5 flex items-center border-l border-current/15 opacity-60 hover:opacity-100"
             onClick={(e) => e.stopPropagation()}
             aria-label="Ações"
           >
             <MoreVertical className="h-4 w-4" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
+        <DropdownMenuContent
+          align="end"
+          className="rounded-none border border-brand-border bg-white font-condensed uppercase"
+        >
           <DropdownMenuItem
+            className="font-bold text-xs uppercase cursor-pointer"
             onSelect={() => {
               renameBus.emit(playerId);
             }}
           >
-            <Pencil className="h-4 w-4 mr-2" /> Renomear
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => detachPlayerToQueue(playerId)}>
-            <Users className="h-4 w-4 mr-2" /> Desagrupar (para fila)
+            <Pencil className="h-4 w-4 mr-2 text-brand-orange" /> Renomear
           </DropdownMenuItem>
           <DropdownMenuItem
-            className="text-destructive"
+            className="font-bold text-xs uppercase cursor-pointer"
+            onSelect={() => detachPlayerToQueue(playerId)}
+          >
+            <Users className="h-4 w-4 mr-2 text-brand-dark" /> Desagrupar (para fila)
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="text-red-600 font-bold text-xs uppercase cursor-pointer"
             onSelect={() => {
               if (confirm(`Remover ${name}?`)) removePlayer(playerId);
             }}
@@ -678,7 +884,6 @@ const renameBus = (() => {
 function RenameDialogController() {
   const [id, setId] = useState<ID | null>(null);
   const [value, setValue] = useState("");
-  const players = usePelada((s) => s.players);
   const renamePlayer = usePelada((s) => s.renamePlayer);
   useEffect(() => {
     const off = renameBus.on((pid) => {
@@ -692,19 +897,29 @@ function RenameDialogController() {
   const open = !!id;
   return (
     <Dialog open={open} onOpenChange={(o) => !o && setId(null)}>
-      <DialogContent>
+      <DialogContent className="rounded-none border border-brand-border bg-white">
         <DialogHeader>
-          <DialogTitle>Renomear jogador</DialogTitle>
-          <DialogDescription>Altere o nome exibido no totem.</DialogDescription>
+          <DialogTitle className="font-bebas text-3xl tracking-wide text-brand-dark uppercase">
+            Renomear jogador
+          </DialogTitle>
+          <DialogDescription className="font-condensed text-xs uppercase text-brand-muted">
+            Altere o nome exibido no totem.
+          </DialogDescription>
         </DialogHeader>
         <Input
           autoFocus
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          className="h-12 text-base"
+          className="h-12 rounded-none bg-brand-subtle border-brand-border-strong font-condensed font-bold uppercase text-base"
         />
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setId(null)}>Cancelar</Button>
+        <DialogFooter className="gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setId(null)}
+            className="rounded-none border-brand-border-strong font-condensed font-black uppercase text-xs"
+          >
+            Cancelar
+          </Button>
           <Button
             onClick={() => {
               if (id && value.trim()) {
@@ -712,6 +927,7 @@ function RenameDialogController() {
                 setId(null);
               }
             }}
+            className="rounded-none bg-brand-orange hover:bg-brand-orange-hover text-white font-condensed font-black uppercase text-xs"
           >
             Salvar
           </Button>
@@ -766,12 +982,20 @@ function QueueBlock() {
   const selectedNames = selection.map((id) => players[id]?.name).filter(Boolean).join(", ");
 
   return (
-    <section className="rounded-2xl border-2 border-border bg-card p-3 sm:p-4 space-y-3">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="font-display text-2xl tracking-wide">
-          FILA <span className="text-primary">·</span>{" "}
-          <span className="text-muted-foreground text-lg">{queue.length}</span>
-        </h2>
+    <section className="border border-brand-border bg-white p-5 md:p-6 shadow-sm space-y-5">
+      <div className="border-b border-brand-border pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div>
+          <span className="text-xs font-condensed font-black text-brand-orange uppercase tracking-widest block">
+            QUADRA & RACHAS
+          </span>
+          <h2 className="font-bebas text-3xl md:text-4xl text-brand-dark tracking-wide leading-none">
+            FILA DE ESPERA DA QUADRA{" "}
+            <span className="text-brand-orange">({queue.length})</span>
+          </h2>
+          <p className="text-xs font-condensed text-brand-muted uppercase mt-0.5">
+            Jogadores que entram pelo celular aparecem automaticamente aqui na fila
+          </p>
+        </div>
       </div>
 
       <form
@@ -787,39 +1011,52 @@ function QueueBlock() {
         <Input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Nome do jogador"
-          className="h-12 text-base"
+          placeholder="NOME DO JOGADOR PARA ENTRAR NA FILA..."
+          className="h-12 rounded-none bg-brand-subtle border-brand-border-strong font-condensed font-bold uppercase text-sm text-brand-dark placeholder:text-brand-muted focus-visible:ring-0 focus-visible:border-brand-orange"
         />
-        <Button size="lg" type="submit" className="shrink-0">
-          <Plus /> Add
+        <Button
+          size="lg"
+          type="submit"
+          className="shrink-0 h-12 rounded-none bg-brand-orange hover:bg-brand-orange-hover text-white font-condensed font-black uppercase text-xs tracking-wider px-6 shadow-sm"
+        >
+          <Plus className="h-4 w-4" /> ADICIONAR
         </Button>
       </form>
 
       {selection.length > 0 && (
-        <div className="sticky top-2 z-10 rounded-xl border-2 border-primary bg-primary/10 backdrop-blur px-3 py-2 space-y-2">
-          <div className="text-xs text-muted-foreground truncate">
-            <span className="font-semibold text-primary">{selection.length} selecionado(s):</span>{" "}
-            {selectedNames}
+        <div className="sticky top-16 z-20 border-2 border-brand-orange bg-white px-4 py-3 shadow-md space-y-2">
+          <div className="text-xs font-condensed uppercase text-brand-muted truncate">
+            <span className="font-black text-brand-orange">
+              {selection.length} SELECIONADO(S):
+            </span>{" "}
+            <span className="font-bold text-brand-dark">{selectedNames}</span>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" onClick={formTeam} disabled={selection.length < 2}>
-              <Users /> Formar Time
+            <Button
+              size="sm"
+              onClick={formTeam}
+              disabled={selection.length < 2}
+              className="rounded-none bg-brand-orange hover:bg-brand-orange-hover text-white font-condensed font-black uppercase text-xs"
+            >
+              <Users className="h-3.5 w-3.5" /> Formar Time
             </Button>
             <Button
               size="sm"
               variant="outline"
               onClick={() => moveSelectionInQueue(-1)}
               title="Subir na fila"
+              className="rounded-none border-brand-border-strong font-condensed font-black uppercase text-xs"
             >
-              <ChevronUp /> Subir
+              <ChevronUp className="h-3.5 w-3.5" /> Subir
             </Button>
             <Button
               size="sm"
               variant="outline"
               onClick={() => moveSelectionInQueue(1)}
               title="Descer na fila"
+              className="rounded-none border-brand-border-strong font-condensed font-black uppercase text-xs"
             >
-              <ChevronDown /> Descer
+              <ChevronDown className="h-3.5 w-3.5" /> Descer
             </Button>
             {selection.length === 1 && (
               <>
@@ -827,14 +1064,16 @@ function QueueBlock() {
                   size="sm"
                   variant="outline"
                   onClick={() => renameBus.emit(selection[0])}
+                  className="rounded-none border-brand-border-strong font-condensed font-black uppercase text-xs"
                 >
-                  <Pencil /> Renomear
+                  <Pencil className="h-3.5 w-3.5" /> Renomear
                 </Button>
                 <Button
                   size="sm"
                   variant="outline"
                   disabled={!slotAOpen}
                   onClick={() => sendPlayerToCourtSide(selection[0], "A")}
+                  className="rounded-none border-brand-border-strong font-condensed font-black uppercase text-xs"
                 >
                   → A
                 </Button>
@@ -843,18 +1082,23 @@ function QueueBlock() {
                   variant="outline"
                   disabled={!slotBOpen}
                   onClick={() => sendPlayerToCourtSide(selection[0], "B")}
+                  className="rounded-none border-brand-border-strong font-condensed font-black uppercase text-xs"
                 >
                   → B
                 </Button>
               </>
             )}
-            <Button size="sm" variant="outline" onClick={clearSelection}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={clearSelection}
+              className="rounded-none border-brand-border-strong font-condensed font-black uppercase text-xs"
+            >
               Limpar
             </Button>
           </div>
         </div>
       )}
-
 
       {waitingChampion && teams[waitingChampion] && (
         <QueueRow
@@ -871,12 +1115,14 @@ function QueueBlock() {
         />
       )}
 
-      <div ref={setQueueDropRef} className="space-y-2 min-h-[40px]">
+      <div ref={setQueueDropRef} className="space-y-3 min-h-[40px]">
         <SortableContext items={queueIds} strategy={verticalListSortingStrategy}>
           {queue.length === 0 && !waitingChampion && (
-            <p className="text-sm text-muted-foreground italic py-6 text-center">
-              Ninguém na fila. Adicione jogadores acima.
-            </p>
+            <div className="border border-dashed border-brand-border-strong bg-brand-subtle/40 py-8 text-center">
+              <p className="text-xs font-condensed font-bold text-brand-muted uppercase tracking-wider">
+                Nenhum jogador na fila ainda. Adicione jogadores acima ou pelo celular.
+              </p>
+            </div>
           )}
           {queue.map((entry, i) =>
             entry.kind === "team" ? (
@@ -948,7 +1194,9 @@ interface QueueRowBaseProps {
 
 function SortableQueueRow(props: QueueRowBaseProps & { id: string }) {
   const { id, ...rest } = props;
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id,
+  });
   return (
     <div
       ref={setNodeRef}
@@ -998,27 +1246,29 @@ function QueueRow(
     <div
       ref={setDropRef}
       className={cn(
-        "rounded-xl border-2 p-2 sm:p-3 space-y-2 transition-colors",
+        "border p-3.5 space-y-3 transition-colors",
         isChampion
-          ? "border-champion bg-champion/10"
-          : "border-border bg-secondary/40",
-        isOver && "ring-2 ring-primary",
+          ? "border-2 border-brand-orange bg-brand-orange/5"
+          : "border-brand-border bg-white shadow-2xs",
+        isOver && "ring-2 ring-brand-orange",
       )}
     >
       <div className="flex items-center gap-2">
         <button
           {...dragHandleProps}
-          className="p-1 text-muted-foreground hover:text-primary cursor-grab touch-none"
+          className="p-1 text-brand-muted hover:text-brand-orange cursor-grab touch-none"
           title="Arrastar posição"
           aria-label="Arrastar"
         >
           <GripVertical className="h-5 w-5" />
         </button>
         {isChampion ? (
-          <Crown className="h-6 w-6 text-champion shrink-0" />
+          <span className="inline-flex items-center gap-1 bg-brand-orange text-white font-condensed font-black text-xs uppercase px-2 py-0.5">
+            <Crown className="h-3.5 w-3.5" /> CAMPEÃO EM ESPERA
+          </span>
         ) : (
-          <span className="font-display text-xl text-muted-foreground w-6 text-center">
-            {position}
+          <span className="font-condensed font-black text-xs text-brand-muted bg-brand-subtle border border-brand-border px-2 py-0.5">
+            #{position}
           </span>
         )}
         {team && (
@@ -1028,13 +1278,10 @@ function QueueRow(
             className="inline-flex items-center"
             title="Renomear time"
           >
-            <Badge
-              variant="outline"
-              className="font-display tracking-wide border-primary/60 text-primary hover:bg-primary/10"
-            >
+            <span className="bg-brand-orange/10 text-brand-orange border border-brand-orange/30 font-condensed font-black text-xs uppercase px-2.5 py-0.5 tracking-wider inline-flex items-center gap-1 hover:bg-brand-orange/20 transition-colors">
               {customName ?? `TIME ${team.number}`}
-              <Pencil className="h-3 w-3 ml-1 opacity-50" />
-            </Badge>
+              <Pencil className="h-3 w-3 opacity-60" />
+            </span>
           </button>
         )}
         <div className="flex-1" />
@@ -1043,53 +1290,58 @@ function QueueRow(
             <Button
               size="icon"
               variant="outline"
-              className="h-9 w-9"
+              className="h-8 w-8 rounded-none border-brand-border-strong"
               onClick={() => moveQueueEntry(entry, -1)}
               title="Subir na fila"
               aria-label="Subir na fila"
             >
-              <ChevronUp className="h-5 w-5" />
+              <ChevronUp className="h-4 w-4" />
             </Button>
             <Button
               size="icon"
               variant="outline"
-              className="h-9 w-9"
+              className="h-8 w-8 rounded-none border-brand-border-strong"
               onClick={() => moveQueueEntry(entry, 1)}
               title="Descer na fila"
               aria-label="Descer na fila"
             >
-              <ChevronDown className="h-5 w-5" />
+              <ChevronDown className="h-4 w-4" />
             </Button>
           </>
         )}
         {!isChampion && (
-          <>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-9 w-9 text-muted-foreground hover:text-destructive"
-              onClick={() => {
-                const label = team ? `TIME ${team.number}` : player?.name ?? "esta entrada";
-                if (confirm(`Remover ${label} da fila?`)) onRemoveEntry(entry);
-              }}
-              title="Remover"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8 rounded-none text-brand-muted hover:text-red-600 hover:bg-red-50"
+            onClick={() => {
+              const label = team ? `TIME ${team.number}` : player?.name ?? "esta entrada";
+              if (confirm(`Remover ${label} da fila?`)) onRemoveEntry(entry);
+            }}
+            title="Remover"
+          >
+            <X className="h-4 w-4" />
+          </Button>
         )}
       </div>
-
 
       <div className="flex flex-wrap gap-1.5">
         {(team ? team.memberIds : player ? [player.id] : []).map((pid) => {
           const p = players[pid];
           if (!p) return null;
-          return <PlayerPill key={pid} playerId={pid} name={p.name} justPlayed={p.justPlayed} />;
+          return (
+            <PlayerPill
+              key={pid}
+              playerId={pid}
+              name={p.name}
+              justPlayed={p.justPlayed}
+              role={p.role}
+            />
+          );
         })}
         {team && selectionCount > 0 && (
           <button
-            className="rounded-lg border-2 border-dashed border-primary/60 px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary/5"
+            className="border-2 border-dashed border-brand-orange px-2.5 py-1.5 font-condensed text-xs font-black uppercase text-brand-orange hover:bg-brand-orange/5"
             onClick={() => onPasteInto(team.id)}
           >
             <Plus className="inline h-3 w-3" /> colar {selectionCount} aqui
@@ -1097,35 +1349,27 @@ function QueueRow(
         )}
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 pt-1">
         <Button
           size="lg"
-          className={cn(
-            "flex-1 h-11",
-            isChampion && slotAOpen
-              ? "bg-champion text-champion-foreground hover:bg-champion/90"
-              : "bg-team-a text-white hover:bg-team-a/90",
-          )}
+          className="flex-1 h-10 rounded-none bg-brand-orange hover:bg-brand-orange-hover text-white font-condensed font-black uppercase tracking-widest text-xs"
           disabled={!slotAOpen}
           onClick={() => onSendSide("A")}
         >
-          → A
+          → ENVIAR LADO A
         </Button>
         <Button
           size="lg"
-          className={cn(
-            "flex-1 h-11",
-            isChampion && slotBOpen
-              ? "bg-champion text-champion-foreground hover:bg-champion/90"
-              : "bg-team-b text-white hover:bg-team-b/90",
-          )}
+          className="flex-1 h-10 rounded-none bg-brand-dark hover:bg-black text-white font-condensed font-black uppercase tracking-widest text-xs"
           disabled={!slotBOpen}
           onClick={() => onSendSide("B")}
         >
-          → B
+          → ENVIAR LADO B
         </Button>
         {!hasAny && (
-          <span className="text-xs text-muted-foreground italic px-1">quadra cheia</span>
+          <span className="text-[11px] font-condensed font-bold uppercase text-brand-muted px-2">
+            QUADRA CHEIA
+          </span>
         )}
       </div>
     </div>
@@ -1152,13 +1396,19 @@ function LockOverlay() {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-court/95 backdrop-blur-sm flex items-center justify-center p-6">
-      <div className="w-full max-w-sm space-y-4 text-court-foreground text-center">
-        <img src={heziLogo.url} alt="Hezi Fam" className="h-24 w-24 mx-auto object-contain" />
-        <Lock className="h-10 w-10 mx-auto text-primary" />
-        <h2 className="font-display text-3xl tracking-wide">TELA BLOQUEADA</h2>
-        <p className="text-sm text-court-foreground/70">
-          {adminPin ? "Digite o PIN para desbloquear." : "Nenhum PIN definido — toque em desbloquear."}
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="w-full max-w-sm border-2 border-brand-orange bg-white p-6 space-y-4 text-brand-dark text-center shadow-xl">
+        <div className="w-12 h-12 bg-brand-orange flex items-center justify-center font-black text-white font-condensed text-2xl mx-auto shadow-sm">
+          HF
+        </div>
+        <Lock className="h-8 w-8 mx-auto text-brand-orange" />
+        <h2 className="font-bebas text-4xl tracking-wide uppercase leading-none">
+          TELA BLOQUEADA
+        </h2>
+        <p className="text-xs font-condensed uppercase text-brand-muted">
+          {adminPin
+            ? "Digite o PIN do treinador para desbloquear o totem."
+            : "Nenhum PIN definido — toque em desbloquear."}
         </p>
         <Input
           autoFocus
@@ -1173,15 +1423,19 @@ function LockOverlay() {
             if (e.key === "Enter") trySubmit();
           }}
           placeholder="••••"
-          className="text-center text-3xl tracking-[0.6em] h-16 bg-background text-foreground"
+          className="text-center text-3xl tracking-[0.6em] h-16 rounded-none bg-brand-subtle border-brand-border-strong font-bebas text-brand-dark"
         />
-        {error && <p className="text-cooldown text-sm">PIN incorreto</p>}
+        {error && (
+          <p className="text-red-600 font-condensed font-black uppercase text-xs">
+            PIN incorreto
+          </p>
+        )}
         <Button
           size="lg"
-          className="w-full h-14 bg-primary text-primary-foreground hover:bg-primary/90"
+          className="w-full h-12 rounded-none bg-brand-orange hover:bg-brand-orange-hover text-white font-condensed font-black uppercase tracking-widest text-sm"
           onClick={trySubmit}
         >
-          <Unlock /> Desbloquear
+          <Unlock className="h-4 w-4" /> Desbloquear
         </Button>
       </div>
     </div>
@@ -1213,20 +1467,28 @@ function CooldownDialog({
 
   return (
     <Dialog open={!!entry} onOpenChange={(o) => !o && onCancel()}>
-      <DialogContent>
+      <DialogContent className="rounded-none border border-brand-border bg-white">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Ban className="h-5 w-5 text-cooldown" /> Acabou de jogar
+          <DialogTitle className="flex items-center gap-2 font-bebas text-3xl tracking-wide text-brand-dark uppercase">
+            <Ban className="h-6 w-6 text-red-600" /> Acabou de jogar
           </DialogTitle>
-          <DialogDescription>
-            {blocked.join(", ")} acabou de jogar. A regra é aguardar uma partida. Confirmar mesmo assim?
+          <DialogDescription className="font-condensed text-xs uppercase text-brand-muted">
+            {blocked.join(", ")} acabou de jogar. A regra é aguardar uma partida. Confirmar mesmo
+            assim?
           </DialogDescription>
         </DialogHeader>
-        <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>
+        <DialogFooter className="gap-2">
+          <Button
+            variant="outline"
+            onClick={onCancel}
+            className="rounded-none border-brand-border-strong font-condensed font-black uppercase text-xs"
+          >
             Cancelar
           </Button>
-          <Button className="bg-cooldown text-cooldown-foreground hover:bg-cooldown/90" onClick={onConfirm}>
+          <Button
+            className="rounded-none bg-red-600 hover:bg-red-700 text-white font-condensed font-black uppercase text-xs"
+            onClick={onConfirm}
+          >
             Liberar assim mesmo
           </Button>
         </DialogFooter>
@@ -1284,10 +1546,12 @@ function AdminDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="rounded-none border border-brand-border bg-white max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Modo administrador</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="font-bebas text-3xl tracking-wide text-brand-dark uppercase">
+            PAINEL DO TREINADOR // CONFIGURAÇÕES
+          </DialogTitle>
+          <DialogDescription className="font-condensed text-xs uppercase text-brand-muted">
             {needsPin ? "Digite o PIN de 4 dígitos." : "Ações administrativas da pelada."}
           </DialogDescription>
         </DialogHeader>
@@ -1301,16 +1565,20 @@ function AdminDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: 
               value={pin}
               onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
               placeholder="PIN"
-              className="text-center text-2xl tracking-[0.5em] h-14"
+              className="text-center text-2xl tracking-[0.5em] h-14 rounded-none bg-brand-subtle border-brand-border-strong font-bebas"
             />
-            <Button className="w-full" onClick={() => setAuthed(pin === adminPin)} disabled={pin.length !== 4}>
+            <Button
+              className="w-full rounded-none bg-brand-orange hover:bg-brand-orange-hover text-white font-condensed font-black uppercase text-xs h-11"
+              onClick={() => setAuthed(pin === adminPin)}
+              disabled={pin.length !== 4}
+            >
               Entrar
             </Button>
           </div>
         ) : (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <p className="text-sm font-medium">PIN de administrador / bloqueio</p>
+          <div className="space-y-4 font-condensed uppercase">
+            <div className="space-y-2 border border-brand-border bg-brand-subtle/50 p-3">
+              <p className="text-xs font-black text-brand-dark">PIN de administrador / bloqueio</p>
               <div className="flex gap-2">
                 <Input
                   inputMode="numeric"
@@ -1318,6 +1586,7 @@ function AdminDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: 
                   value={pin}
                   onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
                   placeholder={adminPin ? "•".repeat(adminPin.length) : "Ex: 1234"}
+                  className="rounded-none bg-white border-brand-border-strong"
                 />
                 <Button
                   onClick={() => {
@@ -1325,19 +1594,20 @@ function AdminDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: 
                     setPin("");
                   }}
                   disabled={pin.length !== 4}
+                  className="rounded-none bg-brand-orange hover:bg-brand-orange-hover text-white font-condensed font-black uppercase text-xs"
                 >
                   Salvar
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[11px] text-brand-muted">
                 O mesmo PIN é usado para entrar no Admin e para desbloquear a tela.
               </p>
             </div>
 
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Tempos de partida (minutos)</p>
+            <div className="space-y-2 border border-brand-border bg-brand-subtle/50 p-3">
+              <p className="text-xs font-black text-brand-dark">Tempos de partida (minutos)</p>
               <div className="grid grid-cols-2 gap-2">
-                <label className="text-xs text-muted-foreground space-y-1 block">
+                <label className="text-xs text-brand-muted font-bold space-y-1 block">
                   Partida
                   <Input
                     type="number"
@@ -1351,10 +1621,10 @@ function AdminDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: 
                       const v = Number(matchMin);
                       if (Number.isFinite(v) && v > 0) setMatchDuration(v * 60000);
                     }}
-                    className="h-11 text-base"
+                    className="h-10 rounded-none bg-white border-brand-border-strong font-black text-brand-dark"
                   />
                 </label>
-                <label className="text-xs text-muted-foreground space-y-1 block">
+                <label className="text-xs text-brand-muted font-bold space-y-1 block">
                   Morte súbita
                   <Input
                     type="number"
@@ -1368,19 +1638,19 @@ function AdminDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: 
                       const v = Number(sdMin);
                       if (Number.isFinite(v) && v > 0) setSuddenDeathDuration(v * 60000);
                     }}
-                    className="h-11 text-base"
+                    className="h-10 rounded-none bg-white border-brand-border-strong font-black text-brand-dark"
                   />
                 </label>
               </div>
             </div>
 
-            <div className="space-y-2 rounded-lg border border-border p-3">
+            <div className="space-y-2 border border-brand-border bg-brand-subtle/50 p-3">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-medium">
+                  <p className="text-xs font-black text-brand-dark">
                     Regra "ganhou {winsToRotate} e sai" 👑
                   </p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-[11px] text-brand-muted">
                     {championRuleEnabled
                       ? "Ativa: o time sai da quadra e vira campeão em espera."
                       : "Desativada: o time fica na quadra enquanto vencer."}
@@ -1389,11 +1659,17 @@ function AdminDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: 
                 <Button
                   variant={championRuleEnabled ? "default" : "outline"}
                   onClick={() => setChampionRule(!championRuleEnabled)}
+                  className={cn(
+                    "rounded-none font-condensed font-black uppercase text-xs",
+                    championRuleEnabled
+                      ? "bg-brand-orange hover:bg-brand-orange-hover text-white"
+                      : "border-brand-border-strong bg-white text-brand-dark",
+                  )}
                 >
                   {championRuleEnabled ? "Desativar" : "Ativar"}
                 </Button>
               </div>
-              <label className="text-xs text-muted-foreground space-y-1 block">
+              <label className="text-xs text-brand-muted font-bold space-y-1 block">
                 Vitórias seguidas para sair
                 <Input
                   type="number"
@@ -1408,16 +1684,18 @@ function AdminDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: 
                     const v = Number(winsInput);
                     if (Number.isFinite(v) && v >= 1) setWinsToRotate(v);
                   }}
-                  className="h-11 text-base"
+                  className="h-10 rounded-none bg-white border-brand-border-strong font-black text-brand-dark"
                 />
               </label>
             </div>
 
-            <div className="space-y-2 rounded-lg border border-border p-3">
+            <div className="space-y-2 border border-brand-border bg-brand-subtle/50 p-3">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-medium">Tempo reduzido automático ⏱️</p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs font-black text-brand-dark">
+                    Tempo reduzido automático ⏱️
+                  </p>
+                  <p className="text-[11px] text-brand-muted">
                     {autoReduceEnabled
                       ? `Com ${autoReduceThreshold}+ jogadores, a partida passa a ${autoReduceMs / 60000} min.`
                       : "Desativado: a partida usa sempre o tempo padrão."}
@@ -1426,12 +1704,18 @@ function AdminDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: 
                 <Button
                   variant={autoReduceEnabled ? "default" : "outline"}
                   onClick={() => setAutoReduce({ enabled: !autoReduceEnabled })}
+                  className={cn(
+                    "rounded-none font-condensed font-black uppercase text-xs",
+                    autoReduceEnabled
+                      ? "bg-brand-orange hover:bg-brand-orange-hover text-white"
+                      : "border-brand-border-strong bg-white text-brand-dark",
+                  )}
                 >
                   {autoReduceEnabled ? "Desativar" : "Ativar"}
                 </Button>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <label className="text-xs text-muted-foreground space-y-1 block">
+                <label className="text-xs text-brand-muted font-bold space-y-1 block">
                   A partir de (jogadores)
                   <Input
                     type="number"
@@ -1446,10 +1730,10 @@ function AdminDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: 
                       const v = Number(thresholdInput);
                       if (Number.isFinite(v) && v >= 2) setAutoReduce({ threshold: v });
                     }}
-                    className="h-11 text-base"
+                    className="h-10 rounded-none bg-white border-brand-border-strong font-black text-brand-dark"
                   />
                 </label>
-                <label className="text-xs text-muted-foreground space-y-1 block">
+                <label className="text-xs text-brand-muted font-bold space-y-1 block">
                   Tempo reduzido (min)
                   <Input
                     type="number"
@@ -1464,28 +1748,26 @@ function AdminDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: 
                       const v = Number(autoMinInput);
                       if (Number.isFinite(v) && v > 0) setAutoReduce({ ms: v * 60000 });
                     }}
-                    className="h-11 text-base"
+                    className="h-10 rounded-none bg-white border-brand-border-strong font-black text-brand-dark"
                   />
                 </label>
               </div>
             </div>
 
-
-
-
             <div className="space-y-2">
-              <p className="text-sm font-medium">Ações rápidas</p>
+              <p className="text-xs font-black text-brand-dark">Ações rápidas</p>
               <Button
                 variant="outline"
-                className="w-full justify-start"
+                className="w-full justify-start rounded-none border-brand-border-strong font-condensed font-black uppercase text-xs"
                 disabled={!court.suddenDeathUsed}
                 onClick={adminResetSuddenDeath}
               >
-                <TimerIcon /> Reabrir botão +1 min (morte súbita)
+                <TimerIcon className="h-4 w-4 text-brand-orange" /> Reabrir botão +1 min (morte
+                súbita)
               </Button>
               <Button
                 variant="destructive"
-                className="w-full justify-start"
+                className="w-full justify-start rounded-none bg-red-600 hover:bg-red-700 text-white font-condensed font-black uppercase text-xs"
                 onClick={() => {
                   if (confirm("Zerar toda a pelada? Isso apaga jogadores, times e fila.")) {
                     resetNight();
@@ -1493,7 +1775,7 @@ function AdminDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: 
                   }
                 }}
               >
-                <X /> Resetar a noite inteira
+                <X className="h-4 w-4" /> Resetar a noite inteira
               </Button>
             </div>
           </div>
@@ -1538,10 +1820,12 @@ function TeamRenameDialogController() {
   const team = id ? teams[id] : null;
   return (
     <Dialog open={open} onOpenChange={(o) => !o && setId(null)}>
-      <DialogContent>
+      <DialogContent className="rounded-none border border-brand-border bg-white">
         <DialogHeader>
-          <DialogTitle>Renomear time</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="font-bebas text-3xl tracking-wide text-brand-dark uppercase">
+            Renomear time
+          </DialogTitle>
+          <DialogDescription className="font-condensed text-xs uppercase text-brand-muted">
             {team
               ? `Time ${team.number} — apelido opcional (deixe vazio para usar só o número).`
               : ""}
@@ -1552,7 +1836,7 @@ function TeamRenameDialogController() {
           value={value}
           onChange={(e) => setValue(e.target.value)}
           placeholder={team ? `TIME ${team.number}` : ""}
-          className="h-12 text-base"
+          className="h-12 rounded-none bg-brand-subtle border-brand-border-strong font-condensed font-bold uppercase text-base"
         />
         <DialogFooter className="gap-2">
           {id && teamNames[id] && (
@@ -1562,11 +1846,16 @@ function TeamRenameDialogController() {
                 if (id) renameTeam(id, "");
                 setId(null);
               }}
+              className="rounded-none border-brand-border-strong font-condensed font-black uppercase text-xs"
             >
               Remover apelido
             </Button>
           )}
-          <Button variant="outline" onClick={() => setId(null)}>
+          <Button
+            variant="outline"
+            onClick={() => setId(null)}
+            className="rounded-none border-brand-border-strong font-condensed font-black uppercase text-xs"
+          >
             Cancelar
           </Button>
           <Button
@@ -1574,6 +1863,7 @@ function TeamRenameDialogController() {
               if (id) renameTeam(id, value);
               setId(null);
             }}
+            className="rounded-none bg-brand-orange hover:bg-brand-orange-hover text-white font-condensed font-black uppercase text-xs"
           >
             Salvar
           </Button>
@@ -1621,62 +1911,64 @@ function HistoryDialogController() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg rounded-none border border-brand-border bg-white">
         <DialogHeader>
-          <DialogTitle>Histórico da noite</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="font-bebas text-3xl tracking-wide text-brand-dark uppercase">
+            Histórico da noite
+          </DialogTitle>
+          <DialogDescription className="font-condensed text-xs uppercase text-brand-muted">
             Estatísticas dos times e registro de ações.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex gap-1 border-b border-border">
+        <div className="flex border-b border-brand-border text-xs font-condensed font-black uppercase">
           {(["stats", "log"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
               className={cn(
-                "px-3 py-2 text-sm font-medium border-b-2 -mb-px",
+                "flex-1 py-2 border-b-2 transition-colors",
                 tab === t
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground",
+                  ? "border-brand-orange text-brand-dark"
+                  : "border-transparent text-brand-muted",
               )}
             >
-              {t === "stats" ? "Estatísticas" : "Registro"}
+              {t === "stats" ? "1. ESTATÍSTICAS" : "2. REGISTRO DE AÇÕES"}
             </button>
           ))}
         </div>
         {tab === "stats" ? (
-          <div className="max-h-[50vh] overflow-auto space-y-1">
+          <div className="max-h-[50vh] overflow-auto space-y-2">
             {rows.length === 0 && (
-              <p className="text-sm text-muted-foreground italic py-6 text-center">
+              <p className="text-xs font-condensed uppercase text-brand-muted py-6 text-center">
                 Nenhum jogo registrado ainda.
               </p>
             )}
             {rows.map((r) => (
               <div
                 key={r.teamId}
-                className="flex items-center gap-2 rounded-lg border border-border p-2"
+                className="flex items-center gap-3 border border-brand-border bg-brand-subtle p-2.5"
               >
-                <span className="font-display text-lg w-14 shrink-0">
+                <span className="font-bebas text-2xl text-brand-orange w-12 shrink-0 leading-none">
                   T{r.number}
                 </span>
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0 font-condensed uppercase">
                   {r.customName && (
-                    <div className="text-sm font-semibold truncate">
+                    <div className="text-sm font-black text-brand-dark truncate">
                       {r.customName}
                     </div>
                   )}
-                  <div className="text-xs text-muted-foreground truncate">
+                  <div className="text-xs text-brand-muted font-bold truncate">
                     {r.memberSnapshot.join(" · ")}
                   </div>
                 </div>
-                <div className="flex items-center gap-1 text-xs font-medium">
-                  <span className="rounded bg-victory/20 text-victory px-1.5 py-0.5">
+                <div className="flex items-center gap-1 text-xs font-condensed font-black uppercase">
+                  <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5">
                     {r.wins}V
                   </span>
-                  <span className="rounded bg-muted px-1.5 py-0.5">
+                  <span className="bg-white border border-brand-border-strong text-brand-dark px-2 py-0.5">
                     {r.draws}E
                   </span>
-                  <span className="rounded bg-cooldown/20 text-cooldown px-1.5 py-0.5">
+                  <span className="bg-red-100 text-red-700 border border-red-300 px-2 py-0.5">
                     {r.losses}D
                   </span>
                 </div>
@@ -1684,24 +1976,24 @@ function HistoryDialogController() {
             ))}
           </div>
         ) : (
-          <div className="max-h-[50vh] overflow-auto space-y-1">
+          <div className="max-h-[50vh] overflow-auto space-y-1 font-condensed uppercase">
             {actionLog.length === 0 && (
-              <p className="text-sm text-muted-foreground italic py-6 text-center">
+              <p className="text-xs text-brand-muted py-6 text-center">
                 Nenhuma ação registrada ainda.
               </p>
             )}
             {actionLog.map((e) => (
               <div
                 key={e.ts}
-                className="text-xs flex gap-2 py-1 border-b border-border/50"
+                className="text-xs flex gap-2 py-1.5 border-b border-brand-border"
               >
-                <span className="text-muted-foreground tabular-nums shrink-0">
+                <span className="text-brand-muted font-bold tabular-nums shrink-0">
                   {new Date(e.ts).toLocaleTimeString("pt-BR", {
                     hour: "2-digit",
                     minute: "2-digit",
                   })}
                 </span>
-                <span className="truncate">{e.msg}</span>
+                <span className="font-bold text-brand-dark truncate">{e.msg}</span>
               </div>
             ))}
           </div>
@@ -1710,13 +2002,16 @@ function HistoryDialogController() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() =>
-              tab === "stats" ? clearStats() : clearActionLog()
-            }
+            onClick={() => (tab === "stats" ? clearStats() : clearActionLog())}
+            className="rounded-none border-brand-border-strong font-condensed font-black uppercase text-xs"
           >
             Limpar {tab === "stats" ? "estatísticas" : "registro"}
           </Button>
-          <Button size="sm" onClick={() => setOpen(false)}>
+          <Button
+            size="sm"
+            onClick={() => setOpen(false)}
+            className="rounded-none bg-brand-orange hover:bg-brand-orange-hover text-white font-condensed font-black uppercase text-xs"
+          >
             Fechar
           </Button>
         </DialogFooter>

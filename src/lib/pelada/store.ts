@@ -12,6 +12,9 @@ export interface Player {
   name: string;
   justPlayed: boolean; // 🚫 cooldown — set on match end for losers, cleared next match
   createdAt: number;
+  role?: "aluno" | "convencional";
+  userId?: string;
+  position?: string;
 }
 
 export interface Team {
@@ -61,6 +64,7 @@ export interface PeladaState {
   nextTeamNumber: number;
   adminPin: string; // "" = no pin set
   screenLocked: boolean;
+  lastModified: number;
 
   // Settings
   matchMs: number;
@@ -74,8 +78,6 @@ export interface PeladaState {
   autoReduceThreshold: number;
   autoReduceMs: number;
 
-
-
   // Stats & history
   teamNames: Record<ID, string>; // optional custom names, keyed by team id
   teamStats: Record<ID, TeamStat>;
@@ -85,7 +87,10 @@ export interface PeladaState {
   selection: ID[]; // selected player ids for team-forming / substitution
 
   // ---- actions ----
-  addPlayer: (name: string) => void;
+  addPlayer: (
+    name: string,
+    meta?: { role?: "aluno" | "convencional"; userId?: string; position?: string },
+  ) => void;
   renamePlayer: (id: ID, name: string) => void;
   removePlayer: (id: ID) => void;
   reorderQueue: (fromIdx: number, toIdx: number) => void;
@@ -108,7 +113,11 @@ export interface PeladaState {
   /** Send a queue entry to court in the first empty slot. */
   sendToCourt: (entry: QueueEntry, opts?: { forceCooldown?: boolean }) => void;
   /** Send a queue entry to a specific court side. */
-  sendToCourtSide: (entry: QueueEntry, side: "A" | "B", opts?: { forceCooldown?: boolean }) => void;
+  sendToCourtSide: (
+    entry: QueueEntry,
+    side: "A" | "B",
+    opts?: { forceCooldown?: boolean },
+  ) => void;
   /** Remove any queue entry (player or team) */
   removeFromQueue: (entry: QueueEntry) => void;
   /** Remove the entire team on a court side (team + its player records). */
@@ -138,10 +147,11 @@ export interface PeladaState {
 
   setAutoReduce: (cfg: { enabled?: boolean; threshold?: number; ms?: number }) => void;
 
-
   clearActionLog: () => void;
   clearStats: () => void;
   resetNight: () => void;
+  clearQueueOnly: () => void;
+  hydrateFromRemote: (remote: Partial<PeladaState>) => void;
 }
 
 // ============================================================================
@@ -162,9 +172,7 @@ const uid = () =>
     ? crypto.randomUUID()
     : Math.random().toString(36).slice(2) + Date.now().toString(36);
 
-/** Deep-clone ONLY the data slices of state (never the action functions).
- *  Using structuredClone on the whole state throws DataCloneError because
- *  zustand actions are functions on the same object. */
+/** Deep-clone ONLY the data slices of state (never the action functions). */
 function cloneState(s: PeladaState): PeladaState {
   const teams: Record<ID, Team> = {};
   for (const [k, v] of Object.entries(s.teams)) {
@@ -181,6 +189,7 @@ function cloneState(s: PeladaState): PeladaState {
     queue: s.queue.map((e) => ({ ...e })),
     court: { ...s.court },
     selection: [...s.selection],
+    lastModified: Date.now(),
   };
 }
 
@@ -188,9 +197,6 @@ function entryMembers(state: PeladaState, e: QueueEntry): ID[] {
   return e.kind === "player" ? [e.id] : state.teams[e.id]?.memberIds ?? [];
 }
 
-/** Remove a player from wherever they are (queue player entry, queue team, or a court team).
- *  If removing shrinks a team below 2, dissolve it (remaining member becomes a lone player
- *  in the same queue slot). Returns a new state fragment (mutating a draft). */
 function removePlayerFromAll(state: PeladaState, playerId: ID) {
   // Queue
   const newQueue: QueueEntry[] = [];
@@ -209,11 +215,9 @@ function removePlayerFromAll(state: PeladaState, playerId: ID) {
         state.teams[e.id] = { ...t, memberIds: remaining };
         newQueue.push(e);
       } else if (remaining.length === 1) {
-        // dissolve team → lone player at same position
         delete state.teams[e.id];
         newQueue.push({ kind: "player", id: remaining[0] });
       } else {
-        // dissolve empty
         delete state.teams[e.id];
       }
     }
@@ -228,7 +232,6 @@ function removePlayerFromAll(state: PeladaState, playerId: ID) {
     if (!t || !t.memberIds.includes(playerId)) continue;
     const remaining = t.memberIds.filter((m) => m !== playerId);
     state.teams[tid] = { ...t, memberIds: remaining };
-    // court teams stay even if <2 (needs manual fix by admin); don't auto-dissolve mid-match
   }
 
   // Champion waiting
@@ -239,7 +242,6 @@ function removePlayerFromAll(state: PeladaState, playerId: ID) {
       if (remaining.length >= 2) {
         state.teams[t.id] = { ...t, memberIds: remaining };
       } else if (remaining.length === 1) {
-        // Champion dissolved → lone player keeps champion slot? Put them at front of queue.
         delete state.teams[t.id];
         state.waitingChampion = null;
         state.queue.unshift({ kind: "player", id: remaining[0] });
@@ -251,20 +253,16 @@ function removePlayerFromAll(state: PeladaState, playerId: ID) {
   }
 }
 
-/** After a match ends, clear justPlayed for anyone NOT in the just-finished match,
- *  and set it for the losers. */
 function updateCooldown(state: PeladaState, loserIds: ID[]) {
   for (const p of Object.values(state.players)) {
     if (loserIds.includes(p.id)) {
       state.players[p.id] = { ...p, justPlayed: true };
     } else if (p.justPlayed) {
-      // they sat this match out → cooldown clears
       state.players[p.id] = { ...p, justPlayed: false };
     }
   }
 }
 
-/** Send an entry to the queue at the end. */
 function pushEntry(state: PeladaState, e: QueueEntry) {
   state.queue.push(e);
 }
@@ -292,25 +290,13 @@ function bumpStat(state: PeladaState, t: Team, key: "wins" | "losses" | "draws")
   state.teamStats[t.id] = {
     ...cur,
     customName: state.teamNames[t.id] ?? cur.customName,
-    memberSnapshot: t.memberIds.map((m) => state.players[m]?.name ?? cur.memberSnapshot[0] ?? "?"),
+    memberSnapshot: t.memberIds.map(
+      (m) => state.players[m]?.name ?? cur.memberSnapshot[0] ?? "?",
+    ),
     [key]: cur[key] + 1,
   };
 }
 
-
-
-/** Pop the next queue entry to fill an empty court slot. Prefers waitingChampion. */
-function popNext(state: PeladaState): QueueEntry | null {
-  if (state.waitingChampion && state.teams[state.waitingChampion]) {
-    const id = state.waitingChampion;
-    state.waitingChampion = null;
-    return { kind: "team", id };
-  }
-  const next = state.queue.shift();
-  return next ?? null;
-}
-
-/** Court team on the given side. Enters with fresh wins. */
 function placeOnCourt(state: PeladaState, side: "A" | "B", entry: QueueEntry) {
   let teamId: ID;
   if (entry.kind === "team") {
@@ -318,7 +304,6 @@ function placeOnCourt(state: PeladaState, side: "A" | "B", entry: QueueEntry) {
     const t = state.teams[teamId];
     if (t) state.teams[teamId] = { ...t, wins: 0 };
   } else {
-    // lone player → create a temporary team (they'll need teammates via UI)
     const num = state.nextTeamNumber;
     state.nextTeamNumber += 1;
     teamId = uid();
@@ -335,7 +320,7 @@ function placeOnCourt(state: PeladaState, side: "A" | "B", entry: QueueEntry) {
 }
 
 // ============================================================================
-// Store
+// Initial default players so the queue is ready out of the box if empty
 // ============================================================================
 
 export const usePelada = create<PeladaState>()(
@@ -356,6 +341,7 @@ export const usePelada = create<PeladaState>()(
       nextTeamNumber: 1,
       adminPin: "",
       screenLocked: false,
+      lastModified: 0,
       matchMs: MATCH_MS,
       suddenDeathMs: SUDDEN_DEATH_MS,
       championRuleEnabled: true,
@@ -364,17 +350,17 @@ export const usePelada = create<PeladaState>()(
       autoReduceThreshold: 20,
       autoReduceMs: 6 * 60 * 1000,
 
-
       teamNames: {},
       teamStats: {},
       actionLog: [],
       selection: [],
 
-      lockScreen: () => set((s) => ({ ...s, screenLocked: true, selection: [] })),
+      lockScreen: () =>
+        set((s) => ({ ...s, screenLocked: true, selection: [], lastModified: Date.now() })),
       unlockScreen: (pin) => {
         const s = get();
         if (!s.adminPin || pin === s.adminPin) {
-          set({ ...s, screenLocked: false });
+          set({ ...s, screenLocked: false, lastModified: Date.now() });
           return true;
         }
         return false;
@@ -386,6 +372,7 @@ export const usePelada = create<PeladaState>()(
           if (!trimmed || !s.players[id]) return s;
           return {
             ...s,
+            lastModified: Date.now(),
             players: { ...s.players, [id]: { ...s.players[id], name: trimmed } },
           };
         }),
@@ -397,7 +384,7 @@ export const usePelada = create<PeladaState>()(
           const next = [...s.queue];
           const [item] = next.splice(fromIdx, 1);
           next.splice(toIdx, 0, item);
-          return { ...s, queue: next };
+          return { ...s, queue: next, lastModified: Date.now() };
         }),
 
       moveQueueEntry: (entry, dir) =>
@@ -410,17 +397,16 @@ export const usePelada = create<PeladaState>()(
           if (to < 0 || to >= s.queue.length) return s;
           const next = [...s.queue];
           [next[from], next[to]] = [next[to], next[from]];
-          return { ...s, queue: next };
+          return { ...s, queue: next, lastModified: Date.now() };
         }),
 
       moveSelectionInQueue: (dir) =>
         set((s) => {
           if (s.selection.length === 0) return s;
-          // Find every queue entry that holds a selected player, then move them
-          // as a block one slot in the requested direction.
           const idxs = new Set<number>();
           s.queue.forEach((e, i) => {
-            const members = e.kind === "player" ? [e.id] : s.teams[e.id]?.memberIds ?? [];
+            const members =
+              e.kind === "player" ? [e.id] : s.teams[e.id]?.memberIds ?? [];
             if (members.some((m) => s.selection.includes(m))) idxs.add(i);
           });
           if (idxs.size === 0) return s;
@@ -431,7 +417,7 @@ export const usePelada = create<PeladaState>()(
             if (j < 0 || j >= next.length || idxs.has(j)) continue;
             [next[i], next[j]] = [next[j], next[i]];
           }
-          return { ...s, queue: next };
+          return { ...s, queue: next, lastModified: Date.now() };
         }),
 
       movePlayerToTeam: (playerId, teamId) =>
@@ -454,7 +440,6 @@ export const usePelada = create<PeladaState>()(
           if (!draft.players[playerId]) return s;
           const occupiedId = side === "A" ? draft.court.teamAId : draft.court.teamBId;
           if (occupiedId) {
-            // Slot busy → just join that team.
             const t = draft.teams[occupiedId];
             if (!t || t.memberIds.includes(playerId)) return s;
             removePlayerFromAll(draft, playerId);
@@ -473,34 +458,62 @@ export const usePelada = create<PeladaState>()(
           return draft;
         }),
 
-
       detachPlayerToQueue: (playerId, toIndex) =>
         set((s) => {
           const draft: PeladaState = cloneState(s);
           if (!draft.players[playerId]) return s;
           removePlayerFromAll(draft, playerId);
           const entry: QueueEntry = { kind: "player", id: playerId };
-          const idx = typeof toIndex === "number" ? Math.min(toIndex, draft.queue.length) : draft.queue.length;
+          const idx =
+            typeof toIndex === "number"
+              ? Math.min(toIndex, draft.queue.length)
+              : draft.queue.length;
           draft.queue.splice(idx, 0, entry);
           return draft;
         }),
 
-      addPlayer: (name) =>
+      addPlayer: (name, meta) =>
         set((s) => {
           const trimmed = name.trim();
           if (!trimmed) return s;
+          // Prevent duplicate if user already in pelada
+          const existing = Object.values(s.players).find(
+            (p) =>
+              (meta?.userId && p.userId === meta.userId) ||
+              p.name.toLowerCase() === trimmed.toLowerCase(),
+          );
+          if (existing) {
+            // Update role/userId if missing
+            if (meta?.role && !existing.role) {
+              return {
+                ...s,
+                lastModified: Date.now(),
+                players: {
+                  ...s.players,
+                  [existing.id]: { ...existing, ...meta },
+                },
+              };
+            }
+            return s;
+          }
           const id = uid();
           const player: Player = {
             id,
             name: trimmed,
             justPlayed: false,
             createdAt: Date.now(),
+            role: meta?.role,
+            userId: meta?.userId,
+            position: meta?.position,
           };
-          return {
-            ...s,
-            players: { ...s.players, [id]: player },
-            queue: [...s.queue, { kind: "player", id }],
-          };
+          const draft = cloneState(s);
+          draft.players[id] = player;
+          draft.queue.push({ kind: "player", id });
+          logAction(
+            draft,
+            `🏀 ${trimmed}${meta?.role === "aluno" ? " (Aluno)" : ""} entrou na fila`,
+          );
+          return draft;
         }),
 
       removePlayer: (id) =>
@@ -526,7 +539,6 @@ export const usePelada = create<PeladaState>()(
         set((s) => {
           if (s.selection.length < 2) return s;
           const draft: PeladaState = cloneState(s);
-          // Find earliest queue position among the selected players; that becomes the new team slot.
           let earliestIdx = Infinity;
           for (const pid of s.selection) {
             const idx = draft.queue.findIndex(
@@ -536,9 +548,7 @@ export const usePelada = create<PeladaState>()(
             );
             if (idx >= 0 && idx < earliestIdx) earliestIdx = idx;
           }
-          // Remove selected players from their current spots
           for (const pid of s.selection) removePlayerFromAll(draft, pid);
-          // Create new team
           const num = draft.nextTeamNumber;
           draft.nextTeamNumber += 1;
           const teamId = uid();
@@ -566,31 +576,29 @@ export const usePelada = create<PeladaState>()(
             const target = draft.teams[teamId];
             if (!target || target.memberIds.includes(pid)) continue;
             removePlayerFromAll(draft, pid);
-            // removePlayerFromAll may have replaced the team object — re-read it.
             const fresh = draft.teams[teamId];
             if (!fresh) continue;
-            draft.teams[teamId] = { ...fresh, memberIds: [...fresh.memberIds, pid] };
+            draft.teams[teamId] = {
+              ...fresh,
+              memberIds: [...fresh.memberIds, pid],
+            };
           }
           draft.selection = [];
           return draft;
         }),
 
-
       sendToCourt: (entry, opts) =>
         set((s) => {
           const draft: PeladaState = cloneState(s);
-          // cooldown check
           const memberIds = entryMembers(draft, entry);
           const blocked = memberIds.some((m) => draft.players[m]?.justPlayed);
           if (blocked && !opts?.forceCooldown) return s;
-          // find open slot
           const openSide: "A" | "B" | null = !draft.court.teamAId
             ? "A"
             : !draft.court.teamBId
               ? "B"
               : null;
           if (!openSide) return s;
-          // remove from queue / champion
           if (entry.kind === "team" && draft.waitingChampion === entry.id) {
             draft.waitingChampion = null;
           } else {
@@ -650,7 +658,6 @@ export const usePelada = create<PeladaState>()(
               }
               delete draft.teams[tid];
             } else if (team.memberIds.length >= 2) {
-              // back to the end of the queue, keeping the team together
               draft.teams[tid] = { ...team, wins: 0 };
               draft.queue.push({ kind: "team", id: tid });
             } else if (team.memberIds.length === 1) {
@@ -663,7 +670,6 @@ export const usePelada = create<PeladaState>()(
           }
           if (side === "A") draft.court.teamAId = null;
           else draft.court.teamBId = null;
-          // Only reset the clock when the court becomes empty.
           if (!draft.court.teamAId && !draft.court.teamBId) {
             draft.court.elapsedMs = 0;
             draft.court.runningSince = null;
@@ -673,12 +679,12 @@ export const usePelada = create<PeladaState>()(
           return draft;
         }),
 
-
       startTimer: () =>
         set((s) => {
           if (s.court.runningSince) return s;
           return {
             ...s,
+            lastModified: Date.now(),
             court: { ...s.court, runningSince: Date.now() },
           };
         }),
@@ -689,6 +695,7 @@ export const usePelada = create<PeladaState>()(
           const delta = Date.now() - s.court.runningSince;
           return {
             ...s,
+            lastModified: Date.now(),
             court: {
               ...s.court,
               elapsedMs: s.court.elapsedMs + delta,
@@ -700,6 +707,7 @@ export const usePelada = create<PeladaState>()(
       resetTimer: () =>
         set((s) => ({
           ...s,
+          lastModified: Date.now(),
           court: {
             ...s.court,
             elapsedMs: 0,
@@ -714,6 +722,7 @@ export const usePelada = create<PeladaState>()(
           if (s.court.suddenDeathUsed) return s;
           return {
             ...s,
+            lastModified: Date.now(),
             court: {
               ...s.court,
               elapsedMs: 0,
@@ -727,6 +736,7 @@ export const usePelada = create<PeladaState>()(
       adminResetSuddenDeath: () =>
         set((s) => ({
           ...s,
+          lastModified: Date.now(),
           court: { ...s.court, suddenDeathUsed: false },
         })),
 
@@ -740,7 +750,6 @@ export const usePelada = create<PeladaState>()(
           const loser = draft.teams[loserId];
           if (!winner || !loser) return s;
 
-          // stats
           bumpStat(draft, winner, "wins");
           bumpStat(draft, loser, "losses");
           logAction(
@@ -748,13 +757,9 @@ export const usePelada = create<PeladaState>()(
             `✅ ${teamLabel(draft, winner)} venceu ${teamLabel(draft, loser)}`,
           );
 
-          // cooldown flags
           updateCooldown(draft, loser.memberIds);
-
-          // increment wins for winner
           winner.wins += 1;
 
-          // loser: goes to end of queue (or dissolves if <2)
           if (loser.memberIds.length >= 2) {
             loser.wins = 0;
             pushEntry(draft, { kind: "team", id: loser.id });
@@ -765,17 +770,13 @@ export const usePelada = create<PeladaState>()(
             delete draft.teams[loser.id];
           }
 
-          // remove loser from court
           if (side === "A") draft.court.teamBId = null;
           else draft.court.teamAId = null;
 
-          // winner: if 2 wins, becomes champion waiting (goes off court)
           const promoted =
             draft.championRuleEnabled && winner.wins >= draft.winsToRotate;
           if (promoted) {
             winner.wins = 0;
-            // If someone was already waiting as champion, they keep priority at
-            // the front of the normal queue.
             const previous = draft.waitingChampion;
             if (previous && previous !== winner.id && draft.teams[previous]) {
               draft.queue.unshift({ kind: "team", id: previous });
@@ -786,20 +787,13 @@ export const usePelada = create<PeladaState>()(
             logAction(draft, `👑 ${teamLabel(draft, winner)} vira campeão em espera`);
           }
 
-
-          // reset timer & sudden death for next match
           draft.court.elapsedMs = 0;
           draft.court.runningSince = null;
           draft.court.suddenDeathUsed = false;
           draft.court.inSuddenDeath = false;
 
-          // Loser's slot stays open — the operator manually sends the next
-          // team from the queue. No auto-fill.
-
           return draft;
         }),
-
-
 
       declareDraw: () =>
         set((s) => {
@@ -812,19 +806,15 @@ export const usePelada = create<PeladaState>()(
           bumpStat(draft, b, "draws");
           logAction(draft, `🔀 Empate: ${teamLabel(draft, a)} × ${teamLabel(draft, b)}`);
 
-          // No cooldown on draw (nobody "lost")
           updateCooldown(draft, []);
 
-          // Order: more wins first goes to back first (i.e., stays further from playing).
-          // Tie: team whose oldest player entered the queue earlier goes back first.
           const oldestCreated = (t: Team) =>
             Math.min(...t.memberIds.map((m) => draft.players[m]?.createdAt ?? Infinity));
 
           const order: Team[] = [a, b].sort((x, y) => {
-            if (y.wins !== x.wins) return y.wins - x.wins; // higher wins → pushed further
-            return oldestCreated(x) - oldestCreated(y); // older player → pushed further
+            if (y.wins !== x.wins) return y.wins - x.wins;
+            return oldestCreated(x) - oldestCreated(y);
           });
-          // order[0] goes to queue first (further back), order[1] next (closer to front)
           for (const t of order) {
             t.wins = 0;
             pushEntry(draft, { kind: "team", id: t.id });
@@ -836,7 +826,6 @@ export const usePelada = create<PeladaState>()(
           draft.court.suddenDeathUsed = false;
           draft.court.inSuddenDeath = false;
 
-          // NOTE: no auto-fill after draw — operator sends teams manually.
           return draft;
         }),
 
@@ -846,10 +835,7 @@ export const usePelada = create<PeladaState>()(
           const draft: PeladaState = cloneState(s);
           if (!draft.players[aId] || !draft.players[bId]) return s;
 
-          // Find location: which team (queue-team, court-team) contains each player.
-          type Loc =
-            | { kind: "team"; teamId: ID; idx: number }
-            | null;
+          type Loc = { kind: "team"; teamId: ID; idx: number } | null;
           const findLoc = (pid: ID): Loc => {
             for (const t of Object.values(draft.teams)) {
               const idx = t.memberIds.indexOf(pid);
@@ -859,14 +845,12 @@ export const usePelada = create<PeladaState>()(
           };
           const la = findLoc(aId);
           const lb = findLoc(bId);
-          // Both in teams → swap indices
           if (la && lb) {
             draft.teams[la.teamId].memberIds[la.idx] = bId;
             draft.teams[lb.teamId].memberIds[lb.idx] = aId;
             draft.selection = [];
             return draft;
           }
-          // One in team, one lone in queue → replace
           const findQueueIdx = (pid: ID) =>
             draft.queue.findIndex((e) => e.kind === "player" && e.id === pid);
           if (la && !lb) {
@@ -880,7 +864,6 @@ export const usePelada = create<PeladaState>()(
             draft.teams[lb.teamId].memberIds[lb.idx] = aId;
             draft.queue[qi] = { kind: "player", id: bId };
           } else {
-            // both lone in queue → swap positions
             const ia = findQueueIdx(aId);
             const ib = findQueueIdx(bId);
             if (ia < 0 || ib < 0) return s;
@@ -896,20 +879,28 @@ export const usePelada = create<PeladaState>()(
           const next = { ...s.teamNames };
           if (!trimmed) delete next[teamId];
           else next[teamId] = trimmed;
-          return { ...s, teamNames: next };
+          return { ...s, teamNames: next, lastModified: Date.now() };
         }),
 
-      setAdminPin: (pin) => set((s) => ({ ...s, adminPin: pin })),
+      setAdminPin: (pin) =>
+        set((s) => ({ ...s, adminPin: pin, lastModified: Date.now() })),
 
       setMatchDuration: (ms) =>
-        set((s) => ({ ...s, matchMs: Math.max(30_000, Math.min(30 * 60_000, ms)) })),
+        set((s) => ({
+          ...s,
+          lastModified: Date.now(),
+          matchMs: Math.max(30_000, Math.min(30 * 60_000, ms)),
+        })),
       setSuddenDeathDuration: (ms) =>
-        set((s) => ({ ...s, suddenDeathMs: Math.max(15_000, Math.min(10 * 60_000, ms)) })),
+        set((s) => ({
+          ...s,
+          lastModified: Date.now(),
+          suddenDeathMs: Math.max(15_000, Math.min(10 * 60_000, ms)),
+        })),
       setChampionRule: (enabled) =>
         set((s) => {
           const draft: PeladaState = cloneState(s);
           draft.championRuleEnabled = enabled;
-          // Turning the rule off releases anyone already waiting as champion.
           if (!enabled && draft.waitingChampion) {
             const cid = draft.waitingChampion;
             draft.waitingChampion = null;
@@ -925,11 +916,16 @@ export const usePelada = create<PeladaState>()(
         }),
 
       setWinsToRotate: (wins) =>
-        set((s) => ({ ...s, winsToRotate: Math.max(1, Math.min(20, Math.round(wins))) })),
+        set((s) => ({
+          ...s,
+          lastModified: Date.now(),
+          winsToRotate: Math.max(1, Math.min(20, Math.round(wins))),
+        })),
 
       setAutoReduce: (cfg) =>
         set((s) => ({
           ...s,
+          lastModified: Date.now(),
           autoReduceEnabled: cfg.enabled ?? s.autoReduceEnabled,
           autoReduceThreshold:
             cfg.threshold === undefined
@@ -941,13 +937,35 @@ export const usePelada = create<PeladaState>()(
               : Math.max(30_000, Math.min(30 * 60_000, cfg.ms)),
         })),
 
+      clearActionLog: () =>
+        set((s) => ({ ...s, actionLog: [], lastModified: Date.now() })),
+      clearStats: () =>
+        set((s) => ({ ...s, teamStats: {}, lastModified: Date.now() })),
 
-      clearActionLog: () => set((s) => ({ ...s, actionLog: [] })),
-      clearStats: () => set((s) => ({ ...s, teamStats: {} })),
+      clearQueueOnly: () =>
+        set((s) => {
+          const draft = cloneState(s);
+          for (const entry of draft.queue) {
+            if (entry.kind === "player") {
+              delete draft.players[entry.id];
+            } else {
+              const t = draft.teams[entry.id];
+              if (t) {
+                for (const pid of t.memberIds) delete draft.players[pid];
+                delete draft.teams[entry.id];
+              }
+            }
+          }
+          draft.queue = [];
+          draft.selection = [];
+          logAction(draft, "🧹 Fila de espera limpa pelo treinador");
+          return draft;
+        }),
 
       resetNight: () =>
         set((s) => ({
           ...s,
+          lastModified: Date.now(),
           players: {},
           teams: {},
           queue: [],
@@ -966,6 +984,13 @@ export const usePelada = create<PeladaState>()(
           actionLog: [{ ts: Date.now(), msg: "🔄 Noite reiniciada" }],
           selection: [],
         })),
+
+      hydrateFromRemote: (remote) =>
+        set((s) => ({
+          ...s,
+          ...remote,
+          selection: s.selection.filter((id) => remote.players?.[id]),
+        })),
     }),
     {
       name: "pelada-store-v1",
@@ -978,6 +1003,7 @@ export const usePelada = create<PeladaState>()(
         nextTeamNumber: s.nextTeamNumber,
         adminPin: s.adminPin,
         screenLocked: s.screenLocked,
+        lastModified: s.lastModified,
         matchMs: s.matchMs,
         suddenDeathMs: s.suddenDeathMs,
         championRuleEnabled: s.championRuleEnabled,
@@ -985,7 +1011,6 @@ export const usePelada = create<PeladaState>()(
         autoReduceEnabled: s.autoReduceEnabled,
         autoReduceThreshold: s.autoReduceThreshold,
         autoReduceMs: s.autoReduceMs,
-
         teamNames: s.teamNames,
         teamStats: s.teamStats,
         actionLog: s.actionLog,
@@ -1007,7 +1032,6 @@ export type DurationState = Pick<
   | "autoReduceMs"
 >;
 
-/** Match length honoring the passive "many players → shorter match" rule. */
 export function effectiveMatchMs(state: DurationState) {
   const total = Object.keys(state.players).length;
   if (state.autoReduceEnabled && total >= state.autoReduceThreshold) {
@@ -1020,7 +1044,129 @@ export function currentDurationMs(state: DurationState) {
   return state.court.inSuddenDeath ? state.suddenDeathMs : effectiveMatchMs(state);
 }
 
-
 export function computeElapsed(court: CourtState, now: number) {
   return court.elapsedMs + (court.runningSince ? now - court.runningSince : 0);
+}
+
+export type PlayerPeladaLookup =
+  | { status: "not-in-pelada" }
+  | {
+      status: "on-court";
+      side: "A" | "B";
+      player: Player;
+      team: Team;
+      teamLabel: string;
+      teammates: Player[];
+    }
+  | {
+      status: "champion-waiting";
+      player: Player;
+      team: Team;
+      teamLabel: string;
+      teammates: Player[];
+    }
+  | {
+      status: "in-queue";
+      position: number;
+      entryKind: "player" | "team";
+      player: Player;
+      team?: Team;
+      teamLabel?: string;
+      teammates: Player[];
+      playersAheadCount: number;
+    };
+
+export function getPlayerPeladaStatus(
+  state: Pick<
+    PeladaState,
+    "players" | "teams" | "queue" | "waitingChampion" | "court" | "teamNames"
+  >,
+  query: { userId?: string; name?: string },
+): PlayerPeladaLookup {
+  const normName = query.name?.trim().toLowerCase();
+  const player = Object.values(state.players).find(
+    (p) =>
+      (query.userId && p.userId === query.userId) ||
+      (normName && p.name.toLowerCase() === normName),
+  );
+  if (!player) return { status: "not-in-pelada" };
+
+  // Check Court Side A & B
+  for (const side of ["A", "B"] as const) {
+    const tid = side === "A" ? state.court.teamAId : state.court.teamBId;
+    if (!tid) continue;
+    const t = state.teams[tid];
+    if (t && t.memberIds.includes(player.id)) {
+      const custom = state.teamNames[t.id];
+      return {
+        status: "on-court",
+        side,
+        player,
+        team: t,
+        teamLabel: custom ?? `TIME ${t.number}`,
+        teammates: t.memberIds
+          .filter((id) => id !== player.id)
+          .map((id) => state.players[id])
+          .filter(Boolean),
+      };
+    }
+  }
+
+  // Check Waiting Champion
+  if (state.waitingChampion) {
+    const t = state.teams[state.waitingChampion];
+    if (t && t.memberIds.includes(player.id)) {
+      const custom = state.teamNames[t.id];
+      return {
+        status: "champion-waiting",
+        player,
+        team: t,
+        teamLabel: custom ?? `TIME ${t.number}`,
+        teammates: t.memberIds
+          .filter((id) => id !== player.id)
+          .map((id) => state.players[id])
+          .filter(Boolean),
+      };
+    }
+  }
+
+  // Check Queue
+  let playersAheadCount = 0;
+  for (let i = 0; i < state.queue.length; i++) {
+    const entry = state.queue[i];
+    if (entry.kind === "player") {
+      if (entry.id === player.id) {
+        return {
+          status: "in-queue",
+          position: i + 1,
+          entryKind: "player",
+          player,
+          teammates: [],
+          playersAheadCount,
+        };
+      }
+      playersAheadCount += 1;
+    } else {
+      const t = state.teams[entry.id];
+      if (t && t.memberIds.includes(player.id)) {
+        const custom = state.teamNames[t.id];
+        return {
+          status: "in-queue",
+          position: i + 1,
+          entryKind: "team",
+          player,
+          team: t,
+          teamLabel: custom ?? `TIME ${t.number}`,
+          teammates: t.memberIds
+            .filter((id) => id !== player.id)
+            .map((id) => state.players[id])
+            .filter(Boolean),
+          playersAheadCount,
+        };
+      }
+      playersAheadCount += t ? t.memberIds.length : 0;
+    }
+  }
+
+  return { status: "not-in-pelada" };
 }
