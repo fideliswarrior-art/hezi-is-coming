@@ -21,6 +21,15 @@ import {
   ChevronUp,
   Timer,
   Users,
+  Database,
+  RefreshCw,
+  Download,
+  LogIn,
+  UserPlus,
+  Star,
+  Award,
+  Shirt,
+  LogOut,
 } from "lucide-react";
 import {
   LOGO,
@@ -44,7 +53,12 @@ import {
   type HeziUser,
   type HeziEventItem,
 } from "@/lib/hezi/store";
-import { usePelada, getPlayerPeladaStatus } from "@/lib/pelada/store";
+import {
+  usePelada,
+  getPlayerPeladaStatus,
+  currentDurationMs,
+  computeElapsed,
+} from "@/lib/pelada/store";
 import { useRealtimeSync } from "@/lib/hezi/sync";
 import { CourtMasterOrganizer, useTick } from "./pelada";
 
@@ -52,12 +66,18 @@ export const Route = createFileRoute("/")({
   component: HeziSuperApp,
 });
 
+const HEZI_LOGO_WHITE = "/assets/hezi-logo.png";
+const SHIRT_FRONT_IMG = "/assets/hezi-shirt-001-front.jpg";
+const SHIRT_BACK_IMG = "/assets/hezi-shirt-001-back.jpg";
+
 const C = "bg-white border border-[#EAEBEF] rounded-2xl shadow-sm";
 const OB = "bg-[#FF5400] text-white";
 const GRN = "bg-[#ECFDF5] text-[#10B981]";
 const RED = "bg-[#FEF2F2] text-[#EF4444]";
 const btBase =
   "flex items-center justify-center gap-2 w-full text-center rounded-xl py-3.5 px-4 font-extrabold text-sm transition active:scale-95 ";
+
+export type AppTab = "home" | "pelada" | "painel" | "login" | "assinante";
 
 function Btn({
   href,
@@ -106,7 +126,7 @@ function Chip({
   return (
     <span
       className={
-        "inline-flex items-center gap-1 text-xs font-bold rounded-full px-3 py-1 " +
+        "inline-flex items-center gap-1 text-xs font-extrabold rounded-full px-3 py-1 " +
         c
       }
     >
@@ -154,7 +174,11 @@ function Av({
 }
 
 function Hd({ children }: { children: React.ReactNode }) {
-  return <h2 className="font-extrabold text-lg mb-3 text-[#111317]">{children}</h2>;
+  return (
+    <h2 className="font-extrabold text-lg mb-3 text-[#111317] tracking-tight">
+      {children}
+    </h2>
+  );
 }
 
 interface AppContextProps {
@@ -166,9 +190,11 @@ interface AppContextProps {
   upd: (id: number, patch: Partial<HeziUser>) => void;
   say: (msg: string) => void;
   join: (eid: number) => void;
-  setTab: (tab: "home" | "pelada" | "painel") => void;
+  setTab: (tab: AppTab) => void;
   setCad: (open: boolean) => void;
   openCourtMaster: () => void;
+  goSouAluno: () => void;
+  goQueroSerAssinante: () => void;
 }
 
 function Cadastro({
@@ -183,7 +209,7 @@ function Cadastro({
     f.nome.trim().length > 1 && f.wpp.replace(/\D/g, "").length >= 10;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px] flex items-end justify-center">
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-[2px] flex items-end justify-center">
       <div className="bg-white w-full max-w-[480px] rounded-t-3xl p-5 space-y-3 shadow-2xl border-t border-[#EAEBEF]">
         <div className="flex justify-between items-center">
           <h3 className="font-extrabold text-xl text-[#111317]">
@@ -199,7 +225,8 @@ function Cadastro({
           </button>
         </div>
         <p className="text-sm text-[#6E7381]">
-          Leva 15 segundos. Depois você entra na fila sozinho pelo celular.
+          Leva 15 segundos. Seus dados ficam salvos para entrar na fila da
+          pelada e participar do Hezi Pass.
         </p>
         <input
           value={f.nome}
@@ -226,29 +253,216 @@ function Cadastro({
         </select>
         <Btn dis={!ok} onClick={() => done(f)} c={OB}>
           <CheckCircle2 className="w-4 h-4" />
-          Criar conta e entrar na fila
+          Concluir Cadastro e Continuar
         </Btn>
       </div>
     </div>
   );
 }
 
-function Home({ S }: { S: AppContextProps }) {
-  const P: [string, string, string, string][] = [
-    [
-      "Camiseta Oversized Heavyweight",
-      "R$ 120,00",
-      "👕",
-      "Algodão 280g · Modelagem Boxy Streetwear",
-    ],
-    [
-      "Mesh Shorts Basketball",
-      "R$ 90,00",
-      "🩳",
-      "Dupla camada respirável · Bolsos com zíper",
-    ],
+// ---------------------------------------------------------------------------
+// PÁGINA DE LOGIN + OPÇÃO DE CADASTRO
+// ---------------------------------------------------------------------------
+function LoginPage({
+  S,
+  redirectAfter,
+  onLoginSuccess,
+  onOpenRegister,
+}: {
+  S: AppContextProps;
+  redirectAfter: "painel" | "assinante";
+  onLoginSuccess: (sid: number | "prof" | "admin") => void;
+  onOpenRegister: () => void;
+}) {
+  const alunos = S.users.filter((u) => u.tipo === "aluno");
+  const jogadores = S.users.filter((u) => u.tipo === "jogador");
+  const [selectedUserId, setSelectedUserId] = useState<string>(
+    String(alunos[0]?.id ?? 1),
+  );
+
+  const handleLoginSubmit = () => {
+    if (selectedUserId === "prof" || selectedUserId === "admin") {
+      onLoginSuccess(selectedUserId);
+    } else {
+      onLoginSuccess(Number(selectedUserId));
+    }
+  };
+
+  return (
+    <div className="p-4 space-y-4">
+      <div className={C + " p-6 space-y-4"}>
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-[#111317] text-white flex items-center justify-center shrink-0">
+            <LogIn className="w-6 h-6 text-[#FF5400]" />
+          </div>
+          <div>
+            <h1 className="font-extrabold text-2xl text-[#111317] leading-tight">
+              Acesse sua conta
+            </h1>
+            <p className="text-xs text-[#6E7381]">
+              {redirectAfter === "assinante"
+                ? "Entre ou cadastre-se para ver os benefícios e assinar a Hezi Skills"
+                : "Entre para acessar seu Perfil de Aluno, Boletim e Hezi Pass"}
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-2 pt-1">
+          <label className="block text-xs font-extrabold uppercase tracking-wider text-[#6E7381]">
+            Selecione seu Perfil / Conta Cadastrada
+          </label>
+          <select
+            value={selectedUserId}
+            onChange={(e) => setSelectedUserId(e.target.value)}
+            className="w-full bg-[#F4F5F7] border border-[#EAEBEF] rounded-xl px-4 py-3.5 text-sm font-extrabold text-[#111317] outline-none focus:ring-2 ring-[#FF5400]"
+          >
+            <optgroup label="⚡ Alunos Hezi Skills (Assinantes)">
+              {alunos.map((a) => (
+                <option key={a.id} value={String(a.id)}>
+                  {a.st === "ativo" ? "🟢" : "🔴"} {a.nome} ({a.pos})
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="🏀 Jogadores da Pelada (Conta Grátis)">
+              {jogadores.map((j) => (
+                <option key={j.id} value={String(j.id)}>
+                  🏀 {j.nome} ({j.pos})
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="Staff / Equipe Técnica">
+              <option value="prof">🧑‍🏫 Professor (Avaliador de Quadra)</option>
+              <option value="admin">🔑 Administrador (Gestão + Court Master)</option>
+            </optgroup>
+          </select>
+        </div>
+
+        <Btn onClick={handleLoginSubmit} c={OB}>
+          <LogIn className="w-4 h-4" />
+          Entrar na Plataforma
+        </Btn>
+
+        <div className="relative py-2">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-[#EAEBEF]" />
+          </div>
+          <div className="relative flex justify-center">
+            <span className="bg-white px-3 text-xs font-extrabold uppercase text-[#6E7381]">
+              Ainda não tem conta?
+            </span>
+          </div>
+        </div>
+
+        <Btn
+          onClick={onOpenRegister}
+          c="bg-[#111317] text-white"
+        >
+          <UserPlus className="w-4 h-4 text-[#FF5400]" />
+          Cadastrar-se Grátis Agora
+        </Btn>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// PÁGINA "QUERO SER ASSINANTE" (VANTAGENS HEZI SKILLS + CTA WHATSAPP)
+// ---------------------------------------------------------------------------
+function AssinantePage({ S }: { S: AppContextProps }) {
+  const userName = S.me ? S.me.nome : "";
+  const wppUrl = wa(
+    userName
+      ? `Olá! Sou ${userName}, já tenho conta na plataforma HEZI FAM e quero ser assinante da Hezi Skills!`
+      : "Olá! Vim pela plataforma HEZI FAM e quero ser assinante da Hezi Skills!",
+  );
+
+  const vantagens = [
+    {
+      icon: <Dribbble className="w-5 h-5 text-[#FF5400]" />,
+      title: "Treinos Oficiais com a Hezi Skills",
+      desc: "Aulas práticas em quadra (Turma Terça-feira · 16:30 às 17:30) focadas em fundamentos reais de jogo, controle de bola, finalização e leitura coletiva.",
+    },
+    {
+      icon: <Award className="w-5 h-5 text-[#FF5400]" />,
+      title: "Boletim de Evolução & Overall (65 → 99)",
+      desc: "Avaliação técnica periódica no celular do professor (20 tentativas por fundamento), detecção de assimetria entre mão direita e esquerda, Badges (Bronze, Prata e Ouro) e recado técnico para os pais.",
+    },
+    {
+      icon: <Zap className="w-5 h-5 text-[#FF5400]" />,
+      title: "Multiplicador 2x de Pontos no Hezi Pass",
+      desc: "Assinantes ganham o dobro de Hezi Points (HP) nos treinos e peladas, desbloqueando meias, adesivos, cupons e camisetas exclusivas na metade do tempo.",
+    },
+    {
+      icon: <Shirt className="w-5 h-5 text-[#FF5400]" />,
+      title: "Desconto Exclusivo nos Drops de Roupa",
+      desc: "Desconto especial garantido no Drop 001 : Basic Collection (Hezi Shirt 001) e prioridade de reserva nos próximos lançamentos streetwear.",
+    },
+    {
+      icon: <Star className="w-5 h-5 text-[#FF5400]" />,
+      title: "Selo ALUNO VIP & Prioridade em Eventos",
+      desc: "Identificação ALUNO VIP na fila da Pelada Oficial, acesso a treinos fechados e vantagens exclusivas em torneios 3x3 e 5x5 da comunidade.",
+    },
   ];
 
+  return (
+    <div className="p-4 space-y-4">
+      {/* Banner Topo */}
+      <div className="bg-[#111317] text-white rounded-2xl p-6 space-y-3 shadow-sm">
+        <div className="inline-flex items-center gap-1.5 bg-[#FF5400] text-white text-xs font-extrabold uppercase px-3 py-1 rounded-full">
+          ⚡ Assinatura Oficial Hezi Skills
+        </div>
+        <h1 className="font-extrabold text-3xl leading-tight">
+          Evolua seu jogo como um atleta de verdade.
+        </h1>
+        <p className="text-xs text-[#9CA3AF] leading-relaxed">
+          {S.me
+            ? `Olá, ${S.me.nome}! Veja tudo o que você desbloqueia ao ativar sua assinatura de Aluno Hezi Skills:`
+            : "Confira todas as vantagens exclusivas para assinantes da comunidade HEZI FAM:"}
+        </p>
+      </div>
+
+      {/* Lista de Vantagens */}
+      <div className="space-y-3">
+        {vantagens.map((v) => (
+          <div key={v.title} className={C + " p-4 flex gap-3.5 items-start"}>
+            <div className="w-11 h-11 rounded-xl bg-[#FFF4EE] flex items-center justify-center shrink-0 mt-0.5">
+              {v.icon}
+            </div>
+            <div className="flex-1">
+              <h3 className="font-extrabold text-sm text-[#111317]">
+                {v.title}
+              </h3>
+              <p className="text-xs text-[#6E7381] mt-1 leading-relaxed">
+                {v.desc}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Card Final CTA */}
+      <div className="bg-[#FFF4EE] border-2 border-[#FF5400] rounded-2xl p-5 text-center space-y-3">
+        <p className="font-extrabold text-lg text-[#111317]">
+          Pronto para fazer parte da tropa?
+        </p>
+        <p className="text-xs text-[#6E7381]">
+          Clique no botão abaixo para falar diretamente com a equipe da Hezi no
+          WhatsApp e ativar sua assinatura.
+        </p>
+        <Btn href={wppUrl} c={OB}>
+          <MessageCircle className="w-4 h-4" />
+          Quero ser assinante
+        </Btn>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// PÁGINA INICIAL (HOME)
+// ---------------------------------------------------------------------------
+function Home({ S }: { S: AppContextProps }) {
+  const [shirtView, setShirtView] = useState<"front" | "back">("front");
   const mainPelada = S.evs.find((e) => e.tp === "Pelada") || S.evs[0];
 
   return (
@@ -260,17 +474,13 @@ function Home({ S }: { S: AppContextProps }) {
           Moving the game.
         </h1>
         <p className="text-[#6E7381] text-sm mt-2 mb-5">
-          Cadastre-se e participe do Hezi Pass para ganhar prêmios, entrar na
-          fila da pelada pelo celular e acompanhar sua evolução.
+          Cadastre-se e participe do Hezi Pass para ganhar prêmios
         </p>
         <div className="grid grid-cols-2 gap-3">
           <Btn onClick={() => S.setTab("pelada")} c={OB}>
-            <span>🏀</span> Quero Jogar
+            <span>🏀</span> Jogar
           </Btn>
-          <Btn
-            onClick={() => S.setTab("painel")}
-            c="bg-[#111317] text-white"
-          >
+          <Btn onClick={S.goSouAluno} c="bg-[#111317] text-white">
             <span>⚡</span> Sou Aluno
           </Btn>
         </div>
@@ -280,12 +490,10 @@ function Home({ S }: { S: AppContextProps }) {
       {mainPelada && (
         <div className={C + " p-4 border-l-4 border-l-[#FF5400]"}>
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#FF5400]">
+            <span className="text-xs font-extrabold uppercase tracking-wider text-[#FF5400]">
               ● Evento Ativo na Quadra
             </span>
-            <Chip c="bg-[#F4F5F7] text-[#6E7381]">
-              {mainPelada.f.length} na fila
-            </Chip>
+            <Chip c="bg-[#F4F5F7] text-[#6E7381]">Ao Vivo</Chip>
           </div>
           <p className="font-extrabold text-base text-[#111317]">
             {mainPelada.t}
@@ -294,10 +502,7 @@ function Home({ S }: { S: AppContextProps }) {
             {mainPelada.q} · {mainPelada.l}
           </p>
           <Btn
-            onClick={() => {
-              S.setTab("pelada");
-              S.join(mainPelada.id);
-            }}
+            onClick={() => S.setTab("pelada")}
             c="bg-[#FFF4EE] text-[#FF5400] py-2.5 text-xs"
           >
             Entrar na Fila pelo Celular →
@@ -319,12 +524,17 @@ function Home({ S }: { S: AppContextProps }) {
             <br />• Hezi Pass grátis
           </p>
         </div>
-        <div className={C + " p-4 border-[#FF5400]"}>
+        <div
+          onClick={S.goQueroSerAssinante}
+          className={C + " p-4 border-[#FF5400] cursor-pointer hover:bg-[#FFF4EE]/20 transition"}
+        >
           <p className="text-2xl">⚡</p>
           <p className="font-extrabold text-sm mt-1 text-[#111317]">
             Aluno Hezi Skills
           </p>
-          <p className="text-xs text-[#FF5400] font-bold mb-2">Assinante</p>
+          <p className="text-xs text-[#FF5400] font-extrabold mb-2">
+            Assinante
+          </p>
           <p className="text-xs leading-relaxed text-[#111317]">
             • Treinos com a Hezi Skills
             <br />• Boletim de evolução
@@ -333,40 +543,167 @@ function Home({ S }: { S: AppContextProps }) {
         </div>
       </div>
 
-      {/* Drop 1: Basic Collection */}
+      {/* Drop 001 : Basic Collection — Apenas Hezi Shirt 001 com fotos reais anexadas */}
       <div>
-        <Hd>Basic Collection · Drop 1: Resistência</Hd>
-        <div className="space-y-3">
-          {P.map(([n, p, e, desc]) => (
-            <div key={n} className={C + " p-3 flex gap-3 items-center"}>
-              <div className="w-20 h-20 rounded-xl bg-[#F4F5F7] flex items-center justify-center text-4xl shrink-0">
-                {e}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-bold text-sm leading-tight text-[#111317]">
-                  {n}
-                </p>
-                <p className="text-[11px] text-[#6E7381] mt-0.5">{desc}</p>
-                <p className="n font-bold text-[#FF5400] text-lg my-1">{p}</p>
-                <Btn
-                  href={wa("Quero reservar: " + n + " (" + p + ")")}
-                  c="bg-[#FFF4EE] text-[#FF5400] py-2 text-xs"
+        <Hd>Drop 001 : Basic Collection</Hd>
+        <div className={C + " p-4 space-y-3"}>
+          {/* Foto Principal da Blusa (Frente / Costas) */}
+          <div className="relative rounded-2xl overflow-hidden bg-[#111317] aspect-square">
+            <img
+              src={shirtView === "front" ? SHIRT_FRONT_IMG : SHIRT_BACK_IMG}
+              alt={
+                shirtView === "front"
+                  ? "Hezi Shirt 001 - Frente"
+                  : "Hezi Shirt 001 - Costas"
+              }
+              className="w-full h-full object-cover transition-all duration-300"
+            />
+            <div className="absolute bottom-3 left-3 right-3 flex justify-between items-center">
+              <span className="bg-black/75 backdrop-blur-sm text-white text-xs font-extrabold px-3 py-1 rounded-full">
+                {shirtView === "front" ? "Frente · Minimalista" : "Costas · Logo HEZI FAM"}
+              </span>
+              <div className="flex gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setShirtView("front")}
+                  className={
+                    "px-3 py-1 rounded-full text-xs font-extrabold transition " +
+                    (shirtView === "front"
+                      ? "bg-[#FF5400] text-white"
+                      : "bg-black/70 text-white")
+                  }
                 >
-                  <MessageCircle className="w-3.5 h-3.5" />
-                  Reservar via WhatsApp
-                </Btn>
+                  Frente
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShirtView("back")}
+                  className={
+                    "px-3 py-1 rounded-full text-xs font-extrabold transition " +
+                    (shirtView === "back"
+                      ? "bg-[#FF5400] text-white"
+                      : "bg-black/70 text-white")
+                  }
+                >
+                  Costas
+                </button>
               </div>
             </div>
-          ))}
+          </div>
+
+          {/* Miniaturas Frente e Costas lado a lado */}
+          <div className="grid grid-cols-2 gap-2.5">
+            <button
+              type="button"
+              onClick={() => setShirtView("front")}
+              className={
+                "rounded-xl overflow-hidden border-2 transition flex items-center gap-2 p-1.5 text-left " +
+                (shirtView === "front"
+                  ? "border-[#FF5400] bg-[#FFF4EE]/40"
+                  : "border-[#EAEBEF] bg-[#F4F5F7]")
+              }
+            >
+              <img
+                src={SHIRT_FRONT_IMG}
+                alt="Frente"
+                className="w-12 h-12 rounded-lg object-cover shrink-0"
+              />
+              <div>
+                <p className="font-extrabold text-xs text-[#111317]">Frente</p>
+                <p className="text-[11px] text-[#6E7381]">Tabela Minimalista</p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShirtView("back")}
+              className={
+                "rounded-xl overflow-hidden border-2 transition flex items-center gap-2 p-1.5 text-left " +
+                (shirtView === "back"
+                  ? "border-[#FF5400] bg-[#FFF4EE]/40"
+                  : "border-[#EAEBEF] bg-[#F4F5F7]")
+              }
+            >
+              <img
+                src={SHIRT_BACK_IMG}
+                alt="Costas"
+                className="w-12 h-12 rounded-lg object-cover shrink-0"
+              />
+              <div>
+                <p className="font-extrabold text-xs text-[#111317]">Costas</p>
+                <p className="text-[11px] text-[#6E7381]">Estampa HEZI FAM</p>
+              </div>
+            </button>
+          </div>
+
+          {/* Info e Botão Reservar */}
+          <div className="pt-1 flex items-center justify-between">
+            <div>
+              <p className="font-extrabold text-lg text-[#111317]">
+                Hezi Shirt 001
+              </p>
+              <p className="text-xs text-[#6E7381]">
+                Drop Único · Básico com Propósito
+              </p>
+            </div>
+            <p className="n font-extrabold text-[#FF5400] text-2xl">
+              R$ 120,00
+            </p>
+          </div>
+
+          <Btn
+            href={wa("Quero reservar: Hezi Shirt 001 (R$ 120,00)")}
+            c={OB}
+          >
+            <MessageCircle className="w-4 h-4" />
+            Reservar via WhatsApp
+          </Btn>
         </div>
       </div>
     </div>
   );
 }
 
+function formatClockMs(ms: number) {
+  const clamped = Math.max(0, Math.ceil(ms / 1000));
+  const m = Math.floor(clamped / 60);
+  const s = clamped % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
 function Pelada({ S }: { S: AppContextProps }) {
   const peladaStore = usePelada();
   useTick();
+
+  const mainPelada = S.evs.find((e) => e.tp === "Pelada") || S.evs[0];
+
+  const [adminPreviewUserView, setAdminPreviewUserView] = useState(false);
+
+  if (S.role === "admin" && !adminPreviewUserView) {
+    return (
+      <div className="p-4 space-y-4">
+        <div className={C + " p-3.5 flex items-center justify-between gap-2"}>
+          <div>
+            <p className="font-extrabold text-sm text-[#111317]">
+              🔑 Court Master Scheduler · Área do Administrador
+            </p>
+            <p className="text-xs text-[#6E7381]">
+              Organize a pelada aqui. Os jogadores veem apenas a fila completa
+              no celular.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setAdminPreviewUserView(true)}
+            className="shrink-0 rounded-xl bg-[#F4F5F7] border border-[#EAEBEF] px-3 py-2 text-xs font-extrabold text-[#111317]"
+          >
+            👁️ Ver como Usuário
+          </button>
+        </div>
+        <CourtMasterOrganizer embedded />
+      </div>
+    );
+  }
 
   const myCourtStatus = S.me
     ? getPlayerPeladaStatus(peladaStore, {
@@ -375,145 +712,337 @@ function Pelada({ S }: { S: AppContextProps }) {
       })
     : null;
 
+  const duration = currentDurationMs(peladaStore);
+  const elapsed = computeElapsed(peladaStore.court, Date.now());
+  const remaining = Math.max(0, duration - elapsed);
+  const isRunning = Boolean(peladaStore.court.runningSince);
+
+  const teamA = peladaStore.court.teamAId
+    ? peladaStore.teams[peladaStore.court.teamAId]
+    : null;
+  const teamB = peladaStore.court.teamBId
+    ? peladaStore.teams[peladaStore.court.teamBId]
+    : null;
+  const champTeam = peladaStore.waitingChampion
+    ? peladaStore.teams[peladaStore.waitingChampion]
+    : null;
+
+  const totalWaitingPlayers = peladaStore.queue.reduce((acc, entry) => {
+    if (entry.kind === "player") return acc + 1;
+    const t = peladaStore.teams[entry.id];
+    return acc + (t ? t.memberIds.length : 0);
+  }, 0);
+
   return (
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between">
-        <Hd>Peladas e eventos</Hd>
-        {S.role === "admin" && (
+        <div>
+          <h2 className="font-extrabold text-lg text-[#111317]">
+            {mainPelada ? mainPelada.t : "Eventos & Fila da Pelada"}
+          </h2>
+          <p className="text-xs text-[#6E7381]">
+            {mainPelada
+              ? `${mainPelada.q} · ${mainPelada.l}`
+              : "Acompanhe sua posição na fila em tempo real"}
+          </p>
+        </div>
+        {S.role === "admin" ? (
           <button
             type="button"
-            onClick={S.openCourtMaster}
-            className="text-xs font-extrabold bg-[#111317] text-white px-3 py-1.5 rounded-xl flex items-center gap-1.5"
+            onClick={() => setAdminPreviewUserView(false)}
+            className="text-xs font-extrabold bg-[#111317] text-white px-3 py-2 rounded-xl flex items-center gap-1.5"
           >
             <Timer className="w-3.5 h-3.5 text-[#FF5400]" />
-            Abrir Court Master
+            Voltar ao Court Master
           </button>
+        ) : (
+          <Chip c="bg-[#FFF4EE] text-[#FF5400]">Ao Vivo</Chip>
         )}
       </div>
 
-      {/* Status ao vivo no Court Master se a partida estiver rolando */}
-      {myCourtStatus && myCourtStatus.status !== "not-in-pelada" && (
-        <div className="bg-[#FFF4EE] border border-[#FF5400]/30 rounded-2xl p-3.5 flex items-center justify-between">
-          <div>
-            <p className="text-[11px] font-extrabold uppercase tracking-wider text-[#FF5400]">
-              Status Court Master 3x3
+      {/* Card Principal: Meu Lugar na Fila + Botão Entrar na Fila pelo Celular */}
+      <div className={C + " p-4 space-y-3"}>
+        {mainPelada && (
+          <p className="text-xs bg-[#F4F5F7] rounded-lg p-2.5 text-[#111317] font-medium">
+            📋 {mainPelada.r}
+          </p>
+        )}
+
+        {myCourtStatus && myCourtStatus.status !== "not-in-pelada" ? (
+          <div className="bg-[#ECFDF5] border border-[#10B981]/40 rounded-xl p-3.5 space-y-1">
+            <p className="text-xs font-extrabold uppercase tracking-wider text-[#10B981]">
+              ✓ Seu Status na Pelada
             </p>
-            <p className="text-sm font-extrabold text-[#111317]">
+            <p className="text-base font-extrabold text-[#111317]">
               {myCourtStatus.status === "on-court"
-                ? `🏀 Você está EM QUADRA (${myCourtStatus.teamLabel} · Lado ${myCourtStatus.side})`
+                ? `🏀 Você está EM QUADRA AGORA (${myCourtStatus.teamLabel} · Lado ${myCourtStatus.side})`
                 : myCourtStatus.status === "champion-waiting"
-                  ? `👑 Campeão aguardando desafiante (${myCourtStatus.teamLabel})`
+                  ? `👑 Você está no Time Campeão aguardando desafiante (${myCourtStatus.teamLabel})`
                   : myCourtStatus.entryKind === "team"
-                    ? `⏱️ Seu time (${myCourtStatus.teamLabel}) é o #${myCourtStatus.position} da fila`
-                    : `📋 Posição no organizador Court Master: #${myCourtStatus.position}`}
+                    ? `⏱️ Você está na fila no ${myCourtStatus.teamLabel} — Posição #${myCourtStatus.position}`
+                    : `✓ Você está na fila — Posição #${myCourtStatus.position} (${myCourtStatus.playersAheadCount} na sua frente)`}
             </p>
           </div>
-          <Dribbble className="w-6 h-6 text-[#FF5400] shrink-0" />
+        ) : (
+          <Btn
+            onClick={() => S.join(mainPelada ? mainPelada.id : 1)}
+            c={OB}
+          >
+            <Dribbble className="w-4 h-4" />
+            Entrar na Fila pelo Celular
+          </Btn>
+        )}
+      </div>
+
+      {/* Resumo Somente Leitura da Quadra Agora (Time A vs Time B + Cronômetro) */}
+      <div className={C + " p-4 space-y-3"}>
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-extrabold uppercase tracking-wider text-[#6E7381]">
+            🏀 Em Quadra Agora
+          </span>
+          <span
+            className={
+              "n text-sm font-extrabold px-2.5 py-0.5 rounded-lg " +
+              (isRunning
+                ? "bg-[#ECFDF5] text-[#10B981]"
+                : "bg-[#F4F5F7] text-[#111317]")
+            }
+          >
+            ⏱️ {formatClockMs(remaining)}
+          </span>
         </div>
-      )}
 
-      {S.evs.length === 0 && (
-        <p className="text-sm text-[#6E7381]">
-          Nenhum evento ativo agora. O administrador abrirá a próxima pelada em
-          breve.
-        </p>
-      )}
-
-      {S.evs.map((e) => {
-        const pos = S.me ? e.f.indexOf(S.me.id) + 1 : 0;
-        const onlyVip = e.tp === "Treino";
-        return (
-          <div key={e.id} className={C + " p-4"}>
-            <div className="flex justify-between items-start gap-2">
-              <div>
-                <p className="font-extrabold text-base text-[#111317]">{e.t}</p>
-                <p className="text-xs text-[#6E7381]">
-                  {e.q} · {e.l}
-                </p>
+        <div className="grid grid-cols-2 gap-2.5">
+          {/* Lado A */}
+          <div className="bg-[#F4F5F7] rounded-xl p-3">
+            <p className="text-xs font-extrabold uppercase text-[#FF5400] mb-1">
+              Lado A{" "}
+              {teamA
+                ? `· ${peladaStore.teamNames[teamA.id] ?? `TIME ${teamA.number}`}`
+                : ""}
+            </p>
+            {!teamA ? (
+              <p className="text-xs text-[#6E7381]">Aguardando time...</p>
+            ) : (
+              <div className="space-y-1">
+                {teamA.memberIds.map((pid) => {
+                  const p = peladaStore.players[pid];
+                  if (!p) return null;
+                  const isMe =
+                    S.me &&
+                    (p.userId === String(S.me.id) || p.name === S.me.nome);
+                  return (
+                    <p
+                      key={pid}
+                      className={
+                        "text-xs font-bold truncate " +
+                        (isMe ? "text-[#FF5400]" : "text-[#111317]")
+                      }
+                    >
+                      • {p.name} {isMe ? "(Você)" : ""}
+                    </p>
+                  );
+                })}
               </div>
-              <Chip
-                c={
-                  onlyVip
-                    ? "bg-[#FFF4EE] text-[#FF5400]"
-                    : "bg-[#F4F5F7] text-[#6E7381]"
-                }
-              >
-                {e.tp}
-              </Chip>
-            </div>
-
-            <p className="text-xs bg-[#F4F5F7] rounded-lg p-2.5 my-3 text-[#111317] font-medium">
-              📋 {e.r}
-            </p>
-
-            {pos ? (
-              <Btn dis={true} c="bg-[#10B981] text-white">
-                <CheckCircle2 className="w-4 h-4" />✓ Você está na fila -
-                Posição #{pos}
-              </Btn>
-            ) : (
-              <Btn onClick={() => S.join(e.id)} c={OB}>
-                Entrar na Fila pelo Celular
-              </Btn>
             )}
+          </div>
 
-            <p className="text-xs font-bold text-[#6E7381] mt-4 mb-2 uppercase tracking-wider">
-              FILA DE ESPERA · {e.f.length}
+          {/* Lado B */}
+          <div className="bg-[#F4F5F7] rounded-xl p-3">
+            <p className="text-xs font-extrabold uppercase text-[#111317] mb-1">
+              Lado B{" "}
+              {teamB
+                ? `· ${peladaStore.teamNames[teamB.id] ?? `TIME ${teamB.number}`}`
+                : ""}
             </p>
-
-            {e.f.length === 0 ? (
-              <p className="text-xs text-[#6E7381]">
-                Fila vazia. Seja o primeiro a entrar pelo celular!
-              </p>
+            {!teamB ? (
+              <p className="text-xs text-[#6E7381]">Aguardando time...</p>
             ) : (
-              e.f.map((id, i) => {
-                const u = S.users.find((x) => x.id === id);
-                if (!u) return null;
-                const isMe = S.me?.id === u.id;
+              <div className="space-y-1">
+                {teamB.memberIds.map((pid) => {
+                  const p = peladaStore.players[pid];
+                  if (!p) return null;
+                  const isMe =
+                    S.me &&
+                    (p.userId === String(S.me.id) || p.name === S.me.nome);
+                  return (
+                    <p
+                      key={pid}
+                      className={
+                        "text-xs font-bold truncate " +
+                        (isMe ? "text-[#FF5400]" : "text-[#111317]")
+                      }
+                    >
+                      • {p.name} {isMe ? "(Você)" : ""}
+                    </p>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Campeão Aguardando (se houver) */}
+        {champTeam && (
+          <div className="bg-[#FFF4EE] border border-[#FF5400]/30 rounded-xl p-2.5 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-extrabold text-[#FF5400]">
+                👑 CAMPEÃO AGUARDANDO PRÓXIMO JOGO
+              </p>
+              <p className="text-xs font-bold text-[#111317]">
+                {peladaStore.teamNames[champTeam.id] ??
+                  `TIME ${champTeam.number}`}
+                :{" "}
+                {champTeam.memberIds
+                  .map((pid) => peladaStore.players[pid]?.name)
+                  .filter(Boolean)
+                  .join(", ")}
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* FILA COMPLETA DA PELADA (Somente Visualização para o Usuário) */}
+      <div className={C + " p-4"}>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs font-extrabold text-[#111317] uppercase tracking-wider">
+            📋 FILA COMPLETA DE ESPERA
+          </p>
+          <span className="n text-xs font-bold text-[#FF5400]">
+            {peladaStore.queue.length} posições · {totalWaitingPlayers}{" "}
+            jogadores
+          </span>
+        </div>
+
+        {peladaStore.queue.length === 0 ? (
+          <p className="text-xs text-[#6E7381] py-3 text-center">
+            Nenhum jogador na fila de espera no momento. Toque em &ldquo;Entrar
+            na Fila pelo Celular&rdquo; acima!
+          </p>
+        ) : (
+          <div className="divide-y divide-[#EAEBEF]">
+            {peladaStore.queue.map((entry, idx) => {
+              if (entry.kind === "player") {
+                const p = peladaStore.players[entry.id];
+                if (!p) return null;
+                const isMe =
+                  S.me &&
+                  (p.userId === String(S.me.id) ||
+                    p.name.toLowerCase() === S.me.nome.toLowerCase());
+                const heziUser = S.users.find(
+                  (u) =>
+                    String(u.id) === p.userId ||
+                    u.nome.toLowerCase() === p.name.toLowerCase(),
+                );
                 return (
                   <div
-                    key={id}
+                    key={`p-${entry.id}`}
                     className={
-                      "flex items-center gap-2 py-2 border-t border-[#EAEBEF] text-sm " +
-                      (isMe ? "bg-[#FFF4EE]/60 -mx-2 px-2 rounded-lg" : "")
+                      "flex items-center gap-2.5 py-2.5 text-sm " +
+                      (isMe ? "bg-[#FFF4EE] -mx-2 px-2 rounded-xl" : "")
                     }
                   >
-                    <span className="n font-bold text-[#FF5400] w-8">
-                      #{i + 1}
+                    <span className="n font-extrabold text-[#FF5400] w-8">
+                      #{idx + 1}
                     </span>
-                    <span className="flex-1 font-semibold text-[#111317] truncate">
-                      {u.nome}{" "}
-                      <span className="text-xs font-normal text-[#6E7381]">
-                        ({u.pos})
-                      </span>
-                    </span>
-                    {u.tipo === "aluno" && u.st === "ativo" && (
-                      <Chip c="bg-[#FFF4EE] text-[#FF5400]">ALUNO VIP</Chip>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-sm text-[#111317] truncate">
+                        {p.name}{" "}
+                        {isMe && (
+                          <span className="text-xs font-extrabold text-[#FF5400]">
+                            (Você)
+                          </span>
+                        )}
+                      </p>
+                      {(p.position || heziUser?.pos) && (
+                        <p className="text-xs text-[#6E7381]">
+                          {p.position || heziUser?.pos}
+                        </p>
+                      )}
+                    </div>
+                    {p.justPlayed && (
+                      <Chip c="bg-[#F4F5F7] text-[#6E7381]">
+                        🚫 Jogou a última
+                      </Chip>
                     )}
-                    {S.role === "admin" && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          S.setEvs(
-                            S.evs.map((x) =>
-                              x.id === e.id
-                                ? { ...x, f: x.f.filter((y) => y !== id) }
-                                : x,
-                            ),
-                          )
-                        }
-                        className="text-[#EF4444] text-xs font-bold px-2 py-1 hover:bg-[#FEF2F2] rounded-md"
-                      >
-                        remover
-                      </button>
+                    {(p.role === "aluno" ||
+                      (heziUser?.tipo === "aluno" &&
+                        heziUser.st === "ativo")) && (
+                      <Chip c="bg-[#FFF4EE] text-[#FF5400]">ALUNO VIP</Chip>
                     )}
                   </div>
                 );
-              })
-            )}
+              }
+
+              const t = peladaStore.teams[entry.id];
+              if (!t) return null;
+              const teamLabel =
+                peladaStore.teamNames[t.id] ?? `TIME ${t.number}`;
+              const hasMe =
+                S.me &&
+                t.memberIds.some((pid) => {
+                  const pl = peladaStore.players[pid];
+                  return (
+                    pl &&
+                    (pl.userId === String(S.me!.id) ||
+                      pl.name.toLowerCase() === S.me!.nome.toLowerCase())
+                  );
+                });
+
+              return (
+                <div
+                  key={`t-${entry.id}`}
+                  className={
+                    "py-3 space-y-1.5 " +
+                    (hasMe ? "bg-[#FFF4EE] -mx-2 px-2 rounded-xl" : "")
+                  }
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="n font-extrabold text-[#FF5400] w-8">
+                        #{idx + 1}
+                      </span>
+                      <span className="font-extrabold text-sm text-[#111317]">
+                        🏀 {teamLabel}
+                      </span>
+                      {hasMe && (
+                        <Chip c="bg-[#FF5400] text-white">SEU TIME</Chip>
+                      )}
+                    </div>
+                    <Chip c="bg-[#F4F5F7] text-[#6E7381]">
+                      {t.memberIds.length} jogadores
+                    </Chip>
+                  </div>
+                  <div className="pl-10 flex flex-wrap gap-1.5">
+                    {t.memberIds.map((pid) => {
+                      const pl = peladaStore.players[pid];
+                      if (!pl) return null;
+                      const isMe =
+                        S.me &&
+                        (pl.userId === String(S.me.id) ||
+                          pl.name.toLowerCase() === S.me.nome.toLowerCase());
+                      return (
+                        <span
+                          key={pid}
+                          className={
+                            "text-xs font-semibold px-2.5 py-1 rounded-lg " +
+                            (isMe
+                              ? "bg-[#FF5400] text-white"
+                              : "bg-[#F4F5F7] text-[#111317]")
+                          }
+                        >
+                          {pl.name}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        );
-      })}
+        )}
+      </div>
     </div>
   );
 }
@@ -569,7 +1098,7 @@ function Pass({ u }: { u: HeziUser }) {
                 </p>
                 <span
                   className={
-                    "text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full " +
+                    "text-xs font-extrabold uppercase px-2 py-0.5 rounded-full " +
                     (ok ? GRN : "bg-[#F4F5F7] text-[#6E7381]")
                   }
                 >
@@ -604,7 +1133,8 @@ function Boletim({ u }: { u: HeziUser }) {
           const open = o === c.k;
           const b = bd[c.k]?.l ?? 0;
           const sCount = bd[c.k]?.s ?? 0;
-          const asym = c.k === "ban" && Math.abs((r.dir ?? 0) - (r.esq ?? 0)) > 4;
+          const asym =
+            c.k === "ban" && Math.abs((r.dir ?? 0) - (r.esq ?? 0)) > 4;
           return (
             <div key={c.k} className={C}>
               <button
@@ -617,7 +1147,7 @@ function Boletim({ u }: { u: HeziUser }) {
                   <p className="font-bold text-sm text-[#111317] truncate">
                     {c.t}
                   </p>
-                  <p className="text-[11px] text-[#6E7381]">
+                  <p className="text-xs text-[#6E7381]">
                     Badge: {BE[b]} {BN[b]} · Peso {Math.round(W[c.k] * 100)}%
                   </p>
                 </div>
@@ -679,7 +1209,7 @@ function Boletim({ u }: { u: HeziUser }) {
           {u.nota || "Sem recado técnico registrado ainda."}
         </p>
       </div>
-      <p className="text-center text-[11px] text-[#6E7381] mt-3">
+      <p className="text-center text-xs text-[#6E7381] mt-3">
         🔒 Ficha individual privada · Próxima avaliação técnica de quadra em 15
         dias.
       </p>
@@ -689,30 +1219,21 @@ function Boletim({ u }: { u: HeziUser }) {
 
 function Painel({ S }: { S: AppContextProps }) {
   const u = S.me;
-  const wppBtn = (
-    <Btn
-      href={wa("Olá treinador! Quero saber mais sobre a assinatura Hezi Skills.")}
-      c={OB}
-    >
-      <MessageCircle className="w-4 h-4" />
-      Chamar o treinador no WhatsApp
-    </Btn>
-  );
 
   if (!u) {
     return (
       <div className="p-4 space-y-4">
-        <div className={C + " p-6 text-center"}>
+        <div className={C + " p-6 text-center space-y-3"}>
           <p className="text-4xl">🔐</p>
-          <h2 className="font-extrabold text-xl my-2 text-[#111317]">
-            Entre para ver seu painel
+          <h2 className="font-extrabold text-xl text-[#111317]">
+            Entre para acessar seu Perfil
           </h2>
-          <p className="text-sm text-[#6E7381] mb-4">
-            Crie sua conta grátis para entrar na fila da pelada e acumular
-            pontos no Hezi Pass, ou selecione seu login no topo.
+          <p className="text-sm text-[#6E7381]">
+            Faça login ou crie sua conta grátis para acessar o Hezi Pass e seu
+            painel.
           </p>
-          <Btn onClick={() => S.setCad(true)} c={OB}>
-            Criar conta grátis
+          <Btn onClick={() => S.setTab("login")} c={OB}>
+            Ir para Login / Cadastro
           </Btn>
         </div>
       </div>
@@ -754,13 +1275,14 @@ function Painel({ S }: { S: AppContextProps }) {
             Quer evoluir de verdade?
           </p>
           <p className="text-sm text-[#6E7381] my-2">
-            Assinando a{" "}
-            <strong className="text-[#111317]">Hezi Skills</strong> você tem
-            treino com o professor, ficha de avaliação técnica (Overall 65→99),
-            desconto nas roupas, prioridade em eventos e multiplicador de pontos
-            2x no Hezi Pass.
+            Torne-se assinante{" "}
+            <strong className="text-[#111317]">Hezi Skills</strong> para ter
+            treinos com o professor, boletim de evolução (Overall 65→99),
+            desconto na Hezi Shirt 001 e pontos 2x no Hezi Pass.
           </p>
-          {wppBtn}
+          <Btn onClick={() => S.setTab("assinante")} c={OB}>
+            Ver vantagens e ser assinante
+          </Btn>
         </div>
       </div>
     );
@@ -809,15 +1331,17 @@ function Painel({ S }: { S: AppContextProps }) {
             <p className="font-extrabold text-base text-[#111317] truncate">
               {u.nome}
             </p>
-            <p className="text-xs text-[#6E7381] mb-1.5">{u.pos} · Turma Terça 16:30</p>
+            <p className="text-xs text-[#6E7381] mb-1.5">
+              {u.pos} · Turma Terça 16:30
+            </p>
             <Chip c={GRN}>🟢 Matrícula Regular</Chip>
           </div>
           <div className="text-center bg-[#FFF4EE] px-3.5 py-2 rounded-2xl border border-[#FF5400]/20">
             <p className="n font-bold text-4xl text-[#FF5400] leading-none">
               {ovr(sub)}
             </p>
-            <p className="text-[10px] font-extrabold text-[#6E7381] mt-0.5">
-              OVERALL
+            <p className="text-xs font-extrabold text-[#6E7381] mt-0.5">
+              OVR
             </p>
           </div>
         </div>
@@ -902,7 +1426,6 @@ function Avaliar({ S }: { S: AppContextProps }) {
   const currentSub = u.sub || baseSub;
   const currentBd = u.bd || B0();
 
-  // Cálculo de prévia em tempo real (Inércia 70% histórico + 30% sessão)
   const previewSub = {} as Record<CatKey, number>;
   CATS.forEach((c) => {
     previewSub[c.k] = Math.round(currentSub[c.k] * 0.7 + sessao(c, r) * 0.3);
@@ -974,7 +1497,7 @@ function Avaliar({ S }: { S: AppContextProps }) {
 
         <div className="bg-[#FFF4EE] rounded-xl p-3 flex items-center justify-between">
           <div>
-            <p className="text-[11px] font-extrabold uppercase text-[#FF5400]">
+            <p className="text-xs font-extrabold uppercase text-[#FF5400]">
               Simulação em Tempo Real (EMA 70/30)
             </p>
             <p className="text-xs text-[#6E7381]">
@@ -1025,7 +1548,7 @@ function Avaliar({ S }: { S: AppContextProps }) {
               >
                 <div className="pr-2">
                   <p className="text-sm font-semibold text-[#111317]">{nm}</p>
-                  <p className="n text-[11px] text-[#6E7381]">
+                  <p className="n text-xs text-[#6E7381]">
                     Nano-OVR: {nano(r[k] ?? 0)} pts
                   </p>
                 </div>
@@ -1138,7 +1661,8 @@ function Alunos({ S }: { S: AppContextProps }) {
 
       <div className={C + " p-4 space-y-2.5"}>
         <p className="font-extrabold text-sm text-[#111317]">
-          Ações Rápidas de Check-in: <span className="text-[#FF5400]">{u.nome}</span>
+          Ações Rápidas de Check-in:{" "}
+          <span className="text-[#FF5400]">{u.nome}</span>
         </p>
         {A.map(([t, h, o]) => (
           <Btn
@@ -1226,7 +1750,7 @@ function Eventos({ S }: { S: AppContextProps }) {
           onClick={() => {
             S.setEvs([...S.evs, { ...f, id: Date.now(), f: [] }]);
             setF({ t: "", tp: "Pelada", q: "", l: "", r: "" });
-            S.say("Evento criado e publicado na Home!");
+            S.say("Evento criado e publicado!");
           }}
           c={OB}
         >
@@ -1266,7 +1790,6 @@ function Eventos({ S }: { S: AppContextProps }) {
                   .slice(0, 5)
                   .map((i) => S.users.find((u) => u.id === i))
                   .filter(Boolean) as HeziUser[];
-                // Sync called players to Court Master as well
                 calledUsers.forEach((u) => {
                   peladaStore.addPlayer(u.nome, {
                     role: u.tipo === "aluno" ? "aluno" : "convencional",
@@ -1308,33 +1831,277 @@ function Eventos({ S }: { S: AppContextProps }) {
   );
 }
 
+interface DbStatusSummaryClient {
+  engine: string;
+  dbPath: string;
+  fileSizeBytes: number;
+  counts: {
+    users: number;
+    alunos: number;
+    jogadores: number;
+    events: number;
+    queueEntries: number;
+    evaluationsHistory: number;
+  };
+  heziUpdatedAt: number;
+  peladaUpdatedAt: number;
+  recentEvaluations: Array<{
+    id: number;
+    userId: number;
+    userName: string;
+    evalDate: string;
+    cycle: string;
+    ovrBefore: number;
+    ovrAfter: number;
+    notaTecnica: string;
+    createdAt: number;
+  }>;
+}
+
+function BancoDados({ S }: { S: AppContextProps }) {
+  const [info, setInfo] = useState<DbStatusSummaryClient | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const loadInfo = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/hezi-db", { cache: "no-store" });
+      if (res.ok) {
+        const data = (await res.json()) as DbStatusSummaryClient;
+        setInfo(data);
+      }
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadInfo();
+  }, [S.users, S.evs]);
+
+  const exportBackup = () => {
+    const blob = new Blob(
+      [
+        JSON.stringify(
+          {
+            exportedAt: new Date().toISOString(),
+            users: S.users,
+            events: S.evs,
+            pelada: usePelada.getState(),
+          },
+          null,
+          2,
+        ),
+      ],
+      { type: "application/json" },
+    );
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `hezi-fam-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    S.say("Backup JSON exportado!");
+  };
+
+  const resetDb = async () => {
+    if (
+      !window.confirm(
+        "Deseja restaurar o banco de dados SQLite para os dados originais de fábrica?",
+      )
+    )
+      return;
+    try {
+      const res = await fetch("/api/hezi-db", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "reset" }),
+      });
+      if (res.ok) {
+        const payload = (await res.json()) as {
+          state: {
+            hezi: {
+              lastModified: number;
+              users: HeziUser[];
+              evs: HeziEventItem[];
+            };
+          };
+          summary: DbStatusSummaryClient;
+        };
+        useHeziPlatform.getState().hydrateFromRemote(payload.state.hezi);
+        setInfo(payload.summary);
+        S.say("Banco SQLite restaurado para o estado inicial!");
+      }
+    } catch {
+      S.say("Erro ao restaurar banco");
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className={C + " p-4 space-y-3"}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-9 h-9 rounded-xl bg-[#ECFDF5] text-[#10B981] flex items-center justify-center">
+              <Database className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="font-extrabold text-sm text-[#111317]">
+                Banco Relacional SQLite Ativo
+              </p>
+              <p className="text-xs text-[#6E7381]">
+                {info?.engine || "SQLite · Persistência ACID em disco"}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => void loadInfo()}
+            className="p-2 rounded-xl bg-[#F4F5F7] text-[#111317] hover:bg-[#EAEBEF] transition"
+            title="Atualizar status do banco"
+          >
+            <RefreshCw
+              className={"w-4 h-4 " + (loading ? "animate-spin" : "")}
+            />
+          </button>
+        </div>
+
+        {info && (
+          <>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="bg-[#F4F5F7] rounded-xl p-2.5">
+                <p className="n font-extrabold text-xl text-[#111317]">
+                  {info.counts.users}
+                </p>
+                <p className="text-xs font-bold text-[#6E7381]">
+                  USUÁRIOS ({info.counts.alunos}A / {info.counts.jogadores}J)
+                </p>
+              </div>
+              <div className="bg-[#F4F5F7] rounded-xl p-2.5">
+                <p className="n font-extrabold text-xl text-[#FF5400]">
+                  {info.counts.events}
+                </p>
+                <p className="text-xs font-bold text-[#6E7381]">
+                  EVENTOS ({info.counts.queueEntries} FILA)
+                </p>
+              </div>
+              <div className="bg-[#F4F5F7] rounded-xl p-2.5">
+                <p className="n font-extrabold text-xl text-[#10B981]">
+                  {info.counts.evaluationsHistory}
+                </p>
+                <p className="text-xs font-bold text-[#6E7381]">AVALIAÇÕES</p>
+              </div>
+            </div>
+
+            <div className="text-xs bg-[#F4F5F7] rounded-xl p-2.5 text-[#6E7381] space-y-1 font-mono break-all">
+              <div>
+                <strong className="text-[#111317]">Arquivo SQLite:</strong>{" "}
+                data/hezi.sqlite ({Math.round(info.fileSizeBytes / 1024)} KB)
+              </div>
+              <div>
+                <strong className="text-[#111317]">Schema Cloud:</strong>{" "}
+                supabase/schema.sql (PostgreSQL + RLS pronto)
+              </div>
+            </div>
+          </>
+        )}
+
+        <div className="grid grid-cols-2 gap-2 pt-1">
+          <button
+            type="button"
+            onClick={exportBackup}
+            className="flex items-center justify-center gap-1.5 rounded-xl bg-[#111317] text-white text-xs font-bold py-3 px-3 active:scale-95 transition"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Exportar Backup
+          </button>
+          <button
+            type="button"
+            onClick={() => void resetDb()}
+            className="flex items-center justify-center gap-1.5 rounded-xl bg-[#FEF2F2] text-[#EF4444] text-xs font-bold py-3 px-3 active:scale-95 transition"
+          >
+            Restaurar Fábrica
+          </button>
+        </div>
+      </div>
+
+      {/* Histórico de Avaliações gravado na tabela evaluations_history */}
+      <div className={C + " p-4 space-y-2.5"}>
+        <p className="font-extrabold text-sm text-[#111317]">
+          📋 Histórico no Banco (`evaluations_history`)
+        </p>
+        {!info || info.recentEvaluations.length === 0 ? (
+          <p className="text-xs text-[#6E7381]">
+            Nenhuma avaliação processada nesta sessão ainda. Quando o Professor
+            ou Admin salvar uma avaliação na aba &ldquo;Avaliar&rdquo;, o
+            registro histórico aparecerá aqui automaticamente.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {info.recentEvaluations.map((ev) => (
+              <div
+                key={ev.id}
+                className="bg-[#F4F5F7] rounded-xl p-3 text-xs space-y-1"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-extrabold text-[#111317]">
+                    {ev.userName}
+                  </span>
+                  <span className="n font-bold text-[#FF5400]">
+                    OVR {ev.ovrBefore} → {ev.ovrAfter}
+                  </span>
+                </div>
+                <p className="text-xs text-[#6E7381]">
+                  Ciclo {ev.cycle} · Data: {ev.evalDate}
+                </p>
+                {ev.notaTecnica && (
+                  <p className="text-xs text-[#111317] italic">
+                    &ldquo;{ev.notaTecnica}&rdquo;
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+type StaffSubTabKey = "av" | "al" | "ev" | "cm" | "db";
+
 function Staff({
   S,
   initialSubTab,
   onSubTabChange,
 }: {
   S: AppContextProps;
-  initialSubTab?: "av" | "al" | "ev" | "cm";
-  onSubTabChange?: (st: "av" | "al" | "ev" | "cm") => void;
+  initialSubTab?: StaffSubTabKey;
+  onSubTabChange?: (st: StaffSubTabKey) => void;
 }) {
   const adm = S.role === "admin";
-  const T: ["av" | "al" | "ev" | "cm", string][] = [
+  const T: [StaffSubTabKey, string][] = [
+    ...(adm ? ([["cm", "Court Master"]] as [StaffSubTabKey, string][]) : []),
     ["av", "Avaliar"],
     ["al", "Alunos"],
     ...(adm
       ? ([
           ["ev", "Eventos"],
-          ["cm", "Court Master"],
-        ] as ["ev" | "cm", string][])
+          ["db", "Banco SQL"],
+        ] as [StaffSubTabKey, string][])
       : []),
   ];
-  const [t, setT] = useState<"av" | "al" | "ev" | "cm">(initialSubTab || "av");
+  const [t, setT] = useState<StaffSubTabKey>(
+    initialSubTab || (adm ? "cm" : "av"),
+  );
 
   useEffect(() => {
     if (initialSubTab) setT(initialSubTab);
   }, [initialSubTab]);
 
-  const handleSelect = (k: "av" | "al" | "ev" | "cm") => {
+  const handleSelect = (k: StaffSubTabKey) => {
     setT(k);
     onSubTabChange?.(k);
   };
@@ -1368,6 +2135,8 @@ function Staff({
         <Alunos S={S} />
       ) : t === "ev" && adm ? (
         <Eventos S={S} />
+      ) : t === "db" && adm ? (
+        <BancoDados S={S} />
       ) : (
         <div className="space-y-3">
           <div className={C + " p-3 flex items-center justify-between"}>
@@ -1395,10 +2164,11 @@ function HeziSuperApp() {
   const { sid, setSid } = useHeziSession();
   const peladaStore = usePelada();
 
-  const [tab, setTab] = useState<"home" | "pelada" | "painel">("home");
-  const [staffSubTab, setStaffSubTab] = useState<"av" | "al" | "ev" | "cm">(
-    "av",
+  const [tab, setTab] = useState<AppTab>("home");
+  const [loginRedirect, setLoginRedirect] = useState<"painel" | "assinante">(
+    "painel",
   );
+  const [staffSubTab, setStaffSubTab] = useState<StaffSubTabKey>("cm");
   const [cad, setCad] = useState(false);
   const [pend, setPend] = useState<number | null>(null);
   const [toast, setToast] = useState("");
@@ -1430,6 +2200,45 @@ function HeziSuperApp() {
         userId: String(u.id),
         position: u.pos,
       });
+    }
+  };
+
+  // Seed initial Pelada queue into Court Master if empty
+  useEffect(() => {
+    if (Object.keys(peladaStore.players).length === 0) {
+      const peladaEv = evs.find((e) => e.tp === "Pelada") || evs[0];
+      if (peladaEv) {
+        peladaEv.f.forEach((uid) => {
+          const u = users.find((x) => x.id === uid);
+          if (u) {
+            peladaStore.addPlayer(u.nome, {
+              role: u.tipo === "aluno" ? "aluno" : "convencional",
+              userId: String(u.id),
+              position: u.pos,
+            });
+          }
+        });
+      }
+    }
+  }, [evs, peladaStore, users]);
+
+  // Navegação inteligente para "SOU ALUNO"
+  const goSouAluno = () => {
+    if (role === "visitante") {
+      setLoginRedirect("painel");
+      setTab("login");
+    } else {
+      setTab("painel");
+    }
+  };
+
+  // Navegação inteligente para "QUERO SER ASSINANTE"
+  const goQueroSerAssinante = () => {
+    if (role === "visitante") {
+      setLoginRedirect("assinante");
+      setTab("login");
+    } else {
+      setTab("assinante");
     }
   };
 
@@ -1475,14 +2284,18 @@ function HeziSuperApp() {
         syncUserToCourtMaster(u);
       }
       setPend(null);
+      setTab("pelada");
       say("Conta criada! Você já está na fila da pelada! 🏀");
+    } else if (tab === "login" && loginRedirect === "assinante") {
+      setTab("assinante");
+      say("Cadastro concluído! Veja as vantagens de ser assinante.");
     } else {
+      setTab("painel");
       say("Conta grátis criada com sucesso!");
     }
   };
 
   const openCourtMaster = () => {
-    // Sync current Pelada event queue players into Court Master
     const peladaEv = evs.find((e) => e.tp === "Pelada");
     if (peladaEv) {
       peladaEv.f.forEach((uid) => {
@@ -1506,15 +2319,18 @@ function HeziSuperApp() {
     setTab,
     setCad,
     openCourtMaster,
+    goSouAluno,
+    goQueroSerAssinante,
   };
 
   const staff = role === "admin" || role === "professor";
   const isWideCourtMaster =
-    staff && tab === "painel" && staffSubTab === "cm" && role === "admin";
+    role === "admin" &&
+    (tab === "pelada" || (tab === "painel" && staffSubTab === "cm"));
 
-  const T: ["home" | "pelada" | "painel", React.ReactNode, string][] = [
+  const T: [AppTab, React.ReactNode, string][] = [
     ["home", <HomeIcon key="h" className="w-5 h-5" />, "Início"],
-    ["pelada", <Dribbble key="p" className="w-5 h-5" />, "Pelada"],
+    ["pelada", <Dribbble key="p" className="w-5 h-5" />, "Eventos"],
     [
       "painel",
       staff ? (
@@ -1522,7 +2338,7 @@ function HeziSuperApp() {
       ) : (
         <UserCheck key="m" className="w-5 h-5" />
       ),
-      staff ? "Quadra" : "Meu Painel",
+      staff ? "Quadra" : "Sou Aluno",
     ],
   ];
 
@@ -1534,23 +2350,80 @@ function HeziSuperApp() {
           (isWideCourtMaster ? "max-w-6xl" : "max-w-[480px]")
         }
       >
-        {/* Top Header */}
-        <header className="shrink-0 bg-white border-b border-[#EAEBEF]">
-          <div className="flex items-center justify-between px-4 py-3">
+        {/* BARRA SUPERIOR ESTILO OTE (PRETA COM LOGO HEZI + EVENTOS | SOU ALUNO | QUERO SER ASSINANTE) */}
+        <header className="shrink-0 bg-black text-white">
+          <div className="flex items-center justify-between px-3.5 py-2.5 gap-2">
             <button
               type="button"
               onClick={() => setTab("home")}
-              className="flex items-center gap-2 text-left"
+              className="shrink-0 flex items-center"
+              title="Voltar ao Início"
             >
-              <span className="font-extrabold text-lg tracking-tight text-[#111317]">
-                HEZI FAM<sup className="text-[9px] text-[#FF5400]">®</sup>
-              </span>
+              <img
+                src={HEZI_LOGO_WHITE}
+                alt="HEZI FAM"
+                className="h-9 w-auto object-contain"
+              />
             </button>
 
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-bold text-[#6E7381] hidden xs:inline">
-                Login:
+            <nav className="flex items-center gap-2 sm:gap-3 text-xs font-extrabold uppercase tracking-wider">
+              <button
+                type="button"
+                onClick={() => setTab("pelada")}
+                className={
+                  "ote-nav-link transition hover:text-[#FF5400] " +
+                  (tab === "pelada" ? "text-[#FF5400]" : "text-white")
+                }
+              >
+                EVENTOS
+              </button>
+              <span className="text-white/50 select-none">|</span>
+              <button
+                type="button"
+                onClick={goSouAluno}
+                className={
+                  "ote-nav-link transition hover:text-[#FF5400] " +
+                  (tab === "painel" ||
+                  (tab === "login" && loginRedirect === "painel")
+                    ? "text-[#FF5400]"
+                    : "text-white")
+                }
+              >
+                SOU ALUNO
+              </button>
+              <span className="text-white/50 select-none">|</span>
+              <button
+                type="button"
+                onClick={goQueroSerAssinante}
+                className={
+                  "ote-nav-link transition hover:text-[#FF5400] text-right leading-tight " +
+                  (tab === "assinante" ||
+                  (tab === "login" && loginRedirect === "assinante")
+                    ? "text-[#FF5400]"
+                    : "text-white")
+                }
+              >
+                QUERO SER ASSINANTE
+              </button>
+            </nav>
+          </div>
+
+          {/* Sub-barra rápida de sessão / simulador de login para testes */}
+          <div className="bg-[#111317] border-t border-white/10 px-3.5 py-1.5 flex items-center justify-between text-xs">
+            <div className="flex items-center gap-1.5 truncate">
+              <span className="text-[#9CA3AF]">Sessão:</span>
+              <span className="font-extrabold text-white truncate">
+                {role === "visitante"
+                  ? "👤 Visitante (Deslogado)"
+                  : role === "admin"
+                    ? "🔑 Administrador"
+                    : role === "professor"
+                      ? "🧑‍🏫 Professor"
+                      : `${me?.tipo === "aluno" ? "⚡" : "🏀"} ${me?.nome}`}
               </span>
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0">
               <select
                 value={String(sid)}
                 onChange={(e) => {
@@ -1560,24 +2433,17 @@ function HeziSuperApp() {
                       ? v
                       : Number(v);
                   setSid(nextSid);
-                  if (nextSid === "prof" || nextSid === "admin") {
+                  if (nextSid === "admin") {
+                    setStaffSubTab("cm");
+                  } else if (nextSid === "prof") {
                     setStaffSubTab("av");
                   }
                 }}
-                className="bg-[#F4F5F7] border border-[#EAEBEF] text-xs font-bold rounded-xl px-2.5 py-2 max-w-[190px] text-[#111317] outline-none focus:ring-2 ring-[#FF5400]"
-                aria-label="Trocar Perfil / Login"
+                className="bg-black/60 border border-white/15 text-white text-xs font-bold rounded-lg px-2 py-1 max-w-[145px] outline-none"
+                aria-label="Trocar Perfil"
               >
-                <option value="visitante">👤 Visitante (Sem Conta)</option>
-                <optgroup label="🏀 Jogador Grátis (Convencional)">
-                  {users
-                    .filter((x) => x.tipo === "jogador")
-                    .map((x) => (
-                      <option key={x.id} value={x.id}>
-                        🏀 {x.nome}
-                      </option>
-                    ))}
-                </optgroup>
-                <optgroup label="⚡ Alunos Hezi Skills (Assinantes)">
+                <option value="visitante">👤 Visitante (Deslogado)</option>
+                <optgroup label="⚡ Alunos Hezi Skills">
                   {users
                     .filter((x) => x.tipo === "aluno")
                     .map((x) => (
@@ -1586,23 +2452,49 @@ function HeziSuperApp() {
                       </option>
                     ))}
                 </optgroup>
-                <optgroup label="Staff / Gestão">
-                  <option value="prof">🧑‍🏫 Professor (Quadra)</option>
-                  <option value="admin">🔑 Administrador (Geral)</option>
+                <optgroup label="🏀 Jogador Grátis">
+                  {users
+                    .filter((x) => x.tipo === "jogador")
+                    .map((x) => (
+                      <option key={x.id} value={x.id}>
+                        🏀 {x.nome}
+                      </option>
+                    ))}
+                </optgroup>
+                <optgroup label="Staff">
+                  <option value="prof">🧑‍🏫 Professor</option>
+                  <option value="admin">🔑 Administrador</option>
                 </optgroup>
               </select>
+
+              {role !== "visitante" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSid("visitante");
+                    setTab("home");
+                    say("Você saiu da conta.");
+                  }}
+                  className="p-1 rounded-lg bg-white/10 text-white hover:bg-[#EF4444] transition"
+                  title="Sair da conta"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
           </div>
 
           {staff && (
             <div
               className={
-                "text-center text-[11px] font-extrabold py-1.5 tracking-wide " +
-                (role === "admin" ? "bg-[#111317] text-white" : OB)
+                "text-center text-xs font-extrabold py-1 tracking-wide " +
+                (role === "admin"
+                  ? "bg-[#FF5400] text-white"
+                  : "bg-[#10B981] text-white")
               }
             >
               {role === "admin"
-                ? "🔑 MODO ADMINISTRADOR (EDIÇÃO GERAL + COURT MASTER)"
+                ? "🔑 MODO ADMINISTRADOR ATIVO (COURT MASTER + EDIÇÃO GERAL)"
                 : "👑 MODO PROFESSOR ATIVO (AVALIAÇÃO & CHECK-IN EM QUADRA)"}
             </div>
           )}
@@ -1614,6 +2506,27 @@ function HeziSuperApp() {
             <Home S={S} />
           ) : tab === "pelada" ? (
             <Pelada S={S} />
+          ) : tab === "login" ? (
+            <LoginPage
+              S={S}
+              redirectAfter={loginRedirect}
+              onLoginSuccess={(chosenSid) => {
+                setSid(chosenSid);
+                if (chosenSid === "admin") setStaffSubTab("cm");
+                else if (chosenSid === "prof") setStaffSubTab("av");
+
+                if (loginRedirect === "assinante") {
+                  setTab("assinante");
+                  say("Login realizado! Confira as vantagens de ser assinante.");
+                } else {
+                  setTab("painel");
+                  say("Bem-vindo de volta!");
+                }
+              }}
+              onOpenRegister={() => setCad(true)}
+            />
+          ) : tab === "assinante" ? (
+            <AssinantePage S={S} />
           ) : staff ? (
             <Staff
               S={S}
@@ -1639,14 +2552,20 @@ function HeziSuperApp() {
             <button
               type="button"
               key={k}
-              onClick={() => setTab(k)}
+              onClick={() => {
+                if (k === "painel" && !staff) {
+                  goSouAluno();
+                } else {
+                  setTab(k);
+                }
+              }}
               className={
                 "py-2.5 flex flex-col items-center gap-0.5 transition active:scale-90 " +
                 (tab === k ? "text-[#FF5400]" : "text-[#6E7381]")
               }
             >
               {icon}
-              <span className="text-[11px] font-extrabold">{n}</span>
+              <span className="text-xs font-extrabold">{n}</span>
             </button>
           ))}
         </nav>

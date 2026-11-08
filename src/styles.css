@@ -114,10 +114,30 @@
   button {
     touch-action: manipulation;
   }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  strong,
+  b,
+  .font-bold,
+  .font-extrabold {
+    font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+    font-weight: 800;
+    letter-spacing: -0.025em;
+  }
 }
 
 .n {
   font-family: "Space Grotesk", monospace;
+}
+
+.ote-nav-link {
+  font-family: "Space Grotesk", "Plus Jakarta Sans", sans-serif;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 ::-webkit-scrollbar {
