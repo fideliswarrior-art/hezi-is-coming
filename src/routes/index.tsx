@@ -469,19 +469,19 @@ function Home({ S }: { S: AppContextProps }) {
     <div className="p-4 space-y-6">
       {/* Hero */}
       <div className={C + " p-6"}>
-        <img src={LOGO} className="h-14 invert mb-2" alt="HEZI FAM®" />
+        <img src={LOGO} className="h-14 invert mb-2 object-contain" alt="HEZI FAM®" />
         <h1 className="font-extrabold text-4xl leading-tight tracking-tight text-[#111317]">
           Moving the game.
         </h1>
         <p className="text-[#6E7381] text-sm mt-2 mb-5">
-          Cadastre-se e participe do Hezi Pass para ganhar prêmios
+          Cadastre-se e participe do Hezi Pass para ganhar prêmios, entrar na fila pelo celular
         </p>
         <div className="grid grid-cols-2 gap-3">
           <Btn onClick={() => S.setTab("pelada")} c={OB}>
-            <span>🏀</span> Jogar
+            Jogar
           </Btn>
           <Btn onClick={S.goSouAluno} c="bg-[#111317] text-white">
-            <span>⚡</span> Sou Aluno
+            Sou Aluno
           </Btn>
         </div>
       </div>
@@ -509,39 +509,6 @@ function Home({ S }: { S: AppContextProps }) {
           </Btn>
         </div>
       )}
-
-      {/* Comparativo Jogador Grátis vs Aluno Hezi Skills */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className={C + " p-4"}>
-          <p className="text-2xl">🏀</p>
-          <p className="font-extrabold text-sm mt-1 text-[#111317]">
-            Jogador da Pelada
-          </p>
-          <p className="text-xs text-[#6E7381] mb-2">Conta grátis</p>
-          <p className="text-xs leading-relaxed text-[#111317]">
-            • Fila pelo celular
-            <br />• Cadastro rápido em eventos
-            <br />• Hezi Pass grátis
-          </p>
-        </div>
-        <div
-          onClick={S.goQueroSerAssinante}
-          className={C + " p-4 border-[#FF5400] cursor-pointer hover:bg-[#FFF4EE]/20 transition"}
-        >
-          <p className="text-2xl">⚡</p>
-          <p className="font-extrabold text-sm mt-1 text-[#111317]">
-            Aluno Hezi Skills
-          </p>
-          <p className="text-xs text-[#FF5400] font-extrabold mb-2">
-            Assinante
-          </p>
-          <p className="text-xs leading-relaxed text-[#111317]">
-            • Treinos com a Hezi Skills
-            <br />• Boletim de evolução
-            <br />• Desconto + pontos 2x
-          </p>
-        </div>
-      </div>
 
       {/* Drop 001 : Basic Collection — Apenas Hezi Shirt 001 com fotos reais anexadas */}
       <div>
@@ -2328,20 +2295,6 @@ function HeziSuperApp() {
     role === "admin" &&
     (tab === "pelada" || (tab === "painel" && staffSubTab === "cm"));
 
-  const T: [AppTab, React.ReactNode, string][] = [
-    ["home", <HomeIcon key="h" className="w-5 h-5" />, "Início"],
-    ["pelada", <Dribbble key="p" className="w-5 h-5" />, "Eventos"],
-    [
-      "painel",
-      staff ? (
-        <ClipboardList key="q" className="w-5 h-5" />
-      ) : (
-        <UserCheck key="m" className="w-5 h-5" />
-      ),
-      staff ? "Quadra" : "Sou Aluno",
-    ],
-  ];
-
   return (
     <div className="h-dvh w-full flex justify-center bg-[#F4F5F7] text-[#111317] overflow-hidden">
       <div
@@ -2360,9 +2313,9 @@ function HeziSuperApp() {
               title="Voltar ao Início"
             >
               <img
-                src={HEZI_LOGO_WHITE}
+                src={LOGO}
                 alt="HEZI FAM"
-                className="h-9 w-auto object-contain"
+                className="h-10 w-auto object-contain"
               />
             </button>
 
@@ -2541,34 +2494,10 @@ function HeziSuperApp() {
 
         {/* Floating Toast Feedback */}
         {toast && (
-          <div className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-[#111317] text-white text-xs font-bold rounded-full px-4 py-2.5 z-40 w-max max-w-[90%] text-center shadow-lg">
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-[#111317] text-white text-xs font-bold rounded-full px-4 py-2.5 z-40 w-max max-w-[90%] text-center shadow-lg">
             {toast}
           </div>
         )}
-
-        {/* Bottom Navigation Bar */}
-        <nav className="shrink-0 grid grid-cols-3 bg-white border-t border-[#EAEBEF]">
-          {T.map(([k, icon, n]) => (
-            <button
-              type="button"
-              key={k}
-              onClick={() => {
-                if (k === "painel" && !staff) {
-                  goSouAluno();
-                } else {
-                  setTab(k);
-                }
-              }}
-              className={
-                "py-2.5 flex flex-col items-center gap-0.5 transition active:scale-90 " +
-                (tab === k ? "text-[#FF5400]" : "text-[#6E7381]")
-              }
-            >
-              {icon}
-              <span className="text-xs font-extrabold">{n}</span>
-            </button>
-          ))}
-        </nav>
 
         {/* Modal Cadastro Rápido */}
         {cad && (
