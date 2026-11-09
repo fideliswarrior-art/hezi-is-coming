@@ -41,6 +41,8 @@ import {
   DoorOpen,
   Calendar,
   Pencil,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import {
   LOGO,
@@ -377,6 +379,19 @@ function validatePasswordRules(pwd: string) {
   };
 }
 
+interface RegisterStateForm {
+  nome: string;
+  username: string;
+  apelido: string;
+  dataNascimento: string;
+  wpp: string;
+  instagram: string;
+  email: string;
+  senha: string;
+  confirmarSenha: string;
+  foto: string;
+}
+
 function Cadastro({
   close,
   done,
@@ -388,19 +403,37 @@ function Cadastro({
   existingEmails: string[];
   existingUsernames: string[];
 }) {
-  const [f, setF] = useState({
-    nome: "",
-    username: "",
-    apelido: "",
-    dataNascimento: "",
-    wpp: "",
-    instagram: "",
-    email: "",
-    senha: "",
-    confirmarSenha: "",
-    foto: "",
+  const [f, setF] = useState<RegisterStateForm>(() => {
+    try {
+      const saved = sessionStorage.getItem("hezi_cad_form");
+      if (saved) return JSON.parse(saved) as RegisterStateForm;
+    } catch {
+      /* ignore */
+    }
+    return {
+      nome: "",
+      username: "",
+      apelido: "",
+      dataNascimento: "",
+      wpp: "",
+      instagram: "",
+      email: "",
+      senha: "",
+      confirmarSenha: "",
+      foto: "",
+    };
   });
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [showPwd, setShowPwd] = useState(false);
+  const [showConfirmPwd, setShowConfirmPwd] = useState(false);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("hezi_cad_form", JSON.stringify(f));
+    } catch {
+      /* ignore */
+    }
+  }, [f]);
 
   const pwdCheck = validatePasswordRules(f.senha);
   const passwordsMatch =
@@ -599,13 +632,23 @@ function Cadastro({
               Este e-mail já está cadastrado.
             </p>
           )}
-          <input
-            type="password"
-            value={f.senha}
-            placeholder="Senha"
-            onChange={(e) => setF({ ...f, senha: e.target.value })}
-            className="w-full bg-[#F4F5F7] rounded-xl px-4 py-3 text-sm font-medium outline-none focus:ring-2 ring-[#FF5400]"
-          />
+          <div className="relative">
+            <input
+              type={showPwd ? "text" : "password"}
+              value={f.senha}
+              placeholder="Senha"
+              onChange={(e) => setF({ ...f, senha: e.target.value })}
+              className="w-full bg-[#F4F5F7] rounded-xl px-4 py-3 text-sm font-medium outline-none focus:ring-2 ring-[#FF5400] pr-11"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPwd(!showPwd)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6E7381] hover:text-[#111317] p-1 transition"
+              title={showPwd ? "Ocultar senha" : "Ver senha"}
+            >
+              {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+          </div>
 
           {/* Requisitos da senha */}
           <div className="bg-[#F4F5F7] rounded-xl p-3 space-y-1 text-xs">
@@ -641,13 +684,23 @@ function Cadastro({
             </p>
           </div>
 
-          <input
-            type="password"
-            value={f.confirmarSenha}
-            placeholder="Confirmar senha"
-            onChange={(e) => setF({ ...f, confirmarSenha: e.target.value })}
-            className="w-full bg-[#F4F5F7] rounded-xl px-4 py-3 text-sm font-medium outline-none focus:ring-2 ring-[#FF5400]"
-          />
+          <div className="relative">
+            <input
+              type={showConfirmPwd ? "text" : "password"}
+              value={f.confirmarSenha}
+              placeholder="Confirmar senha"
+              onChange={(e) => setF({ ...f, confirmarSenha: e.target.value })}
+              className="w-full bg-[#F4F5F7] rounded-xl px-4 py-3 text-sm font-medium outline-none focus:ring-2 ring-[#FF5400] pr-11"
+            />
+            <button
+              type="button"
+              onClick={() => setShowConfirmPwd(!showConfirmPwd)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6E7381] hover:text-[#111317] p-1 transition"
+              title={showConfirmPwd ? "Ocultar senha" : "Ver senha"}
+            >
+              {showConfirmPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+          </div>
           {f.confirmarSenha.length > 0 && !passwordsMatch && (
             <p className="text-xs font-bold text-[#EF4444]">
               As senhas não coincidem.
@@ -744,27 +797,6 @@ function EmailVerificationModal({
           abaixo para confirmar seu e-mail e ativar sua conta:
         </p>
 
-        {expectedCode && (
-          <div className="bg-[#FFF4EE] border border-[#FF5400]/30 rounded-xl p-3 flex items-center justify-between">
-            <div>
-              <p className="text-[11px] font-extrabold uppercase text-[#FF5400]">
-                📩 Código Enviado para {u.email}
-              </p>
-              <p className="text-xs text-[#6E7381]">
-                Use o código ao lado para ativar agora:
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setCode(expectedCode)}
-              className="n font-black text-lg tracking-widest bg-white border border-[#FF5400] text-[#FF5400] px-3 py-1.5 rounded-xl"
-              title="Toque para preencher o código"
-            >
-              {expectedCode}
-            </button>
-          </div>
-        )}
-
         <form onSubmit={handleVerify} className="space-y-3">
           <input
             type="text"
@@ -827,6 +859,7 @@ function LoginPage({
 }) {
   const [identifier, setIdentifier] = useState("");
   const [senha, setSenha] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [lockoutUntil, setLockoutUntil] = useState<number>(0);
@@ -1117,26 +1150,6 @@ function LoginPage({
                 </div>
               )}
 
-              {forgotGeneratedCode && (
-                <div className="bg-[#FFF4EE] border border-[#FF5400]/30 rounded-xl p-3 flex items-center justify-between">
-                  <div>
-                    <p className="text-[11px] font-extrabold uppercase text-[#FF5400]">
-                      📩 Código enviado para {targetUser?.email}
-                    </p>
-                    <p className="text-xs text-[#6E7381]">
-                      Toque no código ao lado para preencher:
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setForgotCodeInput(forgotGeneratedCode)}
-                    className="n font-black text-base tracking-widest bg-white border border-[#FF5400] text-[#FF5400] px-3 py-1.5 rounded-xl"
-                  >
-                    {forgotGeneratedCode}
-                  </button>
-                </div>
-              )}
-
               <div>
                 <label className="block text-xs font-extrabold uppercase tracking-wider text-[#6E7381] mb-1">
                   Código de 6 dígitos recebido no e-mail
@@ -1279,14 +1292,29 @@ function LoginPage({
                 Esqueci a senha?
               </button>
             </div>
-            <input
-              type="password"
-              value={senha}
-              disabled={isLockedOut}
-              placeholder="Digite sua senha"
-              onChange={(e) => setSenha(e.target.value)}
-              className="w-full bg-[#F4F5F7] border border-[#EAEBEF] rounded-xl px-4 py-3 text-sm font-medium text-[#111317] outline-none focus:ring-2 ring-[#FF5400]"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={senha}
+                disabled={isLockedOut}
+                placeholder="Digite sua senha"
+                onChange={(e) => setSenha(e.target.value)}
+                className="w-full bg-[#F4F5F7] border border-[#EAEBEF] rounded-xl px-4 py-3 text-sm font-medium text-[#111317] outline-none focus:ring-2 ring-[#FF5400] pr-11"
+              />
+              <button
+                type="button"
+                tabIndex={-1}
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6E7381] hover:text-[#111317] p-1 transition"
+                title={showPassword ? "Ocultar senha" : "Exibir senha"}
+              >
+                {showPassword ? (
+                  <EyeOff className="w-4 h-4" />
+                ) : (
+                  <Eye className="w-4 h-4" />
+                )}
+              </button>
+            </div>
           </div>
 
           {errorMsg && (
