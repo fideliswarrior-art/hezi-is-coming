@@ -335,128 +335,7 @@ export function isEventRollingNow(
   );
 }
 
-export const U0: HeziUser[] = [
-  {
-    id: 1,
-    tipo: "aluno",
-    nome: "Lucas Silva",
-    username: "lucassilva",
-    apelido: "Lukinha",
-    email: "lucas@hezi.com",
-    senha: "Hezi@2026",
-    emailVerified: true,
-    instagram: "@lucassilva",
-    dataNascimento: "2008-05-14",
-    wpp: "(21) 99999-1001",
-    pos: "Armador",
-    st: "ativo",
-    hp: 120,
-    of: 3,
-    foto: "https://images.unsplash.com/photo-1546519638-68e109498ffc?w=150",
-    sub: sL,
-    r: mkR(sL, { dir: 19, esq: 10 }),
-    bd: { ...B0(), ban: { l: 1, s: 0 }, fis: { l: 2, s: 0 } },
-    ev: { d: "03/11/2026", c: "Mensal" },
-    nota: "Ótima mão direita! Foco na esquerda: faça séries de bandeja só com a esquerda antes do treino.",
-  },
-  {
-    id: 2,
-    tipo: "aluno",
-    nome: "Matheus Rocha",
-    username: "matheusrocha",
-    apelido: "Tetêu",
-    email: "matheus@hezi.com",
-    senha: "Hezi@2026",
-    emailVerified: true,
-    instagram: "@matheusrocha",
-    dataNascimento: "2009-02-20",
-    wpp: "(21) 99999-1002",
-    pos: "Ala",
-    st: "ativo",
-    hp: 45,
-    of: 1,
-    foto: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150",
-    sub: sM,
-    r: mkR(sM, { dir: 14, esq: 13 }),
-    bd: { ...B0(), fis: { l: 1, s: 0 } },
-    ev: { d: "03/11/2026", c: "Mensal" },
-    nota: "Evolução equilibrada. Manter a constância nos treinos.",
-  },
-  {
-    id: 3,
-    tipo: "aluno",
-    nome: "Gabriel Santos",
-    username: "gabrielsantos",
-    apelido: "Biel",
-    email: "gabriel@hezi.com",
-    senha: "Hezi@2026",
-    emailVerified: true,
-    instagram: "@gabrielsantos",
-    dataNascimento: "2008-11-08",
-    wpp: "(21) 99999-1003",
-    pos: "Pivô",
-    st: "pendente",
-    hp: 90,
-    of: 0,
-    foto: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150",
-    sub: baseSub,
-    r: mkR(baseSub),
-    bd: { ...B0(), ban: { l: 1, s: 0 }, arr: { l: 1, s: 0 } },
-    ev: null,
-    nota: "",
-  },
-  {
-    id: 4,
-    tipo: "aluno",
-    nome: "Enzo Pereira",
-    username: "enzopereira",
-    apelido: "Enzo",
-    email: "enzo@hezi.com",
-    senha: "Hezi@2026",
-    emailVerified: true,
-    instagram: "@enzopereira",
-    dataNascimento: "2010-07-19",
-    wpp: "(21) 99999-1004",
-    pos: "Ala",
-    st: "ativo",
-    hp: 15,
-    of: 1,
-    foto: "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150",
-    sub: baseSub,
-    r: mkR(baseSub),
-    bd: B0(),
-    ev: null,
-    nota: "",
-  },
-  {
-    id: 11,
-    tipo: "jogador",
-    nome: "Carlos Mendes",
-    username: "carlosmendes",
-    apelido: "Carlão",
-    email: "carlos@hezi.com",
-    senha: "Hezi@2026",
-    emailVerified: true,
-    instagram: "@carlosmendes",
-    dataNascimento: "2004-03-12",
-    hp: 30,
-    wpp: "(21) 98888-1111",
-  },
-  {
-    id: 12,
-    tipo: "jogador",
-    nome: "Rafael Souza",
-    username: "rafaelsouza",
-    apelido: "Rafa",
-    email: "rafael@hezi.com",
-    senha: "Hezi@2026",
-    emailVerified: true,
-    instagram: "@rafaelsouza",
-    dataNascimento: "2003-09-25",
-    hp: 10,
-    wpp: "(21) 97777-2222",
-  },
-];
+export const U0: HeziUser[] = [];
 
 export const E0: HeziEventItem[] = [
   {
@@ -466,8 +345,8 @@ export const E0: HeziEventItem[] = [
     q: "Sábado · 17:00",
     l: "Quadra Central",
     r: "Regras Fiba, 7 pontos ou 7 minutos",
-    f: [1, 12, 2],
-    rewardedUids: [1, 12, 2],
+    f: [],
+    rewardedUids: [],
   },
 ];
 
@@ -491,6 +370,7 @@ export interface HeziPlatformState {
   notifications: HeziNotification[];
   updUser: (id: number, patch: Partial<HeziUser>) => void;
   addUser: (u: HeziUser) => void;
+  deleteUser: (id: number) => void;
   setEvs: (evs: HeziEventItem[]) => void;
   addQueue: (eid: number, uid: number) => void;
   removeQueue: (eid: number, uid: number) => void;
@@ -525,6 +405,18 @@ export const useHeziPlatform = create<HeziPlatformState>()(
           ...s,
           lastModified: Date.now(),
           users: [...s.users, u],
+        })),
+
+      deleteUser: (id) =>
+        set((s) => ({
+          ...s,
+          lastModified: Date.now(),
+          users: s.users.filter((x) => x.id !== id),
+          evs: s.evs.map((e) => ({
+            ...e,
+            f: e.f.filter((uid) => uid !== id),
+            rewardedUids: (e.rewardedUids || []).filter((uid) => uid !== id),
+          })),
         })),
 
       setEvs: (evs) =>

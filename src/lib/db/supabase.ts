@@ -84,6 +84,16 @@ export async function saveHeziToSupabase(
 
     // 2. Salva os usuários na tabela relacional hezi_users
     if (hezi.users && Array.isArray(hezi.users)) {
+      const activeIds = hezi.users.map((u) => u.id);
+      if (activeIds.length > 0) {
+        await client.query(
+          `DELETE FROM public.hezi_users WHERE id NOT IN (${activeIds.map((_, i) => `$${i + 1}`).join(", ")})`,
+          activeIds,
+        );
+      } else {
+        await client.query(`DELETE FROM public.hezi_users`);
+      }
+
       for (const u of hezi.users) {
         const subJson = u.sub ? JSON.stringify(u.sub) : null;
         const nanoJson = u.r ? JSON.stringify(u.r) : null;

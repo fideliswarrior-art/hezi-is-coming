@@ -346,6 +346,8 @@ interface AppContextProps {
   me: HeziUser | null;
   role: "visitante" | "jogador" | "aluno" | "professor" | "admin";
   upd: (id: number, patch: Partial<HeziUser>) => void;
+  addUser: (u: HeziUser) => void;
+  deleteUser: (id: number) => void;
   say: (msg: string) => void;
   join: (eid: number) => void;
   leaveQueue: (eid: number) => void;
@@ -3477,6 +3479,24 @@ function Alunos({ S }: { S: AppContextProps }) {
                       </button>
                     );
                   })}
+                  {/* Botão de Excluir Aluno */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          `Tem certeza que deseja excluir o aluno "${x.nome}"? Esta ação removerá a conta do banco de dados.`,
+                        )
+                      ) {
+                        S.deleteUser(x.id);
+                      }
+                    }}
+                    className="text-[11px] font-extrabold rounded-lg px-2.5 py-1 text-[#EF4444] hover:bg-[#FEF2F2] flex items-center gap-1 transition"
+                    title="Excluir aluno do banco de dados"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    Excluir
+                  </button>
                 </div>
               </div>
             )}
@@ -3522,6 +3542,17 @@ function UsuariosGeral({ S }: { S: AppContextProps }) {
   const generalUsers = S.users.filter((x) => x.tipo !== "aluno");
   const [search, setSearch] = useState("");
   const [sel, setSel] = useState<number>(generalUsers[0]?.id ?? 0);
+  const [creatingMock, setCreatingMock] = useState(false);
+  const [mockForm, setMockForm] = useState({
+    tipo: "jogador" as "jogador" | "aluno" | "professor",
+    nome: "",
+    username: "",
+    apelido: "",
+    email: "",
+    pos: "Armador",
+    st: "ativo" as "ativo" | "pendente" | "ex_aluno",
+    hp: 20,
+  });
 
   const filtered = generalUsers.filter((x) => {
     const q = search.trim().toLowerCase();
@@ -3545,6 +3576,55 @@ function UsuariosGeral({ S }: { S: AppContextProps }) {
     ["+50 HP (Evento Especial · Usuário Comum)", 50],
   ];
 
+  const handleCreateMockUser = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanUser = sanitizeUsername(mockForm.username || mockForm.nome);
+    if (!cleanUser || !mockForm.nome.trim()) {
+      S.say("Informe o nome do usuário.");
+      return;
+    }
+
+    const newId = Date.now();
+    const newUser: HeziUser = {
+      id: newId,
+      tipo: mockForm.tipo,
+      nome: mockForm.nome.trim(),
+      username: cleanUser,
+      apelido: mockForm.apelido.trim() || mockForm.nome.split(" ")[0],
+      email:
+        mockForm.email.trim().toLowerCase() ||
+        `${cleanUser}@simulado.hezi.com`,
+      senha: "Hezi@2026",
+      emailVerified: true,
+      dataNascimento: "2000-01-01",
+      wpp: "(21) 99999-0000",
+      pos: mockForm.pos,
+      st: mockForm.tipo === "aluno" ? mockForm.st : undefined,
+      hp: Number(mockForm.hp) || 0,
+      of: mockForm.tipo === "aluno" ? 1 : 0,
+      sub: mockForm.tipo === "aluno" ? baseSub : undefined,
+      r: mockForm.tipo === "aluno" ? mkR(baseSub) : undefined,
+      bd: mockForm.tipo === "aluno" ? B0() : undefined,
+    };
+
+    S.addUser(newUser);
+    setCreatingMock(false);
+    setMockForm({
+      tipo: "jogador",
+      nome: "",
+      username: "",
+      apelido: "",
+      email: "",
+      pos: "Armador",
+      st: "ativo",
+      hp: 20,
+    });
+    setSel(newId);
+    S.say(
+      `Conta de simulação (${newUser.tipo.toUpperCase()}) "${newUser.nome}" criada com sucesso!`,
+    );
+  };
+
   return (
     <div className="space-y-3">
       <div className={C + " p-4 space-y-3"}>
@@ -3555,11 +3635,196 @@ function UsuariosGeral({ S }: { S: AppContextProps }) {
             </p>
             <p className="text-xs text-[#6E7381]">
               Usuários comuns e professores separados da aba de Alunos. Promova
-              para Professor, ative assinatura de Aluno ou gerencie contas.
+              para Professor, ative assinatura de Aluno ou crie contas de teste.
             </p>
           </div>
-          <Chip c="bg-[#111317] text-white">{generalUsers.length} contas</Chip>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {S.role === "admin" && (
+              <button
+                type="button"
+                onClick={() => setCreatingMock(!creatingMock)}
+                className="rounded-xl bg-[#FF5400] text-white text-xs font-extrabold px-3 py-2 flex items-center gap-1 hover:bg-[#E04A00] transition active:scale-95 shadow-sm"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                {creatingMock ? "Cancelar" : "+ Simular Usuário"}
+              </button>
+            )}
+            <Chip c="bg-[#111317] text-white">{generalUsers.length} contas</Chip>
+          </div>
         </div>
+
+        {/* Modal / Bloco de Criação de Usuário de Teste / Simulação */}
+        {creatingMock && S.role === "admin" && (
+          <form
+            onSubmit={handleCreateMockUser}
+            className="bg-[#FFF4EE] border border-[#FFD8C2] rounded-2xl p-4 space-y-3"
+          >
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-extrabold text-[#111317] flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-[#FF5400]" />
+                Criar Usuário para Simulação / Teste
+              </p>
+              <button
+                type="button"
+                onClick={() => setCreatingMock(false)}
+                className="text-[#6E7381] hover:text-[#111317] p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div>
+                <label className="block text-[11px] font-bold text-[#6E7381] mb-1">
+                  Tipo de Usuário
+                </label>
+                <select
+                  value={mockForm.tipo}
+                  onChange={(e) =>
+                    setMockForm({
+                      ...mockForm,
+                      tipo: e.target.value as "jogador" | "aluno" | "professor",
+                    })
+                  }
+                  className="w-full bg-white rounded-xl px-3 py-2 text-xs font-bold outline-none border border-[#EAEBEF]"
+                >
+                  <option value="jogador">🏀 Jogador / Usuário Comum</option>
+                  <option value="professor">🧑‍🏫 Professor (Staff)</option>
+                  <option value="aluno">⚡ Aluno Assinante Hezi Skills</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-[#6E7381] mb-1">
+                  Nome Completo
+                </label>
+                <input
+                  value={mockForm.nome}
+                  placeholder="ex: João Teste"
+                  onChange={(e) =>
+                    setMockForm({ ...mockForm, nome: e.target.value })
+                  }
+                  className="w-full bg-white rounded-xl px-3 py-2 text-xs font-medium outline-none border border-[#EAEBEF]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-[#6E7381] mb-1">
+                  Nome de Usuário (login)
+                </label>
+                <input
+                  value={mockForm.username}
+                  placeholder="ex: joao_teste"
+                  onChange={(e) =>
+                    setMockForm({ ...mockForm, username: e.target.value })
+                  }
+                  className="w-full bg-white rounded-xl px-3 py-2 text-xs font-medium outline-none border border-[#EAEBEF]"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div>
+                <label className="block text-[11px] font-bold text-[#6E7381] mb-1">
+                  Posição
+                </label>
+                <select
+                  value={mockForm.pos}
+                  onChange={(e) =>
+                    setMockForm({ ...mockForm, pos: e.target.value })
+                  }
+                  className="w-full bg-white rounded-xl px-3 py-2 text-xs font-medium outline-none border border-[#EAEBEF]"
+                >
+                  <option value="Armador">Armador</option>
+                  <option value="Ala">Ala</option>
+                  <option value="Ala-Armador">Ala-Armador</option>
+                  <option value="Ala-Pivô">Ala-Pivô</option>
+                  <option value="Pivô">Pivô</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-[#6E7381] mb-1">
+                  HP Inicial
+                </label>
+                <input
+                  type="number"
+                  value={mockForm.hp}
+                  onChange={(e) =>
+                    setMockForm({
+                      ...mockForm,
+                      hp: Math.max(0, parseInt(e.target.value, 10) || 0),
+                    })
+                  }
+                  className="w-full bg-white rounded-xl px-3 py-2 text-xs font-medium outline-none border border-[#EAEBEF]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-[#6E7381] mb-1">
+                  E-mail (opcional)
+                </label>
+                <input
+                  value={mockForm.email}
+                  placeholder="joao@teste.com"
+                  onChange={(e) =>
+                    setMockForm({ ...mockForm, email: e.target.value })
+                  }
+                  className="w-full bg-white rounded-xl px-3 py-2 text-xs font-medium outline-none border border-[#EAEBEF]"
+                />
+              </div>
+
+              {mockForm.tipo === "aluno" ? (
+                <div>
+                  <label className="block text-[11px] font-bold text-[#6E7381] mb-1">
+                    Situação Matrícula
+                  </label>
+                  <select
+                    value={mockForm.st}
+                    onChange={(e) =>
+                      setMockForm({
+                        ...mockForm,
+                        st: e.target.value as "ativo" | "pendente" | "ex_aluno",
+                      })
+                    }
+                    className="w-full bg-white rounded-xl px-3 py-2 text-xs font-bold outline-none border border-[#EAEBEF]"
+                  >
+                    <option value="ativo">🟢 Regular</option>
+                    <option value="pendente">🔴 Pendente</option>
+                    <option value="ex_aluno">⚪ Ex-Aluno</option>
+                  </select>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-[11px] font-bold text-[#6E7381] mb-1">
+                    Senha Padrão
+                  </label>
+                  <input
+                    value="Hezi@2026"
+                    disabled
+                    className="w-full bg-[#EAEBEF] rounded-xl px-3 py-2 text-xs font-bold text-[#6E7381] outline-none"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setCreatingMock(false)}
+                className="rounded-xl bg-white border border-[#EAEBEF] text-[#6E7381] text-xs font-bold px-3 py-2 hover:bg-[#F4F5F7] transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="rounded-xl bg-[#111317] hover:bg-[#FF5400] text-white text-xs font-extrabold px-4 py-2 transition shadow-sm"
+              >
+                Criar Usuário Simulado
+              </button>
+            </div>
+          </form>
+        )}
 
         <input
           value={search}
@@ -3683,18 +3948,38 @@ function UsuariosGeral({ S }: { S: AppContextProps }) {
                   </button>
                 </div>
 
-                {!x.emailVerified && (
+                <div className="flex items-center gap-2">
+                  {!x.emailVerified && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        S.upd(x.id, { emailVerified: true });
+                        S.say(`Conta de ${x.nome} ativada manualmente!`);
+                      }}
+                      className="text-[11px] font-extrabold text-[#10B981] hover:underline"
+                    >
+                      ✓ Ativar E-mail
+                    </button>
+                  )}
+
                   <button
                     type="button"
                     onClick={() => {
-                      S.upd(x.id, { emailVerified: true });
-                      S.say(`Conta de ${x.nome} ativada manualmente!`);
+                      if (
+                        window.confirm(
+                          `Deseja realmente excluir o usuário "${x.nome}"? Esta ação removerá a conta do banco de dados.`,
+                        )
+                      ) {
+                        S.deleteUser(x.id);
+                      }
                     }}
-                    className="text-[11px] font-extrabold text-[#10B981] hover:underline"
+                    className="text-[11px] font-extrabold text-[#EF4444] hover:bg-[#FEF2F2] px-2 py-1 rounded-lg flex items-center gap-1 transition"
+                    title="Excluir usuário do banco de dados"
                   >
-                    ✓ Ativar E-mail
+                    <Trash2 className="w-3 h-3" />
+                    Excluir
                   </button>
-                )}
+                </div>
               </div>
             )}
           </div>
@@ -4661,6 +4946,7 @@ function HeziSuperApp() {
     notifications,
     updUser,
     addUser,
+    deleteUser: delUserAction,
     setEvs,
     addQueue,
     removeQueue,
@@ -5124,6 +5410,12 @@ function HeziSuperApp() {
     me,
     role,
     upd: updUser,
+    addUser,
+    deleteUser: (id: number) => {
+      const u = users.find((x) => x.id === id);
+      delUserAction(id);
+      say(`Usuário ${u?.nome || ""} excluído com sucesso.`);
+    },
     say,
     join,
     leaveQueue,
