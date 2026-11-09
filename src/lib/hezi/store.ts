@@ -530,7 +530,7 @@ export const useHeziPlatform = create<HeziPlatformState>()(
         })),
     }),
     {
-      name: "hezi-platform-store-v4",
+      name: "hezi-platform-store-v5",
       partialize: (s) => ({
         lastModified: s.lastModified,
         users: s.users,
@@ -555,7 +555,7 @@ export const useHeziSession = create<SessionStore>()(
       setSid: (sid) => set({ sid }),
     }),
     {
-      name: "hezi-session-device-v2",
+      name: "hezi-session-device-v3",
     },
   ),
 );
