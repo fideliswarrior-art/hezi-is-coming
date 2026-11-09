@@ -162,6 +162,19 @@ function getDb(): SqliteDatabase | null {
       );
     `);
 
+    try {
+      db.exec("ALTER TABLE users ADD COLUMN profile_json TEXT;");
+    } catch {
+      // Column already exists
+    }
+    try {
+      db.exec(
+        "UPDATE events SET regras = 'Regras Fiba, 7 pontos ou 7 minutos' WHERE regras = 'Jogos até 12 pontos ou 10 min';",
+      );
+    } catch {
+      // Ignore
+    }
+
     dbInstance = db;
     seedIfEmpty(db);
     return db;
@@ -212,8 +225,8 @@ function saveHeziToDbInternal(
     const upsertUser = db.prepare(`
       INSERT INTO users (
         id, tipo, nome, pos, st, hp, ofensiva, foto, wpp,
-        sub_json, nano_json, badges_json, last_eval_date, last_eval_cycle, nota_tecnica, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        sub_json, nano_json, badges_json, last_eval_date, last_eval_cycle, nota_tecnica, profile_json, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         tipo = excluded.tipo,
         nome = excluded.nome,
@@ -229,6 +242,7 @@ function saveHeziToDbInternal(
         last_eval_date = excluded.last_eval_date,
         last_eval_cycle = excluded.last_eval_cycle,
         nota_tecnica = excluded.nota_tecnica,
+        profile_json = excluded.profile_json,
         updated_at = excluded.updated_at
     `);
 
@@ -243,12 +257,19 @@ function saveHeziToDbInternal(
       const subJson = u.sub ? JSON.stringify(u.sub) : null;
       const nanoJson = u.r ? JSON.stringify(u.r) : null;
       const badgesJson = u.bd ? JSON.stringify(u.bd) : null;
+      const profileJson = JSON.stringify({
+        apelido: u.apelido,
+        dataNascimento: u.dataNascimento,
+        instagram: u.instagram,
+        email: u.email,
+        senha: u.senha,
+      });
 
       upsertUser.run(
         u.id,
         u.tipo,
         u.nome,
-        u.pos,
+        u.pos ?? "",
         u.st ?? null,
         u.hp ?? 0,
         u.of ?? 0,
@@ -260,6 +281,7 @@ function saveHeziToDbInternal(
         u.ev?.d ?? null,
         u.ev?.c ?? null,
         u.nota ?? null,
+        profileJson,
         updatedAt,
       );
 
@@ -340,16 +362,32 @@ function readUsersFromDb(db: SqliteDatabase): HeziUser[] {
     last_eval_date: string | null;
     last_eval_cycle: string | null;
     nota_tecnica: string | null;
+    profile_json?: string | null;
   }>;
 
   return rows.map((r) => {
+    let extra: Partial<HeziUser> = {};
+    if (r.profile_json) {
+      try {
+        extra = JSON.parse(r.profile_json) as Partial<HeziUser>;
+      } catch {
+        extra = {};
+      }
+    }
+    const seedMatch = U0.find((x) => x.id === Number(r.id));
     const u: HeziUser = {
       id: Number(r.id),
       tipo: r.tipo,
       nome: r.nome,
-      pos: r.pos,
+      pos: r.pos || undefined,
       hp: Number(r.hp),
+      apelido: extra.apelido ?? seedMatch?.apelido,
+      dataNascimento: extra.dataNascimento ?? seedMatch?.dataNascimento,
+      instagram: extra.instagram ?? seedMatch?.instagram,
+      email: extra.email ?? seedMatch?.email,
+      senha: extra.senha ?? seedMatch?.senha,
     };
+    if (r.wpp) u.wpp = r.wpp;
     if (r.tipo === "aluno") {
       u.st = r.st ?? "ativo";
       u.of = Number(r.ofensiva ?? 0);
@@ -368,8 +406,6 @@ function readUsersFromDb(db: SqliteDatabase): HeziUser[] {
           ? { d: r.last_eval_date, c: r.last_eval_cycle }
           : null;
       u.nota = r.nota_tecnica ?? "";
-    } else {
-      if (r.wpp) u.wpp = r.wpp;
     }
     return u;
   });

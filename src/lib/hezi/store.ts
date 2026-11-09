@@ -180,7 +180,12 @@ export interface HeziUser {
   id: number;
   tipo: "aluno" | "jogador";
   nome: string;
-  pos: string;
+  apelido?: string;
+  dataNascimento?: string;
+  instagram?: string;
+  email?: string;
+  senha?: string;
+  pos?: string;
   st?: "ativo" | "inativo";
   hp: number;
   of?: number;
@@ -208,6 +213,12 @@ export const U0: HeziUser[] = [
     id: 1,
     tipo: "aluno",
     nome: "Lucas Silva",
+    apelido: "Lukinha",
+    email: "lucas@hezi.com",
+    senha: "Hezi@2026",
+    instagram: "@lucassilva",
+    dataNascimento: "2008-05-14",
+    wpp: "(21) 99999-1001",
     pos: "Armador",
     st: "ativo",
     hp: 120,
@@ -223,6 +234,12 @@ export const U0: HeziUser[] = [
     id: 2,
     tipo: "aluno",
     nome: "Matheus Rocha",
+    apelido: "Tetêu",
+    email: "matheus@hezi.com",
+    senha: "Hezi@2026",
+    instagram: "@matheusrocha",
+    dataNascimento: "2009-02-20",
+    wpp: "(21) 99999-1002",
     pos: "Ala",
     st: "ativo",
     hp: 45,
@@ -238,6 +255,12 @@ export const U0: HeziUser[] = [
     id: 3,
     tipo: "aluno",
     nome: "Gabriel Santos",
+    apelido: "Biel",
+    email: "gabriel@hezi.com",
+    senha: "Hezi@2026",
+    instagram: "@gabrielsantos",
+    dataNascimento: "2008-11-08",
+    wpp: "(21) 99999-1003",
     pos: "Pivô",
     st: "inativo",
     hp: 90,
@@ -253,6 +276,12 @@ export const U0: HeziUser[] = [
     id: 4,
     tipo: "aluno",
     nome: "Enzo Pereira",
+    apelido: "Enzo",
+    email: "enzo@hezi.com",
+    senha: "Hezi@2026",
+    instagram: "@enzopereira",
+    dataNascimento: "2010-07-19",
+    wpp: "(21) 99999-1004",
     pos: "Ala",
     st: "ativo",
     hp: 15,
@@ -268,7 +297,11 @@ export const U0: HeziUser[] = [
     id: 11,
     tipo: "jogador",
     nome: "Carlos Mendes",
-    pos: "Ala",
+    apelido: "Carlão",
+    email: "carlos@hezi.com",
+    senha: "Hezi@2026",
+    instagram: "@carlosmendes",
+    dataNascimento: "2004-03-12",
     hp: 30,
     wpp: "(21) 98888-1111",
   },
@@ -276,7 +309,11 @@ export const U0: HeziUser[] = [
     id: 12,
     tipo: "jogador",
     nome: "Rafael Souza",
-    pos: "Pivô",
+    apelido: "Rafa",
+    email: "rafael@hezi.com",
+    senha: "Hezi@2026",
+    instagram: "@rafaelsouza",
+    dataNascimento: "2003-09-25",
     hp: 10,
     wpp: "(21) 97777-2222",
   },
@@ -289,19 +326,18 @@ export const E0: HeziEventItem[] = [
     tp: "Pelada",
     q: "Sábado · 17:00",
     l: "Quadra Central",
-    r: "Jogos até 12 pontos ou 10 min",
+    r: "Regras Fiba, 7 pontos ou 7 minutos",
     f: [1, 12, 2],
   },
-  {
-    id: 2,
-    t: "Treino Hezi Skills",
-    tp: "Treino",
-    q: "Terça · 16:30",
-    l: "Quadra Central",
-    r: "Somente alunos assinantes",
-    f: [],
-  },
 ];
+
+function normalizeEvents(evs: HeziEventItem[]): HeziEventItem[] {
+  return evs.map((e) =>
+    e.r === "Jogos até 12 pontos ou 10 min"
+      ? { ...e, r: "Regras Fiba, 7 pontos ou 7 minutos" }
+      : e,
+  );
+}
 
 export interface HeziPlatformState {
   lastModified: number;
@@ -341,7 +377,7 @@ export const useHeziPlatform = create<HeziPlatformState>()(
         set((s) => ({
           ...s,
           lastModified: Date.now(),
-          evs,
+          evs: normalizeEvents(evs),
         })),
 
       addQueue: (eid, uid) =>
@@ -357,10 +393,11 @@ export const useHeziPlatform = create<HeziPlatformState>()(
         set((s) => ({
           ...s,
           ...remote,
+          evs: remote.evs ? normalizeEvents(remote.evs) : s.evs,
         })),
     }),
     {
-      name: "hezi-platform-store-v2",
+      name: "hezi-platform-store-v3",
       partialize: (s) => ({
         lastModified: s.lastModified,
         users: s.users,

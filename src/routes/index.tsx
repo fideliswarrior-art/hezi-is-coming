@@ -181,6 +181,16 @@ function Hd({ children }: { children: React.ReactNode }) {
   );
 }
 
+interface RegisterFormPayload {
+  nome: string;
+  apelido: string;
+  dataNascimento: string;
+  wpp: string;
+  instagram: string;
+  email: string;
+  senha: string;
+}
+
 interface AppContextProps {
   users: HeziUser[];
   evs: HeziEventItem[];
@@ -193,27 +203,66 @@ interface AppContextProps {
   setTab: (tab: AppTab) => void;
   setCad: (open: boolean) => void;
   openCourtMaster: () => void;
-  goSouAluno: () => void;
+  goMeuPerfil: () => void;
   goQueroSerAssinante: () => void;
+}
+
+function validatePasswordRules(pwd: string) {
+  const minLen = pwd.length >= 8;
+  const hasNumber = /\d/.test(pwd);
+  const hasSpecial = /[^A-Za-z0-9]/.test(pwd);
+  return {
+    minLen,
+    hasNumber,
+    hasSpecial,
+    valid: minLen && hasNumber && hasSpecial,
+  };
 }
 
 function Cadastro({
   close,
   done,
+  existingEmails,
 }: {
   close: () => void;
-  done: (f: { nome: string; wpp: string; pos: string }) => void;
+  done: (f: RegisterFormPayload) => void;
+  existingEmails: string[];
 }) {
-  const [f, setF] = useState({ nome: "", wpp: "", pos: "Armador" });
+  const [f, setF] = useState({
+    nome: "",
+    apelido: "",
+    dataNascimento: "",
+    wpp: "",
+    instagram: "",
+    email: "",
+    senha: "",
+    confirmarSenha: "",
+  });
+
+  const pwdCheck = validatePasswordRules(f.senha);
+  const passwordsMatch =
+    f.senha.length > 0 && f.senha === f.confirmarSenha;
+  const emailTrim = f.email.trim().toLowerCase();
+  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrim);
+  const emailTaken = existingEmails.includes(emailTrim);
+
   const ok =
-    f.nome.trim().length > 1 && f.wpp.replace(/\D/g, "").length >= 10;
+    f.nome.trim().length > 1 &&
+    f.apelido.trim().length > 1 &&
+    f.dataNascimento.trim().length > 0 &&
+    f.wpp.replace(/\D/g, "").length >= 10 &&
+    f.instagram.trim().length > 1 &&
+    isEmailValid &&
+    !emailTaken &&
+    pwdCheck.valid &&
+    passwordsMatch;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-[2px] flex items-end justify-center">
-      <div className="bg-white w-full max-w-[480px] rounded-t-3xl p-5 space-y-3 shadow-2xl border-t border-[#EAEBEF]">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-[2px] flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="bg-white w-full max-w-[480px] max-h-[92dvh] overflow-y-auto rounded-t-3xl sm:rounded-3xl p-5 space-y-3 shadow-2xl border border-[#EAEBEF]">
         <div className="flex justify-between items-center">
           <h3 className="font-extrabold text-xl text-[#111317]">
-            Crie sua conta grátis
+            Crie sua conta
           </h3>
           <button
             type="button"
@@ -224,34 +273,130 @@ function Cadastro({
             <X className="w-5 h-5" />
           </button>
         </div>
-        <p className="text-sm text-[#6E7381]">
-          Leva 15 segundos. Seus dados ficam salvos para entrar na fila da
-          pelada e participar do Hezi Pass.
+        <p className="text-xs text-[#6E7381]">
+          Preencha seus dados para acessar seu perfil, entrar na fila dos
+          eventos e participar do Hezi Pass.
         </p>
-        <input
-          value={f.nome}
-          placeholder="Seu nome completo"
-          onChange={(e) => setF({ ...f, nome: e.target.value })}
-          className="w-full bg-[#F4F5F7] rounded-xl px-4 py-3 text-sm font-medium outline-none focus:ring-2 ring-[#FF5400]"
-        />
-        <input
-          value={f.wpp}
-          placeholder="WhatsApp com DDD (ex: 21 99999-9999)"
-          onChange={(e) => setF({ ...f, wpp: e.target.value })}
-          className="w-full bg-[#F4F5F7] rounded-xl px-4 py-3 text-sm font-medium outline-none focus:ring-2 ring-[#FF5400]"
-        />
-        <select
-          value={f.pos}
-          onChange={(e) => setF({ ...f, pos: e.target.value })}
-          className="w-full bg-[#F4F5F7] rounded-xl px-4 py-3 text-sm font-semibold outline-none focus:ring-2 ring-[#FF5400]"
+
+        <div className="space-y-2.5">
+          <input
+            value={f.nome}
+            placeholder="Nome completo"
+            onChange={(e) => setF({ ...f, nome: e.target.value })}
+            className="w-full bg-[#F4F5F7] rounded-xl px-4 py-3 text-sm font-medium outline-none focus:ring-2 ring-[#FF5400]"
+          />
+          <div className="grid grid-cols-2 gap-2.5">
+            <input
+              value={f.apelido}
+              placeholder="Apelido"
+              onChange={(e) => setF({ ...f, apelido: e.target.value })}
+              className="w-full bg-[#F4F5F7] rounded-xl px-4 py-3 text-sm font-medium outline-none focus:ring-2 ring-[#FF5400]"
+            />
+            <input
+              type="date"
+              value={f.dataNascimento}
+              title="Data de nascimento"
+              onChange={(e) => setF({ ...f, dataNascimento: e.target.value })}
+              className="w-full bg-[#F4F5F7] rounded-xl px-3.5 py-3 text-sm font-medium outline-none focus:ring-2 ring-[#FF5400]"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2.5">
+            <input
+              value={f.wpp}
+              placeholder="Celular (com DDD)"
+              onChange={(e) => setF({ ...f, wpp: e.target.value })}
+              className="w-full bg-[#F4F5F7] rounded-xl px-4 py-3 text-sm font-medium outline-none focus:ring-2 ring-[#FF5400]"
+            />
+            <input
+              value={f.instagram}
+              placeholder="Instagram (@usuario)"
+              onChange={(e) => setF({ ...f, instagram: e.target.value })}
+              className="w-full bg-[#F4F5F7] rounded-xl px-4 py-3 text-sm font-medium outline-none focus:ring-2 ring-[#FF5400]"
+            />
+          </div>
+          <input
+            type="email"
+            value={f.email}
+            placeholder="E-mail"
+            onChange={(e) => setF({ ...f, email: e.target.value })}
+            className="w-full bg-[#F4F5F7] rounded-xl px-4 py-3 text-sm font-medium outline-none focus:ring-2 ring-[#FF5400]"
+          />
+          {emailTaken && (
+            <p className="text-xs font-bold text-[#EF4444]">
+              Este e-mail já está cadastrado.
+            </p>
+          )}
+          <input
+            type="password"
+            value={f.senha}
+            placeholder="Senha"
+            onChange={(e) => setF({ ...f, senha: e.target.value })}
+            className="w-full bg-[#F4F5F7] rounded-xl px-4 py-3 text-sm font-medium outline-none focus:ring-2 ring-[#FF5400]"
+          />
+
+          {/* Requisitos da senha */}
+          <div className="bg-[#F4F5F7] rounded-xl p-3 space-y-1 text-xs">
+            <p className="font-extrabold text-[#111317] mb-1">
+              A senha deve ter, no mínimo:
+            </p>
+            <p
+              className={
+                pwdCheck.minLen
+                  ? "text-[#10B981] font-bold"
+                  : "text-[#6E7381]"
+              }
+            >
+              {pwdCheck.minLen ? "✓" : "•"} 8 caracteres
+            </p>
+            <p
+              className={
+                pwdCheck.hasNumber
+                  ? "text-[#10B981] font-bold"
+                  : "text-[#6E7381]"
+              }
+            >
+              {pwdCheck.hasNumber ? "✓" : "•"} 1 número
+            </p>
+            <p
+              className={
+                pwdCheck.hasSpecial
+                  ? "text-[#10B981] font-bold"
+                  : "text-[#6E7381]"
+              }
+            >
+              {pwdCheck.hasSpecial ? "✓" : "•"} 1 caractere especial (!@#$%&*)
+            </p>
+          </div>
+
+          <input
+            type="password"
+            value={f.confirmarSenha}
+            placeholder="Confirmar senha"
+            onChange={(e) => setF({ ...f, confirmarSenha: e.target.value })}
+            className="w-full bg-[#F4F5F7] rounded-xl px-4 py-3 text-sm font-medium outline-none focus:ring-2 ring-[#FF5400]"
+          />
+          {f.confirmarSenha.length > 0 && !passwordsMatch && (
+            <p className="text-xs font-bold text-[#EF4444]">
+              As senhas não coincidem.
+            </p>
+          )}
+        </div>
+
+        <Btn
+          dis={!ok}
+          onClick={() =>
+            done({
+              nome: f.nome,
+              apelido: f.apelido,
+              dataNascimento: f.dataNascimento,
+              wpp: f.wpp,
+              instagram: f.instagram,
+              email: emailTrim,
+              senha: f.senha,
+            })
+          }
+          c={OB}
         >
-          {["Armador", "Ala", "Pivô"].map((p) => (
-            <option key={p} value={p}>
-              Posição: {p}
-            </option>
-          ))}
-        </select>
-        <Btn dis={!ok} onClick={() => done(f)} c={OB}>
           <CheckCircle2 className="w-4 h-4" />
           Concluir Cadastro e Continuar
         </Btn>
@@ -261,8 +406,11 @@ function Cadastro({
 }
 
 // ---------------------------------------------------------------------------
-// PÁGINA DE LOGIN + OPÇÃO DE CADASTRO
+// PÁGINA DE LOGIN (E-MAIL + SENHA + RATE LIMIT DE SEGURANÇA)
 // ---------------------------------------------------------------------------
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 60_000;
+
 function LoginPage({
   S,
   redirectAfter,
@@ -274,17 +422,84 @@ function LoginPage({
   onLoginSuccess: (sid: number | "prof" | "admin") => void;
   onOpenRegister: () => void;
 }) {
-  const alunos = S.users.filter((u) => u.tipo === "aluno");
-  const jogadores = S.users.filter((u) => u.tipo === "jogador");
-  const [selectedUserId, setSelectedUserId] = useState<string>(
-    String(alunos[0]?.id ?? 1),
-  );
+  const [email, setEmail] = useState("");
+  const [senha, setSenha] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [lockoutUntil, setLockoutUntil] = useState<number>(0);
+  const [nowTick, setNowTick] = useState(() => Date.now());
 
-  const handleLoginSubmit = () => {
-    if (selectedUserId === "prof" || selectedUserId === "admin") {
-      onLoginSuccess(selectedUserId);
+  useEffect(() => {
+    if (lockoutUntil <= Date.now()) return;
+    const id = window.setInterval(() => {
+      const current = Date.now();
+      setNowTick(current);
+      if (current >= lockoutUntil) {
+        setLockoutUntil(0);
+        setFailedAttempts(0);
+        setErrorMsg("");
+      }
+    }, 500);
+    return () => window.clearInterval(id);
+  }, [lockoutUntil]);
+
+  const isLockedOut = lockoutUntil > nowTick;
+  const secondsRemaining = isLockedOut
+    ? Math.ceil((lockoutUntil - nowTick) / 1000)
+    : 0;
+
+  const handleLoginSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isLockedOut) return;
+
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !senha) {
+      setErrorMsg("Informe seu e-mail e sua senha.");
+      return;
+    }
+
+    // Check staff credentials
+    if (cleanEmail === "admin@hezi.com" && senha === "Admin@2026") {
+      setFailedAttempts(0);
+      setErrorMsg("");
+      onLoginSuccess("admin");
+      return;
+    }
+    if (cleanEmail === "professor@hezi.com" && senha === "Prof@2026") {
+      setFailedAttempts(0);
+      setErrorMsg("");
+      onLoginSuccess("prof");
+      return;
+    }
+
+    // Check registered users
+    const matchedUser = S.users.find(
+      (u) =>
+        (u.email?.toLowerCase() ?? "") === cleanEmail &&
+        (u.senha ?? "Hezi@2026") === senha,
+    );
+
+    if (matchedUser) {
+      setFailedAttempts(0);
+      setErrorMsg("");
+      onLoginSuccess(matchedUser.id);
+      return;
+    }
+
+    const nextAttempts = failedAttempts + 1;
+    setFailedAttempts(nextAttempts);
+
+    if (nextAttempts >= MAX_LOGIN_ATTEMPTS) {
+      const until = Date.now() + LOCKOUT_DURATION_MS;
+      setLockoutUntil(until);
+      setNowTick(Date.now());
+      setErrorMsg(
+        "Limite de tentativas excedido (Rate Limit). Aguarde 60 segundos.",
+      );
     } else {
-      onLoginSuccess(Number(selectedUserId));
+      setErrorMsg(
+        `E-mail ou senha inválidos. Restam ${MAX_LOGIN_ATTEMPTS - nextAttempts} tentativa(s) antes do bloqueio temporário.`,
+      );
     }
   };
 
@@ -302,45 +517,66 @@ function LoginPage({
             <p className="text-xs text-[#6E7381]">
               {redirectAfter === "assinante"
                 ? "Entre ou cadastre-se para ver os benefícios e assinar a Hezi Skills"
-                : "Entre para acessar seu Perfil de Aluno, Boletim e Hezi Pass"}
+                : "Entre com seu e-mail e senha para acessar seu Perfil"}
             </p>
           </div>
         </div>
 
-        <div className="space-y-2 pt-1">
-          <label className="block text-xs font-extrabold uppercase tracking-wider text-[#6E7381]">
-            Selecione seu Perfil / Conta Cadastrada
-          </label>
-          <select
-            value={selectedUserId}
-            onChange={(e) => setSelectedUserId(e.target.value)}
-            className="w-full bg-[#F4F5F7] border border-[#EAEBEF] rounded-xl px-4 py-3.5 text-sm font-extrabold text-[#111317] outline-none focus:ring-2 ring-[#FF5400]"
-          >
-            <optgroup label="⚡ Alunos Hezi Skills (Assinantes)">
-              {alunos.map((a) => (
-                <option key={a.id} value={String(a.id)}>
-                  {a.st === "ativo" ? "🟢" : "🔴"} {a.nome} ({a.pos})
-                </option>
-              ))}
-            </optgroup>
-            <optgroup label="🏀 Jogadores da Pelada (Conta Grátis)">
-              {jogadores.map((j) => (
-                <option key={j.id} value={String(j.id)}>
-                  🏀 {j.nome} ({j.pos})
-                </option>
-              ))}
-            </optgroup>
-            <optgroup label="Staff / Equipe Técnica">
-              <option value="prof">🧑‍🏫 Professor (Avaliador de Quadra)</option>
-              <option value="admin">🔑 Administrador (Gestão + Court Master)</option>
-            </optgroup>
-          </select>
-        </div>
+        <form onSubmit={handleLoginSubmit} className="space-y-3 pt-1">
+          <div>
+            <label className="block text-xs font-extrabold uppercase tracking-wider text-[#6E7381] mb-1">
+              E-mail
+            </label>
+            <input
+              type="email"
+              value={email}
+              disabled={isLockedOut}
+              placeholder="seuemail@exemplo.com"
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full bg-[#F4F5F7] border border-[#EAEBEF] rounded-xl px-4 py-3 text-sm font-medium text-[#111317] outline-none focus:ring-2 ring-[#FF5400]"
+            />
+          </div>
 
-        <Btn onClick={handleLoginSubmit} c={OB}>
-          <LogIn className="w-4 h-4" />
-          Entrar na Plataforma
-        </Btn>
+          <div>
+            <label className="block text-xs font-extrabold uppercase tracking-wider text-[#6E7381] mb-1">
+              Senha
+            </label>
+            <input
+              type="password"
+              value={senha}
+              disabled={isLockedOut}
+              placeholder="Digite sua senha"
+              onChange={(e) => setSenha(e.target.value)}
+              className="w-full bg-[#F4F5F7] border border-[#EAEBEF] rounded-xl px-4 py-3 text-sm font-medium text-[#111317] outline-none focus:ring-2 ring-[#FF5400]"
+            />
+          </div>
+
+          {errorMsg && (
+            <div className="bg-[#FEF2F2] border border-[#EF4444]/30 text-[#EF4444] text-xs font-bold rounded-xl p-3">
+              ⚠️ {errorMsg}
+              {isLockedOut && (
+                <span className="n block mt-1 text-sm font-extrabold">
+                  Bloqueio temporário: {secondsRemaining}s restantes
+                </span>
+              )}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={isLockedOut}
+            className={
+              btBase +
+              OB +
+              (isLockedOut ? " opacity-60 cursor-not-allowed" : "")
+            }
+          >
+            <LogIn className="w-4 h-4" />
+            {isLockedOut
+              ? `Bloqueado (${secondsRemaining}s)`
+              : "Entrar na Plataforma"}
+          </button>
+        </form>
 
         <div className="relative py-2">
           <div className="absolute inset-0 flex items-center">
@@ -353,10 +589,7 @@ function LoginPage({
           </div>
         </div>
 
-        <Btn
-          onClick={onOpenRegister}
-          c="bg-[#111317] text-white"
-        >
+        <Btn onClick={onOpenRegister} c="bg-[#111317] text-white">
           <UserPlus className="w-4 h-4 text-[#FF5400]" />
           Cadastrar-se Grátis Agora
         </Btn>
@@ -462,9 +695,6 @@ function AssinantePage({ S }: { S: AppContextProps }) {
 // PÁGINA INICIAL (HOME)
 // ---------------------------------------------------------------------------
 function Home({ S }: { S: AppContextProps }) {
-  const [shirtView, setShirtView] = useState<"front" | "back">("front");
-  const mainPelada = S.evs.find((e) => e.tp === "Pelada") || S.evs[0];
-
   return (
     <div className="p-4 space-y-6">
       {/* Hero */}
@@ -480,127 +710,32 @@ function Home({ S }: { S: AppContextProps }) {
           <Btn onClick={() => S.setTab("pelada")} c={OB}>
             Jogar
           </Btn>
-          <Btn onClick={S.goSouAluno} c="bg-[#111317] text-white">
-            Sou Aluno
+          <Btn onClick={S.goMeuPerfil} c="bg-[#111317] text-white">
+            Meu Perfil
           </Btn>
         </div>
       </div>
-
-      {/* Card Aviso Rápido da Próxima Pelada Oficial */}
-      {mainPelada && (
-        <div className={C + " p-4 border-l-4 border-l-[#FF5400]"}>
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-extrabold uppercase tracking-wider text-[#FF5400]">
-              ● Evento Ativo na Quadra
-            </span>
-            <Chip c="bg-[#F4F5F7] text-[#6E7381]">Ao Vivo</Chip>
-          </div>
-          <p className="font-extrabold text-base text-[#111317]">
-            {mainPelada.t}
-          </p>
-          <p className="text-xs text-[#6E7381] mb-3">
-            {mainPelada.q} · {mainPelada.l}
-          </p>
-          <Btn
-            onClick={() => S.setTab("pelada")}
-            c="bg-[#FFF4EE] text-[#FF5400] py-2.5 text-xs"
-          >
-            Entrar na Fila pelo Celular →
-          </Btn>
-        </div>
-      )}
 
       {/* Drop 001 : Basic Collection — Apenas Hezi Shirt 001 com fotos reais anexadas */}
       <div>
         <Hd>Drop 001 : Basic Collection</Hd>
         <div className={C + " p-4 space-y-3"}>
-          {/* Foto Principal da Blusa (Frente / Costas) */}
-          <div className="relative rounded-2xl overflow-hidden bg-[#111317] aspect-square">
-            <img
-              src={shirtView === "front" ? SHIRT_FRONT_IMG : SHIRT_BACK_IMG}
-              alt={
-                shirtView === "front"
-                  ? "Hezi Shirt 001 - Frente"
-                  : "Hezi Shirt 001 - Costas"
-              }
-              className="w-full h-full object-cover transition-all duration-300"
-            />
-            <div className="absolute bottom-3 left-3 right-3 flex justify-between items-center">
-              <span className="bg-black/75 backdrop-blur-sm text-white text-xs font-extrabold px-3 py-1 rounded-full">
-                {shirtView === "front" ? "Frente · Minimalista" : "Costas · Logo HEZI FAM"}
-              </span>
-              <div className="flex gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setShirtView("front")}
-                  className={
-                    "px-3 py-1 rounded-full text-xs font-extrabold transition " +
-                    (shirtView === "front"
-                      ? "bg-[#FF5400] text-white"
-                      : "bg-black/70 text-white")
-                  }
-                >
-                  Frente
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShirtView("back")}
-                  className={
-                    "px-3 py-1 rounded-full text-xs font-extrabold transition " +
-                    (shirtView === "back"
-                      ? "bg-[#FF5400] text-white"
-                      : "bg-black/70 text-white")
-                  }
-                >
-                  Costas
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Miniaturas Frente e Costas lado a lado */}
+          {/* Fotos da Blusa (Frente e Costas limpas, sem badges ou botões de alternância) */}
           <div className="grid grid-cols-2 gap-2.5">
-            <button
-              type="button"
-              onClick={() => setShirtView("front")}
-              className={
-                "rounded-xl overflow-hidden border-2 transition flex items-center gap-2 p-1.5 text-left " +
-                (shirtView === "front"
-                  ? "border-[#FF5400] bg-[#FFF4EE]/40"
-                  : "border-[#EAEBEF] bg-[#F4F5F7]")
-              }
-            >
+            <div className="rounded-2xl overflow-hidden bg-[#111317] aspect-square">
               <img
                 src={SHIRT_FRONT_IMG}
-                alt="Frente"
-                className="w-12 h-12 rounded-lg object-cover shrink-0"
+                alt="Hezi Shirt 001"
+                className="w-full h-full object-cover"
               />
-              <div>
-                <p className="font-extrabold text-xs text-[#111317]">Frente</p>
-                <p className="text-[11px] text-[#6E7381]">Tabela Minimalista</p>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShirtView("back")}
-              className={
-                "rounded-xl overflow-hidden border-2 transition flex items-center gap-2 p-1.5 text-left " +
-                (shirtView === "back"
-                  ? "border-[#FF5400] bg-[#FFF4EE]/40"
-                  : "border-[#EAEBEF] bg-[#F4F5F7]")
-              }
-            >
+            </div>
+            <div className="rounded-2xl overflow-hidden bg-[#111317] aspect-square">
               <img
                 src={SHIRT_BACK_IMG}
-                alt="Costas"
-                className="w-12 h-12 rounded-lg object-cover shrink-0"
+                alt="Hezi Shirt 001"
+                className="w-full h-full object-cover"
               />
-              <div>
-                <p className="font-extrabold text-xs text-[#111317]">Costas</p>
-                <p className="text-[11px] text-[#6E7381]">Estampa HEZI FAM</p>
-              </div>
-            </button>
+            </div>
           </div>
 
           {/* Info e Botão Reservar */}
@@ -608,9 +743,6 @@ function Home({ S }: { S: AppContextProps }) {
             <div>
               <p className="font-extrabold text-lg text-[#111317]">
                 Hezi Shirt 001
-              </p>
-              <p className="text-xs text-[#6E7381]">
-                Drop Único · Básico com Propósito
               </p>
             </div>
             <p className="n font-extrabold text-[#FF5400] text-2xl">
@@ -642,9 +774,13 @@ function Pelada({ S }: { S: AppContextProps }) {
   const peladaStore = usePelada();
   useTick();
 
-  const mainPelada = S.evs.find((e) => e.tp === "Pelada") || S.evs[0];
-
+  const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
   const [adminPreviewUserView, setAdminPreviewUserView] = useState(false);
+
+  const selectedEvent =
+    selectedEventId !== null
+      ? S.evs.find((e) => e.id === selectedEventId) || null
+      : null;
 
   if (S.role === "admin" && !adminPreviewUserView) {
     return (
@@ -655,8 +791,8 @@ function Pelada({ S }: { S: AppContextProps }) {
               🔑 Court Master Scheduler · Área do Administrador
             </p>
             <p className="text-xs text-[#6E7381]">
-              Organize a pelada aqui. Os jogadores veem apenas a fila completa
-              no celular.
+              Organize a pelada aqui. Os jogadores veem os eventos disponíveis e
+              a fila completa no celular.
             </p>
           </div>
           <button
@@ -672,6 +808,101 @@ function Pelada({ S }: { S: AppContextProps }) {
     );
   }
 
+  const totalWaitingPlayers = peladaStore.queue.reduce((acc, entry) => {
+    if (entry.kind === "player") return acc + 1;
+    const t = peladaStore.teams[entry.id];
+    return acc + (t ? t.memberIds.length : 0);
+  }, 0);
+
+  // 1) LISTA DE EVENTOS DISPONÍVEIS (quando nenhum evento foi clicado ainda)
+  if (!selectedEvent) {
+    return (
+      <div className="p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="font-extrabold text-xl text-[#111317]">
+              Eventos Disponíveis
+            </h2>
+            <p className="text-xs text-[#6E7381]">
+              Toque em um evento abaixo para ver os detalhes e entrar na fila
+            </p>
+          </div>
+          {S.role === "admin" && (
+            <button
+              type="button"
+              onClick={() => setAdminPreviewUserView(false)}
+              className="text-xs font-extrabold bg-[#111317] text-white px-3 py-2 rounded-xl flex items-center gap-1.5"
+            >
+              <Timer className="w-3.5 h-3.5 text-[#FF5400]" />
+              Court Master
+            </button>
+          )}
+        </div>
+
+        {S.evs.length === 0 ? (
+          <div className={C + " p-6 text-center space-y-2"}>
+            <p className="font-extrabold text-base text-[#111317]">
+              Nenhum evento disponível no momento
+            </p>
+            <p className="text-xs text-[#6E7381]">
+              Novos eventos criados pelo administrador aparecerão aqui.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {S.evs.map((ev) => {
+              const isPeladaEvent = ev.tp === "Pelada";
+              const queueCount = isPeladaEvent
+                ? Math.max(ev.f.length, totalWaitingPlayers)
+                : ev.f.length;
+              return (
+                <button
+                  key={ev.id}
+                  type="button"
+                  onClick={() => setSelectedEventId(ev.id)}
+                  className={
+                    C +
+                    " w-full p-4 text-left border-l-4 border-l-[#FF5400] hover:border-[#FF5400] transition active:scale-[0.99] space-y-2.5"
+                  }
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-extrabold uppercase tracking-wider text-[#FF5400]">
+                      {ev.tp}
+                    </span>
+                    <Chip c="bg-[#F4F5F7] text-[#111317]">
+                      {queueCount} na fila
+                    </Chip>
+                  </div>
+
+                  <div>
+                    <h3 className="font-extrabold text-lg text-[#111317]">
+                      {ev.t}
+                    </h3>
+                    <p className="text-xs text-[#6E7381] mt-0.5">
+                      📅 {ev.q} · 📍 {ev.l}
+                    </p>
+                  </div>
+
+                  {ev.r && (
+                    <p className="text-xs bg-[#F4F5F7] rounded-lg px-2.5 py-1.5 text-[#111317] font-medium">
+                      📋 {ev.r}
+                    </p>
+                  )}
+
+                  <div className="pt-1 flex items-center justify-between text-xs font-extrabold text-[#FF5400]">
+                    <span>Abrir evento e ver fila</span>
+                    <span>→</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // 2) PÁGINA INTERNA DO EVENTO SELECIONADO (ex: Pelada Oficial Hezi)
   const myCourtStatus = S.me
     ? getPlayerPeladaStatus(peladaStore, {
         userId: String(S.me.id),
@@ -694,26 +925,23 @@ function Pelada({ S }: { S: AppContextProps }) {
     ? peladaStore.teams[peladaStore.waitingChampion]
     : null;
 
-  const totalWaitingPlayers = peladaStore.queue.reduce((acc, entry) => {
-    if (entry.kind === "player") return acc + 1;
-    const t = peladaStore.teams[entry.id];
-    return acc + (t ? t.memberIds.length : 0);
-  }, 0);
+  const isPeladaOfficial = selectedEvent.tp === "Pelada";
+  const isInSimpleEventQueue = S.me
+    ? selectedEvent.f.includes(S.me.id)
+    : false;
 
   return (
     <div className="p-4 space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="font-extrabold text-lg text-[#111317]">
-            {mainPelada ? mainPelada.t : "Eventos & Fila da Pelada"}
-          </h2>
-          <p className="text-xs text-[#6E7381]">
-            {mainPelada
-              ? `${mainPelada.q} · ${mainPelada.l}`
-              : "Acompanhe sua posição na fila em tempo real"}
-          </p>
-        </div>
-        {S.role === "admin" ? (
+      <div className="flex items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={() => setSelectedEventId(null)}
+          className="text-xs font-extrabold text-[#6E7381] hover:text-[#111317] bg-white border border-[#EAEBEF] rounded-xl px-3 py-2 transition"
+        >
+          ← Voltar para Eventos
+        </button>
+
+        {S.role === "admin" && (
           <button
             type="button"
             onClick={() => setAdminPreviewUserView(false)}
@@ -722,189 +950,335 @@ function Pelada({ S }: { S: AppContextProps }) {
             <Timer className="w-3.5 h-3.5 text-[#FF5400]" />
             Voltar ao Court Master
           </button>
-        ) : (
-          <Chip c="bg-[#FFF4EE] text-[#FF5400]">Ao Vivo</Chip>
         )}
       </div>
 
-      {/* Card Principal: Meu Lugar na Fila + Botão Entrar na Fila pelo Celular */}
+      <div>
+        <h2 className="font-extrabold text-xl text-[#111317]">
+          {selectedEvent.t}
+        </h2>
+        <p className="text-xs text-[#6E7381]">
+          📅 {selectedEvent.q} · 📍 {selectedEvent.l}
+        </p>
+      </div>
+
+      {/* Card Principal: Regras + Botão Entrar na fila */}
       <div className={C + " p-4 space-y-3"}>
-        {mainPelada && (
+        {selectedEvent.r && (
           <p className="text-xs bg-[#F4F5F7] rounded-lg p-2.5 text-[#111317] font-medium">
-            📋 {mainPelada.r}
+            📋 {selectedEvent.r}
           </p>
         )}
 
-        {myCourtStatus && myCourtStatus.status !== "not-in-pelada" ? (
+        {isPeladaOfficial ? (
+          myCourtStatus && myCourtStatus.status !== "not-in-pelada" ? (
+            <div className="bg-[#ECFDF5] border border-[#10B981]/40 rounded-xl p-3.5 space-y-1">
+              <p className="text-xs font-extrabold uppercase tracking-wider text-[#10B981]">
+                ✓ Seu Status na Pelada
+              </p>
+              <p className="text-base font-extrabold text-[#111317]">
+                {myCourtStatus.status === "on-court"
+                  ? `🏀 Você está EM QUADRA AGORA (${myCourtStatus.teamLabel} · Lado ${myCourtStatus.side})`
+                  : myCourtStatus.status === "champion-waiting"
+                    ? `👑 Você está no Time Campeão aguardando desafiante (${myCourtStatus.teamLabel})`
+                    : myCourtStatus.entryKind === "team"
+                      ? `⏱️ Você está na fila no ${myCourtStatus.teamLabel} — Posição #${myCourtStatus.position}`
+                      : `✓ Você está na fila — Posição #${myCourtStatus.position} (${myCourtStatus.playersAheadCount} na sua frente)`}
+              </p>
+            </div>
+          ) : (
+            <Btn onClick={() => S.join(selectedEvent.id)} c={OB}>
+              Entrar na fila
+            </Btn>
+          )
+        ) : isInSimpleEventQueue ? (
           <div className="bg-[#ECFDF5] border border-[#10B981]/40 rounded-xl p-3.5 space-y-1">
             <p className="text-xs font-extrabold uppercase tracking-wider text-[#10B981]">
-              ✓ Seu Status na Pelada
+              ✓ Presença Confirmada na Fila
             </p>
-            <p className="text-base font-extrabold text-[#111317]">
-              {myCourtStatus.status === "on-court"
-                ? `🏀 Você está EM QUADRA AGORA (${myCourtStatus.teamLabel} · Lado ${myCourtStatus.side})`
-                : myCourtStatus.status === "champion-waiting"
-                  ? `👑 Você está no Time Campeão aguardando desafiante (${myCourtStatus.teamLabel})`
-                  : myCourtStatus.entryKind === "team"
-                    ? `⏱️ Você está na fila no ${myCourtStatus.teamLabel} — Posição #${myCourtStatus.position}`
-                    : `✓ Você está na fila — Posição #${myCourtStatus.position} (${myCourtStatus.playersAheadCount} na sua frente)`}
+            <p className="text-sm font-extrabold text-[#111317]">
+              Você está na posição #{selectedEvent.f.indexOf(S.me!.id) + 1} deste evento.
             </p>
           </div>
         ) : (
-          <Btn
-            onClick={() => S.join(mainPelada ? mainPelada.id : 1)}
-            c={OB}
-          >
-            <Dribbble className="w-4 h-4" />
-            Entrar na Fila pelo Celular
+          <Btn onClick={() => S.join(selectedEvent.id)} c={OB}>
+            Entrar na fila
           </Btn>
         )}
       </div>
 
-      {/* Resumo Somente Leitura da Quadra Agora (Time A vs Time B + Cronômetro) */}
-      <div className={C + " p-4 space-y-3"}>
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-extrabold uppercase tracking-wider text-[#6E7381]">
-            🏀 Em Quadra Agora
-          </span>
-          <span
-            className={
-              "n text-sm font-extrabold px-2.5 py-0.5 rounded-lg " +
-              (isRunning
-                ? "bg-[#ECFDF5] text-[#10B981]"
-                : "bg-[#F4F5F7] text-[#111317]")
-            }
-          >
-            ⏱️ {formatClockMs(remaining)}
-          </span>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2.5">
-          {/* Lado A */}
-          <div className="bg-[#F4F5F7] rounded-xl p-3">
-            <p className="text-xs font-extrabold uppercase text-[#FF5400] mb-1">
-              Lado A{" "}
-              {teamA
-                ? `· ${peladaStore.teamNames[teamA.id] ?? `TIME ${teamA.number}`}`
-                : ""}
-            </p>
-            {!teamA ? (
-              <p className="text-xs text-[#6E7381]">Aguardando time...</p>
-            ) : (
-              <div className="space-y-1">
-                {teamA.memberIds.map((pid) => {
-                  const p = peladaStore.players[pid];
-                  if (!p) return null;
-                  const isMe =
-                    S.me &&
-                    (p.userId === String(S.me.id) || p.name === S.me.nome);
-                  return (
-                    <p
-                      key={pid}
-                      className={
-                        "text-xs font-bold truncate " +
-                        (isMe ? "text-[#FF5400]" : "text-[#111317]")
-                      }
-                    >
-                      • {p.name} {isMe ? "(Você)" : ""}
-                    </p>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Lado B */}
-          <div className="bg-[#F4F5F7] rounded-xl p-3">
-            <p className="text-xs font-extrabold uppercase text-[#111317] mb-1">
-              Lado B{" "}
-              {teamB
-                ? `· ${peladaStore.teamNames[teamB.id] ?? `TIME ${teamB.number}`}`
-                : ""}
-            </p>
-            {!teamB ? (
-              <p className="text-xs text-[#6E7381]">Aguardando time...</p>
-            ) : (
-              <div className="space-y-1">
-                {teamB.memberIds.map((pid) => {
-                  const p = peladaStore.players[pid];
-                  if (!p) return null;
-                  const isMe =
-                    S.me &&
-                    (p.userId === String(S.me.id) || p.name === S.me.nome);
-                  return (
-                    <p
-                      key={pid}
-                      className={
-                        "text-xs font-bold truncate " +
-                        (isMe ? "text-[#FF5400]" : "text-[#111317]")
-                      }
-                    >
-                      • {p.name} {isMe ? "(Você)" : ""}
-                    </p>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Campeão Aguardando (se houver) */}
-        {champTeam && (
-          <div className="bg-[#FFF4EE] border border-[#FF5400]/30 rounded-xl p-2.5 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-extrabold text-[#FF5400]">
-                👑 CAMPEÃO AGUARDANDO PRÓXIMO JOGO
-              </p>
-              <p className="text-xs font-bold text-[#111317]">
-                {peladaStore.teamNames[champTeam.id] ??
-                  `TIME ${champTeam.number}`}
-                :{" "}
-                {champTeam.memberIds
-                  .map((pid) => peladaStore.players[pid]?.name)
-                  .filter(Boolean)
-                  .join(", ")}
-              </p>
+      {isPeladaOfficial ? (
+        <>
+          {/* Resumo Somente Leitura da Quadra Agora (Time A vs Time B + Cronômetro) */}
+          <div className={C + " p-4 space-y-3"}>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-extrabold uppercase tracking-wider text-[#6E7381]">
+                🏀 Em Quadra Agora
+              </span>
+              <span
+                className={
+                  "n text-sm font-extrabold px-2.5 py-0.5 rounded-lg " +
+                  (isRunning
+                    ? "bg-[#ECFDF5] text-[#10B981]"
+                    : "bg-[#F4F5F7] text-[#111317]")
+                }
+              >
+                ⏱️ {formatClockMs(remaining)}
+              </span>
             </div>
+
+            <div className="grid grid-cols-2 gap-2.5">
+              {/* Lado A */}
+              <div className="bg-[#F4F5F7] rounded-xl p-3">
+                <p className="text-xs font-extrabold uppercase text-[#FF5400] mb-1">
+                  Lado A{" "}
+                  {teamA
+                    ? `· ${peladaStore.teamNames[teamA.id] ?? `TIME ${teamA.number}`}`
+                    : ""}
+                </p>
+                {!teamA ? (
+                  <p className="text-xs text-[#6E7381]">Aguardando time...</p>
+                ) : (
+                  <div className="space-y-1">
+                    {teamA.memberIds.map((pid) => {
+                      const p = peladaStore.players[pid];
+                      if (!p) return null;
+                      const isMe =
+                        S.me &&
+                        (p.userId === String(S.me.id) || p.name === S.me.nome);
+                      return (
+                        <p
+                          key={pid}
+                          className={
+                            "text-xs font-bold truncate " +
+                            (isMe ? "text-[#FF5400]" : "text-[#111317]")
+                          }
+                        >
+                          • {p.name} {isMe ? "(Você)" : ""}
+                        </p>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Lado B */}
+              <div className="bg-[#F4F5F7] rounded-xl p-3">
+                <p className="text-xs font-extrabold uppercase text-[#111317] mb-1">
+                  Lado B{" "}
+                  {teamB
+                    ? `· ${peladaStore.teamNames[teamB.id] ?? `TIME ${teamB.number}`}`
+                    : ""}
+                </p>
+                {!teamB ? (
+                  <p className="text-xs text-[#6E7381]">Aguardando time...</p>
+                ) : (
+                  <div className="space-y-1">
+                    {teamB.memberIds.map((pid) => {
+                      const p = peladaStore.players[pid];
+                      if (!p) return null;
+                      const isMe =
+                        S.me &&
+                        (p.userId === String(S.me.id) || p.name === S.me.nome);
+                      return (
+                        <p
+                          key={pid}
+                          className={
+                            "text-xs font-bold truncate " +
+                            (isMe ? "text-[#FF5400]" : "text-[#111317]")
+                          }
+                        >
+                          • {p.name} {isMe ? "(Você)" : ""}
+                        </p>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Campeão Aguardando (se houver) */}
+            {champTeam && (
+              <div className="bg-[#FFF4EE] border border-[#FF5400]/30 rounded-xl p-2.5 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-extrabold text-[#FF5400]">
+                    👑 CAMPEÃO AGUARDANDO PRÓXIMO JOGO
+                  </p>
+                  <p className="text-xs font-bold text-[#111317]">
+                    {peladaStore.teamNames[champTeam.id] ??
+                      `TIME ${champTeam.number}`}
+                    :{" "}
+                    {champTeam.memberIds
+                      .map((pid) => peladaStore.players[pid]?.name)
+                      .filter(Boolean)
+                      .join(", ")}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
-      {/* FILA COMPLETA DA PELADA (Somente Visualização para o Usuário) */}
-      <div className={C + " p-4"}>
-        <div className="flex items-center justify-between mb-3">
-          <p className="text-xs font-extrabold text-[#111317] uppercase tracking-wider">
-            📋 FILA COMPLETA DE ESPERA
-          </p>
-          <span className="n text-xs font-bold text-[#FF5400]">
-            {peladaStore.queue.length} posições · {totalWaitingPlayers}{" "}
-            jogadores
-          </span>
-        </div>
+          {/* FILA COMPLETA DA PELADA (Somente Visualização para o Usuário) */}
+          <div className={C + " p-4"}>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-extrabold text-[#111317] uppercase tracking-wider">
+                📋 FILA COMPLETA DE ESPERA
+              </p>
+              <span className="n text-xs font-bold text-[#FF5400]">
+                {peladaStore.queue.length} posições · {totalWaitingPlayers}{" "}
+                jogadores
+              </span>
+            </div>
 
-        {peladaStore.queue.length === 0 ? (
-          <p className="text-xs text-[#6E7381] py-3 text-center">
-            Nenhum jogador na fila de espera no momento. Toque em &ldquo;Entrar
-            na Fila pelo Celular&rdquo; acima!
-          </p>
-        ) : (
-          <div className="divide-y divide-[#EAEBEF]">
-            {peladaStore.queue.map((entry, idx) => {
-              if (entry.kind === "player") {
-                const p = peladaStore.players[entry.id];
-                if (!p) return null;
-                const isMe =
-                  S.me &&
-                  (p.userId === String(S.me.id) ||
-                    p.name.toLowerCase() === S.me.nome.toLowerCase());
-                const heziUser = S.users.find(
-                  (u) =>
-                    String(u.id) === p.userId ||
-                    u.nome.toLowerCase() === p.name.toLowerCase(),
-                );
+            {peladaStore.queue.length === 0 ? (
+              <p className="text-xs text-[#6E7381] py-3 text-center">
+                Nenhum jogador na fila de espera no momento. Toque em
+                &ldquo;Entrar na fila&rdquo; acima!
+              </p>
+            ) : (
+              <div className="divide-y divide-[#EAEBEF]">
+                {peladaStore.queue.map((entry, idx) => {
+                  if (entry.kind === "player") {
+                    const p = peladaStore.players[entry.id];
+                    if (!p) return null;
+                    const isMe =
+                      S.me &&
+                      (p.userId === String(S.me.id) ||
+                        p.name.toLowerCase() === S.me.nome.toLowerCase());
+                    const heziUser = S.users.find(
+                      (u) =>
+                        String(u.id) === p.userId ||
+                        u.nome.toLowerCase() === p.name.toLowerCase(),
+                    );
+                    return (
+                      <div
+                        key={`p-${entry.id}`}
+                        className={
+                          "flex items-center gap-2.5 py-2.5 text-sm " +
+                          (isMe ? "bg-[#FFF4EE] -mx-2 px-2 rounded-xl" : "")
+                        }
+                      >
+                        <span className="n font-extrabold text-[#FF5400] w-8">
+                          #{idx + 1}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-sm text-[#111317] truncate">
+                            {p.name}{" "}
+                            {isMe && (
+                              <span className="text-xs font-extrabold text-[#FF5400]">
+                                (Você)
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                        {p.justPlayed && (
+                          <Chip c="bg-[#F4F5F7] text-[#6E7381]">
+                            🚫 Jogou a última
+                          </Chip>
+                        )}
+                        {(p.role === "aluno" ||
+                          (heziUser?.tipo === "aluno" &&
+                            heziUser.st === "ativo")) && (
+                          <Chip c="bg-[#FFF4EE] text-[#FF5400]">ALUNO VIP</Chip>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  const t = peladaStore.teams[entry.id];
+                  if (!t) return null;
+                  const teamLabel =
+                    peladaStore.teamNames[t.id] ?? `TIME ${t.number}`;
+                  const hasMe =
+                    S.me &&
+                    t.memberIds.some((pid) => {
+                      const pl = peladaStore.players[pid];
+                      return (
+                        pl &&
+                        (pl.userId === String(S.me!.id) ||
+                          pl.name.toLowerCase() === S.me!.nome.toLowerCase())
+                      );
+                    });
+
+                  return (
+                    <div
+                      key={`t-${entry.id}`}
+                      className={
+                        "py-3 space-y-1.5 " +
+                        (hasMe ? "bg-[#FFF4EE] -mx-2 px-2 rounded-xl" : "")
+                      }
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="n font-extrabold text-[#FF5400] w-8">
+                            #{idx + 1}
+                          </span>
+                          <span className="font-extrabold text-sm text-[#111317]">
+                            🏀 {teamLabel}
+                          </span>
+                          {hasMe && (
+                            <Chip c="bg-[#FF5400] text-white">SEU TIME</Chip>
+                          )}
+                        </div>
+                        <Chip c="bg-[#F4F5F7] text-[#6E7381]">
+                          {t.memberIds.length} jogadores
+                        </Chip>
+                      </div>
+                      <div className="pl-10 flex flex-wrap gap-1.5">
+                        {t.memberIds.map((pid) => {
+                          const pl = peladaStore.players[pid];
+                          if (!pl) return null;
+                          const isMe =
+                            S.me &&
+                            (pl.userId === String(S.me.id) ||
+                              pl.name.toLowerCase() ===
+                                S.me.nome.toLowerCase());
+                          return (
+                            <span
+                              key={pid}
+                              className={
+                                "text-xs font-semibold px-2.5 py-1 rounded-lg " +
+                                (isMe
+                                  ? "bg-[#FF5400] text-white"
+                                  : "bg-[#F4F5F7] text-[#111317]")
+                              }
+                            >
+                              {pl.name}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </>
+      ) : (
+        /* Fila de outros eventos criados pelo Administrador */
+        <div className={C + " p-4"}>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-extrabold text-[#111317] uppercase tracking-wider">
+              📋 FILA DO EVENTO
+            </p>
+            <span className="n text-xs font-bold text-[#FF5400]">
+              {selectedEvent.f.length} inscritos
+            </span>
+          </div>
+          {selectedEvent.f.length === 0 ? (
+            <p className="text-xs text-[#6E7381] py-3 text-center">
+              Ninguém na fila ainda. Toque em &ldquo;Entrar na fila&rdquo; acima!
+            </p>
+          ) : (
+            <div className="divide-y divide-[#EAEBEF]">
+              {selectedEvent.f.map((uid, idx) => {
+                const usr = S.users.find((u) => u.id === uid);
+                if (!usr) return null;
+                const isMe = S.me && S.me.id === usr.id;
                 return (
                   <div
-                    key={`p-${entry.id}`}
+                    key={uid}
                     className={
                       "flex items-center gap-2.5 py-2.5 text-sm " +
                       (isMe ? "bg-[#FFF4EE] -mx-2 px-2 rounded-xl" : "")
@@ -915,101 +1289,24 @@ function Pelada({ S }: { S: AppContextProps }) {
                     </span>
                     <div className="flex-1 min-w-0">
                       <p className="font-bold text-sm text-[#111317] truncate">
-                        {p.name}{" "}
+                        {usr.nome}{" "}
                         {isMe && (
                           <span className="text-xs font-extrabold text-[#FF5400]">
                             (Você)
                           </span>
                         )}
                       </p>
-                      {(p.position || heziUser?.pos) && (
-                        <p className="text-xs text-[#6E7381]">
-                          {p.position || heziUser?.pos}
-                        </p>
-                      )}
                     </div>
-                    {p.justPlayed && (
-                      <Chip c="bg-[#F4F5F7] text-[#6E7381]">
-                        🚫 Jogou a última
-                      </Chip>
-                    )}
-                    {(p.role === "aluno" ||
-                      (heziUser?.tipo === "aluno" &&
-                        heziUser.st === "ativo")) && (
+                    {usr.tipo === "aluno" && usr.st === "ativo" && (
                       <Chip c="bg-[#FFF4EE] text-[#FF5400]">ALUNO VIP</Chip>
                     )}
                   </div>
                 );
-              }
-
-              const t = peladaStore.teams[entry.id];
-              if (!t) return null;
-              const teamLabel =
-                peladaStore.teamNames[t.id] ?? `TIME ${t.number}`;
-              const hasMe =
-                S.me &&
-                t.memberIds.some((pid) => {
-                  const pl = peladaStore.players[pid];
-                  return (
-                    pl &&
-                    (pl.userId === String(S.me!.id) ||
-                      pl.name.toLowerCase() === S.me!.nome.toLowerCase())
-                  );
-                });
-
-              return (
-                <div
-                  key={`t-${entry.id}`}
-                  className={
-                    "py-3 space-y-1.5 " +
-                    (hasMe ? "bg-[#FFF4EE] -mx-2 px-2 rounded-xl" : "")
-                  }
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="n font-extrabold text-[#FF5400] w-8">
-                        #{idx + 1}
-                      </span>
-                      <span className="font-extrabold text-sm text-[#111317]">
-                        🏀 {teamLabel}
-                      </span>
-                      {hasMe && (
-                        <Chip c="bg-[#FF5400] text-white">SEU TIME</Chip>
-                      )}
-                    </div>
-                    <Chip c="bg-[#F4F5F7] text-[#6E7381]">
-                      {t.memberIds.length} jogadores
-                    </Chip>
-                  </div>
-                  <div className="pl-10 flex flex-wrap gap-1.5">
-                    {t.memberIds.map((pid) => {
-                      const pl = peladaStore.players[pid];
-                      if (!pl) return null;
-                      const isMe =
-                        S.me &&
-                        (pl.userId === String(S.me.id) ||
-                          pl.name.toLowerCase() === S.me.nome.toLowerCase());
-                      return (
-                        <span
-                          key={pid}
-                          className={
-                            "text-xs font-semibold px-2.5 py-1 rounded-lg " +
-                            (isMe
-                              ? "bg-[#FF5400] text-white"
-                              : "bg-[#F4F5F7] text-[#111317]")
-                          }
-                        >
-                          {pl.name}
-                        </span>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -1191,66 +1488,51 @@ function Painel({ S }: { S: AppContextProps }) {
     return (
       <div className="p-4 space-y-4">
         <div className={C + " p-6 text-center space-y-3"}>
-          <p className="text-4xl">🔐</p>
+          <div className="w-14 h-14 rounded-full bg-[#FFF4EE] text-[#FF5400] flex items-center justify-center mx-auto">
+            <Lock className="w-7 h-7" />
+          </div>
           <h2 className="font-extrabold text-xl text-[#111317]">
-            Entre para acessar seu Perfil
+            Meu Perfil Bloqueado
           </h2>
           <p className="text-sm text-[#6E7381]">
-            Faça login ou crie sua conta grátis para acessar o Hezi Pass e seu
-            painel.
+            Crie uma conta para desbloquear seu perfil, participar do Hezi Pass
+            e entrar na fila dos eventos.
           </p>
-          <Btn onClick={() => S.setTab("login")} c={OB}>
-            Ir para Login / Cadastro
-          </Btn>
+          <div className="space-y-2.5 pt-1">
+            <Btn onClick={() => S.setCad(true)} c={OB}>
+              Criar Conta
+            </Btn>
+            <Btn
+              onClick={() => S.setTab("login")}
+              c="bg-[#111317] text-white"
+            >
+              Já tenho conta · Fazer Login
+            </Btn>
+          </div>
         </div>
       </div>
     );
   }
 
-  // Área do Usuário Convencional (Jogador sem assinatura)
+  // Área do Usuário Comum (exibe apenas o cabeçalho sem posição/conta convencional grátis + Hezi Pass)
   if (u.tipo === "jogador") {
     return (
       <div className="p-4 space-y-4">
         <div className={C + " p-4 flex gap-3 items-center"}>
           <Av u={u} />
-          <div className="flex-1">
-            <p className="font-extrabold text-base text-[#111317]">{u.nome}</p>
-            <p className="text-xs text-[#6E7381]">
-              {u.pos} · Conta convencional grátis
+          <div className="flex-1 min-w-0">
+            <p className="font-extrabold text-base text-[#111317] truncate">
+              {u.nome}
             </p>
+            {(u.apelido || u.instagram) && (
+              <p className="text-xs text-[#6E7381] truncate">
+                {[u.apelido, u.instagram].filter(Boolean).join(" · ")}
+              </p>
+            )}
           </div>
-          <Chip c="bg-[#F4F5F7] text-[#6E7381]">Jogador</Chip>
-        </div>
-
-        <div className={C + " p-4 flex items-center justify-between"}>
-          <div>
-            <p className="text-xs text-[#6E7381] font-semibold">
-              ⚡ Hezi Points Acumulados
-            </p>
-            <p className="n font-bold text-4xl text-[#FF5400]">
-              {u.hp} <span className="text-base">HP</span>
-            </p>
-          </div>
-          <Zap className="w-8 h-8 text-[#FF5400]" />
         </div>
 
         <Pass u={u} />
-
-        <div className="bg-[#FFF4EE] border border-[#FF5400]/20 rounded-2xl p-5">
-          <p className="font-extrabold text-[#111317] flex items-center gap-1.5">
-            <Sparkles className="w-4 h-4 text-[#FF5400]" />
-            Quer evoluir de verdade?
-          </p>
-          <p className="text-sm text-[#6E7381] my-2">
-            Torne-se assinante{" "}
-            <strong className="text-[#111317]">Hezi Skills</strong> para ter
-            treinos com o professor, boletim de evolução (Overall 65→99),
-            desconto na Hezi Shirt 001 e pontos 2x no Hezi Pass.
-          </p>
-          <Btn onClick={() => S.setTab("assinante")} c={OB}>
-            Ver vantagens e ser assinante
-          </Btn>
-        </div>
       </div>
     );
   }
@@ -1299,7 +1581,7 @@ function Painel({ S }: { S: AppContextProps }) {
               {u.nome}
             </p>
             <p className="text-xs text-[#6E7381] mb-1.5">
-              {u.pos} · Turma Terça 16:30
+              {u.pos ? `${u.pos} · ` : ""}Turma Terça 16:30
             </p>
             <Chip c={GRN}>🟢 Matrícula Regular</Chip>
           </div>
@@ -1708,7 +1990,7 @@ function Eventos({ S }: { S: AppContextProps }) {
         />
         <input
           value={f.r}
-          placeholder="Regras (ex: Jogos até 12 pontos ou 10 min)"
+          placeholder="Regras (ex: Regras Fiba, 7 pontos ou 7 minutos)"
           onChange={(e) => setF({ ...f, r: e.target.value })}
           className="w-full bg-[#F4F5F7] rounded-xl px-4 py-3 text-sm outline-none"
         />
@@ -2189,14 +2471,11 @@ function HeziSuperApp() {
     }
   }, [evs, peladaStore, users]);
 
-  // Navegação inteligente para "SOU ALUNO"
-  const goSouAluno = () => {
-    if (role === "visitante") {
-      setLoginRedirect("painel");
-      setTab("login");
-    } else {
-      setTab("painel");
-    }
+  // Navegação inteligente para "MEU PERFIL"
+  // Se for visitante sem conta, abre a tela de Meu Perfil bloqueada solicitando criar uma conta
+  const goMeuPerfil = () => {
+    setLoginRedirect("painel");
+    setTab("painel");
   };
 
   // Navegação inteligente para "QUERO SER ASSINANTE"
@@ -2229,16 +2508,20 @@ function HeziSuperApp() {
     if (targetEv?.tp === "Pelada") {
       syncUserToCourtMaster(me);
     }
-    say("Você entrou na fila pelo celular! 🏀");
+    say("Você entrou na fila! 🏀");
   };
 
-  const reg = (f: { nome: string; wpp: string; pos: string }) => {
+  const reg = (f: RegisterFormPayload) => {
     const u: HeziUser = {
       id: Date.now(),
       tipo: "jogador",
       nome: f.nome.trim(),
-      pos: f.pos,
+      apelido: f.apelido.trim(),
+      dataNascimento: f.dataNascimento,
       wpp: f.wpp.trim(),
+      instagram: f.instagram.trim(),
+      email: f.email.trim().toLowerCase(),
+      senha: f.senha,
       hp: 0,
     };
     addUser(u);
@@ -2252,13 +2535,13 @@ function HeziSuperApp() {
       }
       setPend(null);
       setTab("pelada");
-      say("Conta criada! Você já está na fila da pelada! 🏀");
+      say("Conta criada! Você já está na fila! 🏀");
     } else if (tab === "login" && loginRedirect === "assinante") {
       setTab("assinante");
       say("Cadastro concluído! Veja as vantagens de ser assinante.");
     } else {
       setTab("painel");
-      say("Conta grátis criada com sucesso!");
+      say("Conta criada com sucesso!");
     }
   };
 
@@ -2286,7 +2569,7 @@ function HeziSuperApp() {
     setTab,
     setCad,
     openCourtMaster,
-    goSouAluno,
+    goMeuPerfil,
     goQueroSerAssinante,
   };
 
@@ -2303,7 +2586,7 @@ function HeziSuperApp() {
           (isWideCourtMaster ? "max-w-6xl" : "max-w-[480px]")
         }
       >
-        {/* BARRA SUPERIOR ESTILO OTE (PRETA COM LOGO HEZI + EVENTOS | SOU ALUNO | QUERO SER ASSINANTE) */}
+        {/* BARRA SUPERIOR ESTILO OTE (PRETA COM LOGO HEZI + EVENTOS | MEU PERFIL | QUERO SER ASSINANTE) */}
         <header className="shrink-0 bg-black text-white">
           <div className="flex items-center justify-between px-3.5 py-2.5 gap-2">
             <button
@@ -2333,7 +2616,7 @@ function HeziSuperApp() {
               <span className="text-white/50 select-none">|</span>
               <button
                 type="button"
-                onClick={goSouAluno}
+                onClick={goMeuPerfil}
                 className={
                   "ote-nav-link transition hover:text-[#FF5400] " +
                   (tab === "painel" ||
@@ -2342,7 +2625,7 @@ function HeziSuperApp() {
                     : "text-white")
                 }
               >
-                SOU ALUNO
+                MEU PERFIL
               </button>
               <span className="text-white/50 select-none">|</span>
               <button
@@ -2507,6 +2790,9 @@ function HeziSuperApp() {
               setPend(null);
             }}
             done={reg}
+            existingEmails={users
+              .map((u) => (u.email || "").toLowerCase())
+              .filter(Boolean)}
           />
         )}
       </div>
