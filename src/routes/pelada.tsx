@@ -44,6 +44,7 @@ import {
   usePelada,
   computeElapsed,
   currentDurationMs,
+  getMaxTeamSize,
   type QueueEntry,
   type ID,
   MATCH_MS,
@@ -256,6 +257,9 @@ function EmbeddedToolbar() {
   const adminPin = usePelada((s) => s.adminPin);
   const lockScreen = usePelada((s) => s.lockScreen);
   const playersCount = usePelada((s) => Object.keys(s.players).length);
+  const gameFormat = usePelada((s) => s.gameFormat ?? "3x3");
+  const setGameFormat = usePelada((s) => s.setGameFormat);
+  const maxTeamSize = getMaxTeamSize(gameFormat);
 
   function onLock() {
     if (!adminPin) {
@@ -269,11 +273,11 @@ function EmbeddedToolbar() {
     <div className="border border-brand-border bg-white p-4 flex flex-wrap items-center justify-between gap-3 shadow-sm">
       <div className="flex items-center gap-3">
         <div className="w-9 h-9 bg-brand-orange flex items-center justify-center font-black text-white font-condensed text-lg">
-          3X3
+          {gameFormat.toUpperCase()}
         </div>
         <div>
           <span className="text-[10px] font-condensed font-black text-brand-orange uppercase tracking-widest block">
-            TOTEM OFICIAL // SINCRONIZADO COM OS CELULARES
+            MODALIDADE {gameFormat.toUpperCase()} · MÁX {maxTeamSize} JOGADORES POR TIME
           </span>
           <h3 className="font-bebas text-2xl text-brand-dark leading-none">
             ORGANIZADOR DE PELADA COURT MASTER ({playersCount} ATLETAS)
@@ -282,6 +286,24 @@ function EmbeddedToolbar() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
+        <div className="inline-flex border border-brand-border-strong bg-brand-subtle">
+          {(["3x3", "5x5"] as const).map((fmt) => (
+            <button
+              key={fmt}
+              type="button"
+              onClick={() => setGameFormat(fmt)}
+              className={cn(
+                "px-3 py-2 font-condensed font-black uppercase text-xs tracking-wider transition-colors",
+                gameFormat === fmt
+                  ? "bg-brand-orange text-white"
+                  : "text-brand-dark hover:bg-brand-border",
+              )}
+              title={`Limitar times a ${fmt === "5x5" ? 5 : 3} jogadores`}
+            >
+              {fmt} (MÁX {fmt === "5x5" ? 5 : 3})
+            </button>
+          ))}
+        </div>
         <button
           type="button"
           onClick={() => historyBus.open()}
@@ -956,6 +978,8 @@ function QueueBlock() {
   const removeFromQueue = usePelada((s) => s.removeFromQueue);
   const pasteInto = usePelada((s) => s.pasteSelectionIntoTeam);
   const court = usePelada((s) => s.court);
+  const gameFormat = usePelada((s) => s.gameFormat ?? "3x3");
+  const maxTeamSize = getMaxTeamSize(gameFormat);
 
   const [name, setName] = useState("");
   const [cooldownConfirm, setCooldownConfirm] = useState<
@@ -1027,18 +1051,23 @@ function QueueBlock() {
         <div className="sticky top-16 z-20 border-2 border-brand-orange bg-white px-4 py-3 shadow-md space-y-2">
           <div className="text-xs font-condensed uppercase text-brand-muted truncate">
             <span className="font-black text-brand-orange">
-              {selection.length} SELECIONADO(S):
+              {selection.length} SELECIONADO(S) (LIMITE {gameFormat.toUpperCase()}: MÁX {maxTeamSize}/TIME):
             </span>{" "}
             <span className="font-bold text-brand-dark">{selectedNames}</span>
           </div>
+          {selection.length > maxTeamSize && (
+            <p className="text-xs font-condensed font-black uppercase text-red-600">
+              ⚠️ Limite da modalidade {gameFormat}: selecione no máximo {maxTeamSize} jogadores para formar um time.
+            </p>
+          )}
           <div className="flex flex-wrap gap-2">
             <Button
               size="sm"
               onClick={formTeam}
-              disabled={selection.length < 2}
+              disabled={selection.length < 2 || selection.length > maxTeamSize}
               className="rounded-none bg-brand-orange hover:bg-brand-orange-hover text-white font-condensed font-black uppercase text-xs"
             >
-              <Users className="h-3.5 w-3.5" /> Formar Time
+              <Users className="h-3.5 w-3.5" /> Formar Time ({Math.min(selection.length, maxTeamSize)}/{maxTeamSize})
             </Button>
             <Button
               size="sm"
@@ -1234,6 +1263,8 @@ function QueueRow(
   const isChampion = kind === "champion";
   const hasAny = slotAOpen || slotBOpen;
   const customName = usePelada((s) => (team ? s.teamNames[team.id] : undefined));
+  const gameFormat = usePelada((s) => s.gameFormat ?? "3x3");
+  const maxTeamSize = getMaxTeamSize(gameFormat);
 
   const moveQueueEntry = usePelada((s) => s.moveQueueEntry);
   const selection = usePelada((s) => s.selection);
@@ -1279,7 +1310,7 @@ function QueueRow(
             title="Renomear time"
           >
             <span className="bg-brand-orange/10 text-brand-orange border border-brand-orange/30 font-condensed font-black text-xs uppercase px-2.5 py-0.5 tracking-wider inline-flex items-center gap-1 hover:bg-brand-orange/20 transition-colors">
-              {customName ?? `TIME ${team.number}`}
+              {customName ?? `TIME ${team.number}`} ({team.memberIds.length}/{maxTeamSize})
               <Pencil className="h-3 w-3 opacity-60" />
             </span>
           </button>
@@ -1339,12 +1370,12 @@ function QueueRow(
             />
           );
         })}
-        {team && selectionCount > 0 && (
+        {team && selectionCount > 0 && team.memberIds.length < maxTeamSize && (
           <button
             className="border-2 border-dashed border-brand-orange px-2.5 py-1.5 font-condensed text-xs font-black uppercase text-brand-orange hover:bg-brand-orange/5"
             onClick={() => onPasteInto(team.id)}
           >
-            <Plus className="inline h-3 w-3" /> colar {selectionCount} aqui
+            <Plus className="inline h-3 w-3" /> colar {Math.min(selectionCount, maxTeamSize - team.memberIds.length)} aqui
           </button>
         )}
       </div>
@@ -1518,6 +1549,8 @@ function AdminDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: 
   const autoReduceThreshold = usePelada((s) => s.autoReduceThreshold);
   const autoReduceMs = usePelada((s) => s.autoReduceMs);
   const setAutoReduce = usePelada((s) => s.setAutoReduce);
+  const gameFormat = usePelada((s) => s.gameFormat ?? "3x3");
+  const setGameFormat = usePelada((s) => s.setGameFormat);
 
   const [matchMin, setMatchMin] = useState(String(matchMs / 60000));
   const [sdMin, setSdMin] = useState(String(suddenDeathMs / 60000));
@@ -1577,6 +1610,33 @@ function AdminDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: 
           </div>
         ) : (
           <div className="space-y-4 font-condensed uppercase">
+            <div className="space-y-2 border border-brand-border bg-brand-subtle/50 p-3">
+              <p className="text-xs font-black text-brand-dark">
+                Modalidade & Limitador de Jogadores por Time
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {(["3x3", "5x5"] as const).map((fmt) => (
+                  <Button
+                    key={fmt}
+                    type="button"
+                    variant={gameFormat === fmt ? "default" : "outline"}
+                    onClick={() => setGameFormat(fmt)}
+                    className={cn(
+                      "rounded-none font-condensed font-black uppercase text-xs",
+                      gameFormat === fmt
+                        ? "bg-brand-orange hover:bg-brand-orange-hover text-white"
+                        : "border-brand-border-strong bg-white text-brand-dark",
+                    )}
+                  >
+                    Pelada {fmt} · Máx {fmt === "5x5" ? 5 : 3}/time
+                  </Button>
+                ))}
+              </div>
+              <p className="text-[11px] text-brand-muted">
+                Limita os times no Court Master e os grupos formados pelos jogadores na fila a {gameFormat === "5x5" ? 5 : 3} jogadores por time.
+              </p>
+            </div>
+
             <div className="space-y-2 border border-brand-border bg-brand-subtle/50 p-3">
               <p className="text-xs font-black text-brand-dark">PIN de administrador / bloqueio</p>
               <div className="flex gap-2">

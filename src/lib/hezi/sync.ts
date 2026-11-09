@@ -13,6 +13,7 @@ function extractPeladaData(s: PeladaState) {
     adminPin: s.adminPin,
     screenLocked: s.screenLocked,
     lastModified: s.lastModified,
+    gameFormat: s.gameFormat,
     matchMs: s.matchMs,
     suddenDeathMs: s.suddenDeathMs,
     championRuleEnabled: s.championRuleEnabled,
@@ -31,6 +32,7 @@ function extractHeziData(s: HeziPlatformState) {
     lastModified: s.lastModified,
     users: s.users,
     evs: s.evs,
+    notifications: s.notifications,
   };
 }
 

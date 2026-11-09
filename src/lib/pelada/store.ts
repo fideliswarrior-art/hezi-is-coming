@@ -67,6 +67,7 @@ export interface PeladaState {
   lastModified: number;
 
   // Settings
+  gameFormat: GameFormat;
   matchMs: number;
   suddenDeathMs: number;
   /** When false, a team never leaves the court for winning twice (👑 rule off). */
@@ -139,7 +140,12 @@ export interface PeladaState {
   declareDraw: () => void;
 
   // Admin
+  setGameFormat: (fmt: GameFormat) => void;
   setAdminPin: (pin: string) => void;
+  groupPlayersByUser: (
+    userA: { userId: string; name: string; role?: "aluno" | "convencional" },
+    userB: { userId: string; name: string; role?: "aluno" | "convencional" },
+  ) => { ok: boolean; reason?: string; teamLabel?: string };
   setMatchDuration: (ms: number) => void;
   setSuddenDeathDuration: (ms: number) => void;
   setChampionRule: (enabled: boolean) => void;
@@ -161,6 +167,11 @@ export interface PeladaState {
 export const MATCH_MS = 7 * 60 * 1000;
 export const SUDDEN_DEATH_MS = 1 * 60 * 1000;
 export const TEAM_SIZE = 3;
+export type GameFormat = "3x3" | "5x5";
+
+export function getMaxTeamSize(fmt?: GameFormat): number {
+  return fmt === "5x5" ? 5 : 3;
+}
 export const WINS_TO_ROTATE = 2;
 
 // ============================================================================
@@ -342,6 +353,7 @@ export const usePelada = create<PeladaState>()(
       adminPin: "",
       screenLocked: false,
       lastModified: 0,
+      gameFormat: "3x3",
       matchMs: MATCH_MS,
       suddenDeathMs: SUDDEN_DEATH_MS,
       championRuleEnabled: true,
@@ -422,13 +434,15 @@ export const usePelada = create<PeladaState>()(
 
       movePlayerToTeam: (playerId, teamId) =>
         set((s) => {
+          const maxSize = getMaxTeamSize(s.gameFormat);
           const draft: PeladaState = cloneState(s);
           const target = draft.teams[teamId];
           if (!target) return s;
           if (target.memberIds.includes(playerId)) return s;
+          if (target.memberIds.length >= maxSize) return s;
           removePlayerFromAll(draft, playerId);
           const fresh = draft.teams[teamId];
-          if (!fresh) return s;
+          if (!fresh || fresh.memberIds.length >= maxSize) return s;
           draft.teams[teamId] = { ...fresh, memberIds: [...fresh.memberIds, playerId] };
           draft.selection = draft.selection.filter((x) => x !== playerId);
           return draft;
@@ -436,15 +450,17 @@ export const usePelada = create<PeladaState>()(
 
       sendPlayerToCourtSide: (playerId, side) =>
         set((s) => {
+          const maxSize = getMaxTeamSize(s.gameFormat);
           const draft: PeladaState = cloneState(s);
           if (!draft.players[playerId]) return s;
           const occupiedId = side === "A" ? draft.court.teamAId : draft.court.teamBId;
           if (occupiedId) {
             const t = draft.teams[occupiedId];
             if (!t || t.memberIds.includes(playerId)) return s;
+            if (t.memberIds.length >= maxSize) return s;
             removePlayerFromAll(draft, playerId);
             const fresh = draft.teams[occupiedId];
-            if (!fresh) return s;
+            if (!fresh || fresh.memberIds.length >= maxSize) return s;
             draft.teams[occupiedId] = {
               ...fresh,
               memberIds: [...fresh.memberIds, playerId],
@@ -537,10 +553,12 @@ export const usePelada = create<PeladaState>()(
 
       formTeamFromSelection: () =>
         set((s) => {
+          const maxSize = getMaxTeamSize(s.gameFormat);
           if (s.selection.length < 2) return s;
+          const membersToForm = s.selection.slice(0, maxSize);
           const draft: PeladaState = cloneState(s);
           let earliestIdx = Infinity;
-          for (const pid of s.selection) {
+          for (const pid of membersToForm) {
             const idx = draft.queue.findIndex(
               (e) =>
                 (e.kind === "player" && e.id === pid) ||
@@ -548,14 +566,14 @@ export const usePelada = create<PeladaState>()(
             );
             if (idx >= 0 && idx < earliestIdx) earliestIdx = idx;
           }
-          for (const pid of s.selection) removePlayerFromAll(draft, pid);
+          for (const pid of membersToForm) removePlayerFromAll(draft, pid);
           const num = draft.nextTeamNumber;
           draft.nextTeamNumber += 1;
           const teamId = uid();
           draft.teams[teamId] = {
             id: teamId,
             number: num,
-            memberIds: [...s.selection],
+            memberIds: [...membersToForm],
             wins: 0,
             createdAt: Date.now(),
           };
@@ -569,15 +587,17 @@ export const usePelada = create<PeladaState>()(
 
       pasteSelectionIntoTeam: (teamId) =>
         set((s) => {
+          const maxSize = getMaxTeamSize(s.gameFormat);
           if (s.selection.length === 0) return s;
           const draft: PeladaState = cloneState(s);
           if (!draft.teams[teamId]) return s;
           for (const pid of s.selection) {
             const target = draft.teams[teamId];
             if (!target || target.memberIds.includes(pid)) continue;
+            if (target.memberIds.length >= maxSize) break;
             removePlayerFromAll(draft, pid);
             const fresh = draft.teams[teamId];
-            if (!fresh) continue;
+            if (!fresh || fresh.memberIds.length >= maxSize) continue;
             draft.teams[teamId] = {
               ...fresh,
               memberIds: [...fresh.memberIds, pid],
@@ -882,8 +902,181 @@ export const usePelada = create<PeladaState>()(
           return { ...s, teamNames: next, lastModified: Date.now() };
         }),
 
+      setGameFormat: (fmt) =>
+        set((s) => ({
+          ...s,
+          gameFormat: fmt,
+          lastModified: Date.now(),
+        })),
+
       setAdminPin: (pin) =>
         set((s) => ({ ...s, adminPin: pin, lastModified: Date.now() })),
+
+      groupPlayersByUser: (userA, userB) => {
+        const s = get();
+        const maxSize = getMaxTeamSize(s.gameFormat);
+        const draft: PeladaState = cloneState(s);
+
+        const ensurePlayer = (u: {
+          userId: string;
+          name: string;
+          role?: "aluno" | "convencional";
+        }): Player => {
+          const existing = Object.values(draft.players).find(
+            (p) =>
+              p.userId === u.userId ||
+              p.name.toLowerCase() === u.name.trim().toLowerCase(),
+          );
+          if (existing) return existing;
+          const id = uid();
+          const created: Player = {
+            id,
+            name: u.name.trim(),
+            justPlayed: false,
+            createdAt: Date.now(),
+            role: u.role,
+            userId: u.userId,
+          };
+          draft.players[id] = created;
+          draft.queue.push({ kind: "player", id });
+          return created;
+        };
+
+        const pA = ensurePlayer(userA);
+        const pB = ensurePlayer(userB);
+        if (pA.id === pB.id) {
+          return { ok: false, reason: "Mesmo jogador." };
+        }
+
+        // Check if either player is on court right now
+        for (const side of ["teamAId", "teamBId"] as const) {
+          const tid = draft.court[side];
+          if (!tid) continue;
+          const ct = draft.teams[tid];
+          if (ct && (ct.memberIds.includes(pA.id) || ct.memberIds.includes(pB.id))) {
+            return {
+              ok: false,
+              reason: "Um dos jogadores já está em quadra no momento.",
+            };
+          }
+        }
+
+        const findQueueTeam = (pid: ID): Team | null => {
+          for (const entry of draft.queue) {
+            if (entry.kind === "team") {
+              const t = draft.teams[entry.id];
+              if (t && t.memberIds.includes(pid)) return t;
+            }
+          }
+          return null;
+        };
+
+        const teamA = findQueueTeam(pA.id);
+        const teamB = findQueueTeam(pB.id);
+
+        if (teamA && teamB && teamA.id === teamB.id) {
+          return {
+            ok: true,
+            teamLabel: draft.teamNames[teamA.id] ?? `TIME ${teamA.number}`,
+          };
+        }
+
+        if (teamA && !teamB) {
+          if (teamA.memberIds.length >= maxSize) {
+            return {
+              ok: false,
+              reason: `O time já atingiu o limite de ${maxSize} jogadores (${draft.gameFormat}).`,
+            };
+          }
+          removePlayerFromAll(draft, pB.id);
+          const fresh = draft.teams[teamA.id];
+          if (!fresh) return { ok: false, reason: "Time não encontrado." };
+          draft.teams[teamA.id] = {
+            ...fresh,
+            memberIds: [...fresh.memberIds, pB.id],
+          };
+          const lbl = draft.teamNames[teamA.id] ?? `TIME ${teamA.number}`;
+          logAction(draft, `🤝 ${pB.name} entrou no grupo de ${pA.name} (${lbl})`);
+          set(draft);
+          return { ok: true, teamLabel: lbl };
+        }
+
+        if (!teamA && teamB) {
+          if (teamB.memberIds.length >= maxSize) {
+            return {
+              ok: false,
+              reason: `O time já atingiu o limite de ${maxSize} jogadores (${draft.gameFormat}).`,
+            };
+          }
+          removePlayerFromAll(draft, pA.id);
+          const fresh = draft.teams[teamB.id];
+          if (!fresh) return { ok: false, reason: "Time não encontrado." };
+          draft.teams[teamB.id] = {
+            ...fresh,
+            memberIds: [...fresh.memberIds, pA.id],
+          };
+          const lbl = draft.teamNames[teamB.id] ?? `TIME ${teamB.number}`;
+          logAction(draft, `🤝 ${pA.name} e ${pB.name} formaram grupo (${lbl})`);
+          set(draft);
+          return { ok: true, teamLabel: lbl };
+        }
+
+        if (teamA && teamB) {
+          if (teamA.memberIds.length + teamB.memberIds.length > maxSize) {
+            return {
+              ok: false,
+              reason: `A soma dos grupos ultrapassa o limite de ${maxSize} jogadores (${draft.gameFormat}).`,
+            };
+          }
+          const combined = Array.from(new Set([...teamA.memberIds, ...teamB.memberIds]));
+          const idxA = draft.queue.findIndex(
+            (e) => e.kind === "team" && e.id === teamA.id,
+          );
+          for (const pid of combined) removePlayerFromAll(draft, pid);
+          const num = draft.nextTeamNumber;
+          draft.nextTeamNumber += 1;
+          const teamId = uid();
+          draft.teams[teamId] = {
+            id: teamId,
+            number: num,
+            memberIds: combined,
+            wins: 0,
+            createdAt: Date.now(),
+          };
+          const insertAt = idxA >= 0 ? Math.min(idxA, draft.queue.length) : draft.queue.length;
+          draft.queue.splice(insertAt, 0, { kind: "team", id: teamId });
+          const lbl = `TIME ${num}`;
+          logAction(draft, `🤝 ${pA.name} e ${pB.name} uniram grupos (${lbl})`);
+          set(draft);
+          return { ok: true, teamLabel: lbl };
+        }
+
+        // Neither is in a team: form a new 2-player team at the earliest queue index
+        const idxA = draft.queue.findIndex((e) => e.kind === "player" && e.id === pA.id);
+        const idxB = draft.queue.findIndex((e) => e.kind === "player" && e.id === pB.id);
+        const candidates = [idxA, idxB].filter((i) => i >= 0);
+        const earliestIdx = candidates.length > 0 ? Math.min(...candidates) : draft.queue.length;
+
+        removePlayerFromAll(draft, pA.id);
+        removePlayerFromAll(draft, pB.id);
+
+        const num = draft.nextTeamNumber;
+        draft.nextTeamNumber += 1;
+        const teamId = uid();
+        draft.teams[teamId] = {
+          id: teamId,
+          number: num,
+          memberIds: [pA.id, pB.id],
+          wins: 0,
+          createdAt: Date.now(),
+        };
+        const insertAt = Math.min(earliestIdx, draft.queue.length);
+        draft.queue.splice(insertAt, 0, { kind: "team", id: teamId });
+        const lbl = `TIME ${num}`;
+        logAction(draft, `🤝 ${pA.name} e ${pB.name} formaram o ${lbl} na fila`);
+        set(draft);
+        return { ok: true, teamLabel: lbl };
+      },
 
       setMatchDuration: (ms) =>
         set((s) => ({
@@ -1004,6 +1197,7 @@ export const usePelada = create<PeladaState>()(
         adminPin: s.adminPin,
         screenLocked: s.screenLocked,
         lastModified: s.lastModified,
+        gameFormat: s.gameFormat,
         matchMs: s.matchMs,
         suddenDeathMs: s.suddenDeathMs,
         championRuleEnabled: s.championRuleEnabled,

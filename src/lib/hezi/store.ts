@@ -178,7 +178,7 @@ export const mkR = (
 
 export interface HeziUser {
   id: number;
-  tipo: "aluno" | "jogador";
+  tipo: "aluno" | "jogador" | "professor";
   nome: string;
   apelido?: string;
   dataNascimento?: string;
@@ -186,10 +186,11 @@ export interface HeziUser {
   email?: string;
   senha?: string;
   pos?: string;
-  st?: "ativo" | "inativo";
+  st?: "ativo" | "pendente" | "inativo" | "ex_aluno";
   hp: number;
   of?: number;
   foto?: string;
+  avatarIcon?: string;
   wpp?: string;
   sub?: Record<CatKey, number>;
   r?: Record<NanoKey, number>;
@@ -206,6 +207,107 @@ export interface HeziEventItem {
   l: string;
   r: string;
   f: number[];
+  aoVivoAgora?: boolean;
+}
+
+export interface HeziNotification {
+  id: string;
+  type: "queue_request" | "group_invite" | "system";
+  fromUserId: number;
+  fromUserName: string;
+  toUserId?: number; // undefined = para Admin / Professor
+  toUserName?: string;
+  eventId?: number;
+  eventTitle?: string;
+  createdAt: number;
+  timeLabel: string; // HH:mm
+  status: "pending" | "accepted" | "rejected";
+  message?: string;
+  read?: boolean;
+}
+
+export function formatTimeHHMM(ts = Date.now()): string {
+  return new Date(ts).toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+/**
+ * Verifica se um evento está no horário programado ou a partir de 30 minutos antes
+ * (ex: Terça-feira 18:30 para um evento programado às 19:00), ou marcado como aoVivoAgora.
+ */
+export function isEventRollingNow(
+  ev: HeziEventItem,
+  now: Date = new Date(),
+): boolean {
+  if (ev.aoVivoAgora) return true;
+  if (!ev.q) return false;
+
+  const text = ev.q
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  // Extract HH:mm or HHh(mm)
+  const timeMatch = text.match(/(\d{1,2})\s*(?::|h)\s*(\d{2})?/);
+  if (!timeMatch) return false;
+
+  const hour = Number(timeMatch[1]);
+  const minute = timeMatch[2] ? Number(timeMatch[2]) : 0;
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return false;
+
+  // Check day of week if mentioned
+  const dayPairs: Array<[string, number]> = [
+    ["domingo", 0],
+    ["dom", 0],
+    ["segunda", 1],
+    ["seg", 1],
+    ["terca", 2],
+    ["ter", 2],
+    ["quarta", 3],
+    ["qua", 3],
+    ["quinta", 4],
+    ["qui", 4],
+    ["sexta", 5],
+    ["sex", 5],
+    ["sabado", 6],
+    ["sab", 6],
+  ];
+
+  let matchedDay: number | null = null;
+  for (const [token, dow] of dayPairs) {
+    if (new RegExp(`\\b${token}`).test(text)) {
+      matchedDay = dow;
+      break;
+    }
+  }
+
+  const isHojeToken = /\bhoje\b/.test(text) || /\bdiario\b/.test(text);
+
+  // Check DD/MM if present
+  const dateMatch = text.match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
+  if (dateMatch) {
+    const d = Number(dateMatch[1]);
+    const m = Number(dateMatch[2]);
+    if (now.getDate() !== d || now.getMonth() + 1 !== m) {
+      return false;
+    }
+  } else if (matchedDay !== null && !isHojeToken) {
+    if (now.getDay() !== matchedDay) {
+      return false;
+    }
+  } else if (!isHojeToken) {
+    return false;
+  }
+
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const eventStartMinutes = hour * 60 + minute;
+  // Exibir sempre 30 minutos antes até 180 minutos depois do início
+  return (
+    nowMinutes >= eventStartMinutes - 30 &&
+    nowMinutes <= eventStartMinutes + 180
+  );
 }
 
 export const U0: HeziUser[] = [
@@ -227,7 +329,7 @@ export const U0: HeziUser[] = [
     sub: sL,
     r: mkR(sL, { dir: 19, esq: 10 }),
     bd: { ...B0(), ban: { l: 1, s: 0 }, fis: { l: 2, s: 0 } },
-    ev: { d: "03/11/2026", c: "Quinzenal" },
+    ev: { d: "03/11/2026", c: "Mensal" },
     nota: "Ótima mão direita! Foco na esquerda: faça séries de bandeja só com a esquerda antes do treino.",
   },
   {
@@ -248,7 +350,7 @@ export const U0: HeziUser[] = [
     sub: sM,
     r: mkR(sM, { dir: 14, esq: 13 }),
     bd: { ...B0(), fis: { l: 1, s: 0 } },
-    ev: { d: "03/11/2026", c: "Quinzenal" },
+    ev: { d: "03/11/2026", c: "Mensal" },
     nota: "Evolução equilibrada. Manter a constância nos treinos.",
   },
   {
@@ -262,7 +364,7 @@ export const U0: HeziUser[] = [
     dataNascimento: "2008-11-08",
     wpp: "(21) 99999-1003",
     pos: "Pivô",
-    st: "inativo",
+    st: "pendente",
     hp: 90,
     of: 0,
     foto: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150",
@@ -343,12 +445,18 @@ export interface HeziPlatformState {
   lastModified: number;
   users: HeziUser[];
   evs: HeziEventItem[];
+  notifications: HeziNotification[];
   updUser: (id: number, patch: Partial<HeziUser>) => void;
   addUser: (u: HeziUser) => void;
   setEvs: (evs: HeziEventItem[]) => void;
   addQueue: (eid: number, uid: number) => void;
+  addNotification: (n: HeziNotification) => void;
+  updateNotification: (id: string, patch: Partial<HeziNotification>) => void;
+  setNotifications: (list: HeziNotification[]) => void;
   hydrateFromRemote: (
-    remote: Partial<Pick<HeziPlatformState, "lastModified" | "users" | "evs">>,
+    remote: Partial<
+      Pick<HeziPlatformState, "lastModified" | "users" | "evs" | "notifications">
+    >,
   ) => void;
 }
 
@@ -358,6 +466,7 @@ export const useHeziPlatform = create<HeziPlatformState>()(
       lastModified: 0,
       users: U0,
       evs: E0,
+      notifications: [],
 
       updUser: (id, patch) =>
         set((s) => ({
@@ -389,19 +498,44 @@ export const useHeziPlatform = create<HeziPlatformState>()(
           ),
         })),
 
+      addNotification: (n) =>
+        set((s) => ({
+          ...s,
+          lastModified: Date.now(),
+          notifications: [n, ...s.notifications].slice(0, 150),
+        })),
+
+      updateNotification: (id, patch) =>
+        set((s) => ({
+          ...s,
+          lastModified: Date.now(),
+          notifications: s.notifications.map((n) =>
+            n.id === id ? { ...n, ...patch } : n,
+          ),
+        })),
+
+      setNotifications: (list) =>
+        set((s) => ({
+          ...s,
+          lastModified: Date.now(),
+          notifications: list,
+        })),
+
       hydrateFromRemote: (remote) =>
         set((s) => ({
           ...s,
           ...remote,
           evs: remote.evs ? normalizeEvents(remote.evs) : s.evs,
+          notifications: remote.notifications ?? s.notifications,
         })),
     }),
     {
-      name: "hezi-platform-store-v3",
+      name: "hezi-platform-store-v4",
       partialize: (s) => ({
         lastModified: s.lastModified,
         users: s.users,
         evs: s.evs,
+        notifications: s.notifications,
       }),
     },
   ),

@@ -11,6 +11,7 @@ import {
   ovr,
   type HeziUser,
   type HeziEventItem,
+  type HeziNotification,
   type CatKey,
   type NanoKey,
   type BadgeState,
@@ -44,6 +45,7 @@ let sqliteUnavailable = false;
 const memoryFallback = {
   users: structuredClone(U0) as HeziUser[],
   evs: structuredClone(E0) as HeziEventItem[],
+  notifications: [] as HeziNotification[],
   heziUpdatedAt: Date.now(),
   pelada: null as Record<string, unknown> | null,
   peladaUpdatedAt: 0,
@@ -160,6 +162,12 @@ function getDb(): SqliteDatabase | null {
         key TEXT PRIMARY KEY,
         updated_at INTEGER NOT NULL
       );
+
+      CREATE TABLE IF NOT EXISTS notifications_state (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        payload_json TEXT NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
     `);
 
     try {
@@ -263,14 +271,21 @@ function saveHeziToDbInternal(
         instagram: u.instagram,
         email: u.email,
         senha: u.senha,
+        tipo: u.tipo,
+        st: u.st,
+        avatarIcon: u.avatarIcon,
       });
+
+      const dbTipo = u.tipo === "aluno" ? "aluno" : "jogador";
+      const dbSt =
+        u.st === "ativo" ? "ativo" : u.st ? "inativo" : null;
 
       upsertUser.run(
         u.id,
-        u.tipo,
+        dbTipo,
         u.nome,
         u.pos ?? "",
-        u.st ?? null,
+        dbSt,
         u.hp ?? 0,
         u.of ?? 0,
         u.foto ?? null,
@@ -375,9 +390,10 @@ function readUsersFromDb(db: SqliteDatabase): HeziUser[] {
       }
     }
     const seedMatch = U0.find((x) => x.id === Number(r.id));
+    const resolvedTipo = extra.tipo ?? r.tipo;
     const u: HeziUser = {
       id: Number(r.id),
-      tipo: r.tipo,
+      tipo: resolvedTipo,
       nome: r.nome,
       pos: r.pos || undefined,
       hp: Number(r.hp),
@@ -386,10 +402,12 @@ function readUsersFromDb(db: SqliteDatabase): HeziUser[] {
       instagram: extra.instagram ?? seedMatch?.instagram,
       email: extra.email ?? seedMatch?.email,
       senha: extra.senha ?? seedMatch?.senha,
+      avatarIcon: extra.avatarIcon,
+      foto: r.foto ?? undefined,
     };
     if (r.wpp) u.wpp = r.wpp;
-    if (r.tipo === "aluno") {
-      u.st = r.st ?? "ativo";
+    if (resolvedTipo === "aluno" || r.sub_json) {
+      u.st = extra.st ?? (r.st === "inativo" ? "pendente" : r.st ?? "ativo");
       u.of = Number(r.ofensiva ?? 0);
       if (r.foto) u.foto = r.foto;
       u.sub = r.sub_json
@@ -457,6 +475,7 @@ export function loadFullSyncStateFromDb() {
         lastModified: memoryFallback.heziUpdatedAt,
         users: memoryFallback.users,
         evs: memoryFallback.evs,
+        notifications: memoryFallback.notifications,
       },
       heziUpdatedAt: memoryFallback.heziUpdatedAt,
     };
@@ -469,6 +488,18 @@ export function loadFullSyncStateFromDb() {
 
   const users = readUsersFromDb(db);
   const evs = readEventsFromDb(db);
+
+  const notifRow = db
+    .prepare("SELECT payload_json FROM notifications_state WHERE id = 1")
+    .get() as { payload_json: string } | undefined;
+  let notifications: HeziNotification[] = [];
+  if (notifRow?.payload_json) {
+    try {
+      notifications = JSON.parse(notifRow.payload_json) as HeziNotification[];
+    } catch {
+      notifications = [];
+    }
+  }
 
   const peladaRow = db
     .prepare("SELECT payload_json, updated_at FROM pelada_totem_state WHERE id = 1")
@@ -483,25 +514,41 @@ export function loadFullSyncStateFromDb() {
       lastModified: heziUpdatedAt,
       users,
       evs,
+      notifications,
     },
     heziUpdatedAt,
   };
 }
 
 export function saveHeziStateToDb(
-  hezi: { users?: HeziUser[]; evs?: HeziEventItem[]; lastModified?: number },
+  hezi: {
+    users?: HeziUser[];
+    evs?: HeziEventItem[];
+    notifications?: HeziNotification[];
+    lastModified?: number;
+  },
   updatedAt: number,
 ) {
   const db = getDb();
   if (!db) {
     if (hezi.users) memoryFallback.users = hezi.users;
     if (hezi.evs) memoryFallback.evs = hezi.evs;
+    if (hezi.notifications) memoryFallback.notifications = hezi.notifications;
     memoryFallback.heziUpdatedAt = updatedAt;
     return;
   }
   const currentUsers = hezi.users ?? readUsersFromDb(db);
   const currentEvs = hezi.evs ?? readEventsFromDb(db);
   saveHeziToDbInternal(db, currentUsers, currentEvs, updatedAt, false);
+  if (hezi.notifications) {
+    db.prepare(`
+      INSERT INTO notifications_state (id, payload_json, updated_at)
+      VALUES (1, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        payload_json = excluded.payload_json,
+        updated_at = excluded.updated_at
+    `).run(JSON.stringify(hezi.notifications), updatedAt);
+  }
 }
 
 export function savePeladaStateToDb(

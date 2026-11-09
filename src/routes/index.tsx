@@ -30,6 +30,11 @@ import {
   Award,
   Shirt,
   LogOut,
+  Bell,
+  Settings,
+  UserCog,
+  UsersRound,
+  Radio,
 } from "lucide-react";
 import {
   LOGO,
@@ -48,16 +53,20 @@ import {
   B0,
   useHeziPlatform,
   useHeziSession,
+  isEventRollingNow,
+  formatTimeHHMM,
   type CatKey,
   type NanoKey,
   type HeziUser,
   type HeziEventItem,
+  type HeziNotification,
 } from "@/lib/hezi/store";
 import {
   usePelada,
   getPlayerPeladaStatus,
   currentDurationMs,
   computeElapsed,
+  getMaxTeamSize,
 } from "@/lib/pelada/store";
 import { useRealtimeSync } from "@/lib/hezi/sync";
 import { CourtMasterOrganizer, useTick } from "./pelada";
@@ -135,6 +144,8 @@ function Chip({
   );
 }
 
+const AVATAR_ICONS = ["🏀", "⚡", "🔥", "👑", "🎯", "🦁", "🦅", "🛡️", "🚀", "💎"];
+
 function Av({
   u,
   s = "w-14 h-14 text-lg",
@@ -149,6 +160,19 @@ function Av({
     .join("")
     .slice(0, 2)
     .toUpperCase();
+
+  if (u.avatarIcon) {
+    return (
+      <div
+        className={
+          "rounded-full bg-[#111317] text-white font-extrabold flex items-center justify-center shrink-0 border border-[#FF5400]/40 " +
+          s
+        }
+      >
+        <span>{u.avatarIcon}</span>
+      </div>
+    );
+  }
 
   if (u.foto && !imgErr) {
     return (
@@ -195,16 +219,26 @@ interface AppContextProps {
   users: HeziUser[];
   evs: HeziEventItem[];
   setEvs: (evs: HeziEventItem[]) => void;
+  notifications: HeziNotification[];
   me: HeziUser | null;
   role: "visitante" | "jogador" | "aluno" | "professor" | "admin";
   upd: (id: number, patch: Partial<HeziUser>) => void;
   say: (msg: string) => void;
   join: (eid: number) => void;
+  approveQueueRequest: (notifId: string) => void;
+  rejectQueueRequest: (notifId: string) => void;
+  sendGroupInvite: (toUserId: number, eventId: number) => void;
+  acceptGroupInvite: (notifId: string) => void;
+  rejectGroupInvite: (notifId: string) => void;
+  selectedEventId: number | null;
+  setSelectedEventId: (id: number | null) => void;
   setTab: (tab: AppTab) => void;
   setCad: (open: boolean) => void;
   openCourtMaster: () => void;
   goMeuPerfil: () => void;
   goQueroSerAssinante: () => void;
+  openLoginForAssinante: () => void;
+  openRegisterForAssinante: () => void;
 }
 
 function validatePasswordRules(pwd: string) {
@@ -599,9 +633,38 @@ function LoginPage({
 }
 
 // ---------------------------------------------------------------------------
-// PÁGINA "QUERO SER ASSINANTE" (VANTAGENS HEZI SKILLS + CTA WHATSAPP)
+// PÁGINA "QUERO SER ASSINANTE" (BLOQUEADA PARA VISITANTE SEM CONTA)
 // ---------------------------------------------------------------------------
 function AssinantePage({ S }: { S: AppContextProps }) {
+  if (S.role === "visitante" && !S.me) {
+    return (
+      <div className="p-4 space-y-4">
+        <div className={C + " p-6 text-center space-y-3"}>
+          <div className="w-14 h-14 rounded-full bg-[#FFF4EE] text-[#FF5400] flex items-center justify-center mx-auto">
+            <Lock className="w-7 h-7" />
+          </div>
+          <h2 className="font-extrabold text-xl text-[#111317]">
+            Área Exclusiva · Quero ser assinante
+          </h2>
+          <p className="text-sm text-[#6E7381]">
+            Para acessar as vantagens da assinatura Hezi Skills e solicitar sua
+            vaga, faça login na sua conta ou crie uma conta grátis agora.
+          </p>
+          <div className="space-y-2.5 pt-1">
+            <Btn onClick={S.openLoginForAssinante} c={OB}>
+              <LogIn className="w-4 h-4" />
+              Fazer Login
+            </Btn>
+            <Btn onClick={S.openRegisterForAssinante} c="bg-[#111317] text-white">
+              <UserPlus className="w-4 h-4 text-[#FF5400]" />
+              Criar uma Conta
+            </Btn>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const userName = S.me ? S.me.nome : "";
   const wppUrl = wa(
     userName
@@ -695,6 +758,16 @@ function AssinantePage({ S }: { S: AppContextProps }) {
 // PÁGINA INICIAL (HOME)
 // ---------------------------------------------------------------------------
 function Home({ S }: { S: AppContextProps }) {
+  useTick(15000);
+  const peladaStore = usePelada();
+  const totalWaitingPlayers = peladaStore.queue.reduce((acc, entry) => {
+    if (entry.kind === "player") return acc + 1;
+    const t = peladaStore.teams[entry.id];
+    return acc + (t ? t.memberIds.length : 0);
+  }, 0);
+
+  const rollingEvents = S.evs.filter((ev) => isEventRollingNow(ev, new Date()));
+
   return (
     <div className="p-4 space-y-6">
       {/* Hero */}
@@ -715,6 +788,70 @@ function Home({ S }: { S: AppContextProps }) {
           </Btn>
         </div>
       </div>
+
+      {/* Destaque "Está rolando" (exibido a partir de 30 minutos antes do horário do evento) */}
+      {rollingEvents.length > 0 && (
+        <div className="space-y-2.5">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 bg-[#EF4444] text-white text-xs font-extrabold uppercase px-3 py-1 rounded-full shadow-xs">
+              <span className="w-2 h-2 rounded-full bg-white animate-ping" />
+              Está rolando
+            </span>
+            <span className="text-xs font-bold text-[#6E7381]">
+              Evento acontecendo ou prestes a começar
+            </span>
+          </div>
+
+          {rollingEvents.map((ev) => {
+            const isPeladaEvent = ev.tp === "Pelada";
+            const queueCount = isPeladaEvent
+              ? Math.max(ev.f.length, totalWaitingPlayers)
+              : ev.f.length;
+            return (
+              <button
+                key={ev.id}
+                type="button"
+                onClick={() => {
+                  S.setSelectedEventId(ev.id);
+                  S.setTab("pelada");
+                }}
+                className={
+                  C +
+                  " w-full p-4 text-left border-2 border-[#FF5400] bg-gradient-to-br from-white to-[#FFF4EE]/60 transition active:scale-[0.99] space-y-2"
+                }
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-extrabold uppercase tracking-wider text-[#FF5400] flex items-center gap-1">
+                    <Radio className="w-3.5 h-3.5" />
+                    {ev.tp}
+                  </span>
+                  <Chip c="bg-[#111317] text-white">{queueCount} na fila</Chip>
+                </div>
+
+                <div>
+                  <h3 className="font-extrabold text-lg text-[#111317]">
+                    {ev.t}
+                  </h3>
+                  <p className="text-xs text-[#6E7381] mt-0.5">
+                    📅 {ev.q} · 📍 {ev.l}
+                  </p>
+                </div>
+
+                {ev.r && (
+                  <p className="text-xs bg-white/90 border border-[#EAEBEF] rounded-lg px-2.5 py-1.5 text-[#111317] font-medium">
+                    📋 {ev.r}
+                  </p>
+                )}
+
+                <div className="pt-1 flex items-center justify-between text-xs font-extrabold text-[#FF5400]">
+                  <span>Toque para abrir e entrar na fila</span>
+                  <span>→</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Drop 001 : Basic Collection — Apenas Hezi Shirt 001 com fotos reais anexadas */}
       <div>
@@ -774,21 +911,24 @@ function Pelada({ S }: { S: AppContextProps }) {
   const peladaStore = usePelada();
   useTick();
 
-  const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
+  const { selectedEventId, setSelectedEventId } = S;
   const [adminPreviewUserView, setAdminPreviewUserView] = useState(false);
+
+  const isOrganizer = S.role === "admin" || S.role === "professor";
+  const maxTeamSize = getMaxTeamSize(peladaStore.gameFormat);
 
   const selectedEvent =
     selectedEventId !== null
       ? S.evs.find((e) => e.id === selectedEventId) || null
       : null;
 
-  if (S.role === "admin" && !adminPreviewUserView) {
+  if (isOrganizer && !adminPreviewUserView && !selectedEvent) {
     return (
       <div className="p-4 space-y-4">
         <div className={C + " p-3.5 flex items-center justify-between gap-2"}>
           <div>
             <p className="font-extrabold text-sm text-[#111317]">
-              🔑 Court Master Scheduler · Área do Administrador
+              {S.role === "admin" ? "🔑 Área do Administrador" : "🧑‍🏫 Área do Professor"} · Court Master ({peladaStore.gameFormat.toUpperCase()} · Máx {maxTeamSize}/time)
             </p>
             <p className="text-xs text-[#6E7381]">
               Organize a pelada aqui. Os jogadores veem os eventos disponíveis e
@@ -800,7 +940,7 @@ function Pelada({ S }: { S: AppContextProps }) {
             onClick={() => setAdminPreviewUserView(true)}
             className="shrink-0 rounded-xl bg-[#F4F5F7] border border-[#EAEBEF] px-3 py-2 text-xs font-extrabold text-[#111317]"
           >
-            👁️ Ver como Usuário
+            👁️ Ver Eventos
           </button>
         </div>
         <CourtMasterOrganizer embedded />
@@ -827,7 +967,7 @@ function Pelada({ S }: { S: AppContextProps }) {
               Toque em um evento abaixo para ver os detalhes e entrar na fila
             </p>
           </div>
-          {S.role === "admin" && (
+          {isOrganizer && (
             <button
               type="button"
               onClick={() => setAdminPreviewUserView(false)}
@@ -845,7 +985,7 @@ function Pelada({ S }: { S: AppContextProps }) {
               Nenhum evento disponível no momento
             </p>
             <p className="text-xs text-[#6E7381]">
-              Novos eventos criados pelo administrador aparecerão aqui.
+              Novos eventos criados pelo administrador ou professor aparecerão aqui.
             </p>
           </div>
         ) : (
@@ -855,6 +995,7 @@ function Pelada({ S }: { S: AppContextProps }) {
               const queueCount = isPeladaEvent
                 ? Math.max(ev.f.length, totalWaitingPlayers)
                 : ev.f.length;
+              const rolling = isEventRollingNow(ev, new Date());
               return (
                 <button
                   key={ev.id}
@@ -866,9 +1007,14 @@ function Pelada({ S }: { S: AppContextProps }) {
                   }
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-extrabold uppercase tracking-wider text-[#FF5400]">
-                      {ev.tp}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-extrabold uppercase tracking-wider text-[#FF5400]">
+                        {ev.tp}
+                      </span>
+                      {rolling && (
+                        <Chip c="bg-[#EF4444] text-white">🔥 Está rolando</Chip>
+                      )}
+                    </div>
                     <Chip c="bg-[#F4F5F7] text-[#111317]">
                       {queueCount} na fila
                     </Chip>
@@ -930,6 +1076,33 @@ function Pelada({ S }: { S: AppContextProps }) {
     ? selectedEvent.f.includes(S.me.id)
     : false;
 
+  const myPendingQueueRequest = S.me
+    ? S.notifications.find(
+        (n) =>
+          n.type === "queue_request" &&
+          n.status === "pending" &&
+          n.fromUserId === S.me!.id &&
+          n.eventId === selectedEvent.id,
+      )
+    : undefined;
+
+  const myIncomingGroupInvites = S.me
+    ? S.notifications.filter(
+        (n) =>
+          n.type === "group_invite" &&
+          n.status === "pending" &&
+          n.toUserId === S.me!.id,
+      )
+    : [];
+
+  const amIInQueue =
+    myCourtStatus?.status === "in-queue" || isInSimpleEventQueue;
+  const myQueueTeamCount =
+    myCourtStatus?.status === "in-queue" && myCourtStatus.team
+      ? myCourtStatus.team.memberIds.length
+      : 1;
+  const canInviteOthers = amIInQueue && myQueueTeamCount < maxTeamSize;
+
   return (
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between gap-2">
@@ -941,10 +1114,13 @@ function Pelada({ S }: { S: AppContextProps }) {
           ← Voltar para Eventos
         </button>
 
-        {S.role === "admin" && (
+        {isOrganizer && (
           <button
             type="button"
-            onClick={() => setAdminPreviewUserView(false)}
+            onClick={() => {
+              setSelectedEventId(null);
+              setAdminPreviewUserView(false);
+            }}
             className="text-xs font-extrabold bg-[#111317] text-white px-3 py-2 rounded-xl flex items-center gap-1.5"
           >
             <Timer className="w-3.5 h-3.5 text-[#FF5400]" />
@@ -958,9 +1134,53 @@ function Pelada({ S }: { S: AppContextProps }) {
           {selectedEvent.t}
         </h2>
         <p className="text-xs text-[#6E7381]">
-          📅 {selectedEvent.q} · 📍 {selectedEvent.l}
+          📅 {selectedEvent.q} · 📍 {selectedEvent.l} · Modalidade{" "}
+          {peladaStore.gameFormat.toUpperCase()} (Máx {maxTeamSize}/time)
         </p>
       </div>
+
+      {/* Solicitações de Grupo Recebidas pelo Jogador */}
+      {myIncomingGroupInvites.length > 0 && (
+        <div className="space-y-2">
+          {myIncomingGroupInvites.map((inv) => (
+            <div
+              key={inv.id}
+              className="bg-[#FFF4EE] border-2 border-[#FF5400] rounded-2xl p-3.5 space-y-2.5 shadow-xs"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-extrabold uppercase text-[#FF5400] flex items-center gap-1.5">
+                  <UsersRound className="w-4 h-4" />
+                  Convite para Grupo na Fila
+                </span>
+                <span className="n text-xs font-bold text-[#6E7381]">
+                  🕒 {inv.timeLabel}
+                </span>
+              </div>
+              <p className="text-xs text-[#111317] font-semibold">
+                <strong>{inv.fromUserName}</strong> convidou você para formar um
+                time na fila ({peladaStore.gameFormat.toUpperCase()} · máx{" "}
+                {maxTeamSize} jogadores).
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => S.acceptGroupInvite(inv.id)}
+                  className="rounded-xl bg-[#10B981] text-white text-xs font-extrabold py-2.5 px-3 transition active:scale-95"
+                >
+                  ✓ Aceitar e Formar Time
+                </button>
+                <button
+                  type="button"
+                  onClick={() => S.rejectGroupInvite(inv.id)}
+                  className="rounded-xl bg-white border border-[#EAEBEF] text-[#6E7381] text-xs font-extrabold py-2.5 px-3 transition active:scale-95"
+                >
+                  Recusar
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Card Principal: Regras + Botão Entrar na fila */}
       <div className={C + " p-4 space-y-3"}>
@@ -974,7 +1194,7 @@ function Pelada({ S }: { S: AppContextProps }) {
           myCourtStatus && myCourtStatus.status !== "not-in-pelada" ? (
             <div className="bg-[#ECFDF5] border border-[#10B981]/40 rounded-xl p-3.5 space-y-1">
               <p className="text-xs font-extrabold uppercase tracking-wider text-[#10B981]">
-                ✓ Seu Status na Pelada
+                ✓ Seu Status na Pelada (+5 HP garantidos)
               </p>
               <p className="text-base font-extrabold text-[#111317]">
                 {myCourtStatus.status === "on-court"
@@ -985,6 +1205,29 @@ function Pelada({ S }: { S: AppContextProps }) {
                       ? `⏱️ Você está na fila no ${myCourtStatus.teamLabel} — Posição #${myCourtStatus.position}`
                       : `✓ Você está na fila — Posição #${myCourtStatus.position} (${myCourtStatus.playersAheadCount} na sua frente)`}
               </p>
+              {canInviteOthers && (
+                <p className="text-xs text-[#6E7381] pt-1">
+                  💡 Quer jogar junto com alguém da fila? Toque em{" "}
+                  <strong className="text-[#FF5400]">+ Grupo</strong> ao lado do
+                  nome do jogador abaixo para enviar solicitação de time!
+                </p>
+              )}
+            </div>
+          ) : myPendingQueueRequest ? (
+            <div className="bg-[#FFF4EE] border border-[#FF5400]/40 rounded-xl p-3.5 space-y-1">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-extrabold uppercase tracking-wider text-[#FF5400]">
+                  ⏳ Solicitação Enviada ao Organizador
+                </p>
+                <span className="n text-xs font-bold text-[#6E7381]">
+                  🕒 {myPendingQueueRequest.timeLabel}
+                </span>
+              </div>
+              <p className="text-xs text-[#111317] font-medium">
+                Assim que o Administrador ou Professor aceitar sua entrada nas
+                notificações, você entrará na fila e ganhará{" "}
+                <strong className="text-[#FF5400]">+5 Hezi Points</strong>!
+              </p>
             </div>
           ) : (
             <Btn onClick={() => S.join(selectedEvent.id)} c={OB}>
@@ -994,10 +1237,26 @@ function Pelada({ S }: { S: AppContextProps }) {
         ) : isInSimpleEventQueue ? (
           <div className="bg-[#ECFDF5] border border-[#10B981]/40 rounded-xl p-3.5 space-y-1">
             <p className="text-xs font-extrabold uppercase tracking-wider text-[#10B981]">
-              ✓ Presença Confirmada na Fila
+              ✓ Presença Confirmada na Fila (+5 HP)
             </p>
             <p className="text-sm font-extrabold text-[#111317]">
               Você está na posição #{selectedEvent.f.indexOf(S.me!.id) + 1} deste evento.
+            </p>
+          </div>
+        ) : myPendingQueueRequest ? (
+          <div className="bg-[#FFF4EE] border border-[#FF5400]/40 rounded-xl p-3.5 space-y-1">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-extrabold uppercase tracking-wider text-[#FF5400]">
+                ⏳ Solicitação Enviada ao Organizador
+              </p>
+              <span className="n text-xs font-bold text-[#6E7381]">
+                🕒 {myPendingQueueRequest.timeLabel}
+              </span>
+            </div>
+            <p className="text-xs text-[#111317] font-medium">
+              Aguardando confirmação do Administrador/Professor para entrar na
+              fila e receber{" "}
+              <strong className="text-[#FF5400]">+5 Hezi Points</strong>.
             </p>
           </div>
         ) : (
@@ -1181,6 +1440,19 @@ function Pelada({ S }: { S: AppContextProps }) {
                             heziUser.st === "ativo")) && (
                           <Chip c="bg-[#FFF4EE] text-[#FF5400]">ALUNO VIP</Chip>
                         )}
+                        {!isMe && canInviteOthers && heziUser && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              S.sendGroupInvite(heziUser.id, selectedEvent.id)
+                            }
+                            className="shrink-0 rounded-xl bg-[#111317] hover:bg-[#FF5400] text-white text-xs font-extrabold px-2.5 py-1.5 transition active:scale-95 flex items-center gap-1"
+                            title="Convidar jogador para formar time na fila"
+                          >
+                            <UsersRound className="w-3.5 h-3.5 text-[#FF5400]" />
+                            + Grupo
+                          </button>
+                        )}
                       </div>
                     );
                   }
@@ -1221,7 +1493,7 @@ function Pelada({ S }: { S: AppContextProps }) {
                           )}
                         </div>
                         <Chip c="bg-[#F4F5F7] text-[#6E7381]">
-                          {t.memberIds.length} jogadores
+                          {t.memberIds.length}/{maxTeamSize} jogadores
                         </Chip>
                       </div>
                       <div className="pl-10 flex flex-wrap gap-1.5">
@@ -1474,15 +1746,220 @@ function Boletim({ u }: { u: HeziUser }) {
         </p>
       </div>
       <p className="text-center text-xs text-[#6E7381] mt-3">
-        🔒 Ficha individual privada · Próxima avaliação técnica de quadra em 15
-        dias.
+        🔒 Ficha individual privada · Ciclo de avaliação técnica Mensal.
       </p>
+    </div>
+  );
+}
+
+function ProfileEditModal({
+  u,
+  close,
+  save,
+}: {
+  u: HeziUser;
+  close: () => void;
+  save: (patch: Partial<HeziUser>) => void;
+}) {
+  const [f, setF] = useState({
+    nome: u.nome || "",
+    apelido: u.apelido || "",
+    dataNascimento: u.dataNascimento || "",
+    wpp: u.wpp || "",
+    instagram: u.instagram || "",
+    email: u.email || "",
+    foto: u.foto || "",
+    avatarIcon: u.avatarIcon || "",
+    novaSenha: "",
+  });
+
+  const pwdValid =
+    f.novaSenha.length === 0 || validatePasswordRules(f.novaSenha).valid;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-[2px] flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="bg-white w-full max-w-[480px] max-h-[92dvh] overflow-y-auto rounded-t-3xl sm:rounded-3xl p-5 space-y-3.5 shadow-2xl border border-[#EAEBEF]">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <Settings className="w-5 h-5 text-[#FF5400]" />
+            <h3 className="font-extrabold text-xl text-[#111317]">
+              Editar Meu Perfil
+            </h3>
+          </div>
+          <button
+            type="button"
+            onClick={close}
+            className="text-[#6E7381] hover:text-[#111317] p-1.5 rounded-lg"
+            aria-label="Fechar"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Seleção de Ícone de Perfil */}
+        <div className="bg-[#F4F5F7] rounded-2xl p-3.5 space-y-2">
+          <p className="text-xs font-extrabold uppercase tracking-wider text-[#6E7381]">
+            Escolha um Ícone de Perfil
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setF({ ...f, avatarIcon: "" })}
+              className={
+                "px-3 py-1.5 rounded-xl text-xs font-extrabold transition " +
+                (!f.avatarIcon
+                  ? "bg-[#111317] text-white"
+                  : "bg-white text-[#6E7381] border border-[#EAEBEF]")
+              }
+            >
+              Foto / Iniciais
+            </button>
+            {AVATAR_ICONS.map((ic) => (
+              <button
+                key={ic}
+                type="button"
+                onClick={() => setF({ ...f, avatarIcon: ic })}
+                className={
+                  "w-10 h-10 rounded-xl text-lg flex items-center justify-center transition " +
+                  (f.avatarIcon === ic
+                    ? "bg-[#FF5400] text-white ring-2 ring-[#111317]"
+                    : "bg-white border border-[#EAEBEF]")
+                }
+              >
+                {ic}
+              </button>
+            ))}
+          </div>
+          {!f.avatarIcon && (
+            <input
+              value={f.foto}
+              placeholder="URL da foto de perfil (opcional)"
+              onChange={(e) => setF({ ...f, foto: e.target.value })}
+              className="w-full bg-white border border-[#EAEBEF] rounded-xl px-3.5 py-2.5 text-xs font-medium outline-none focus:ring-2 ring-[#FF5400] mt-1"
+            />
+          )}
+        </div>
+
+        <div className="space-y-2.5">
+          <div>
+            <label className="block text-xs font-bold text-[#6E7381] mb-1">
+              Nome completo
+            </label>
+            <input
+              value={f.nome}
+              onChange={(e) => setF({ ...f, nome: e.target.value })}
+              className="w-full bg-[#F4F5F7] rounded-xl px-4 py-2.5 text-sm font-medium outline-none focus:ring-2 ring-[#FF5400]"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2.5">
+            <div>
+              <label className="block text-xs font-bold text-[#6E7381] mb-1">
+                Apelido
+              </label>
+              <input
+                value={f.apelido}
+                onChange={(e) => setF({ ...f, apelido: e.target.value })}
+                className="w-full bg-[#F4F5F7] rounded-xl px-4 py-2.5 text-sm font-medium outline-none focus:ring-2 ring-[#FF5400]"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-[#6E7381] mb-1">
+                Data de nascimento
+              </label>
+              <input
+                type="date"
+                value={f.dataNascimento}
+                onChange={(e) =>
+                  setF({ ...f, dataNascimento: e.target.value })
+                }
+                className="w-full bg-[#F4F5F7] rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 ring-[#FF5400]"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2.5">
+            <div>
+              <label className="block text-xs font-bold text-[#6E7381] mb-1">
+                Celular
+              </label>
+              <input
+                value={f.wpp}
+                onChange={(e) => setF({ ...f, wpp: e.target.value })}
+                className="w-full bg-[#F4F5F7] rounded-xl px-4 py-2.5 text-sm font-medium outline-none focus:ring-2 ring-[#FF5400]"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-[#6E7381] mb-1">
+                Instagram
+              </label>
+              <input
+                value={f.instagram}
+                onChange={(e) => setF({ ...f, instagram: e.target.value })}
+                className="w-full bg-[#F4F5F7] rounded-xl px-4 py-2.5 text-sm font-medium outline-none focus:ring-2 ring-[#FF5400]"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-[#6E7381] mb-1">
+              E-mail
+            </label>
+            <input
+              type="email"
+              value={f.email}
+              onChange={(e) => setF({ ...f, email: e.target.value })}
+              className="w-full bg-[#F4F5F7] rounded-xl px-4 py-2.5 text-sm font-medium outline-none focus:ring-2 ring-[#FF5400]"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-[#6E7381] mb-1">
+              Nova senha (deixe em branco para manter a atual)
+            </label>
+            <input
+              type="password"
+              value={f.novaSenha}
+              placeholder="Mín. 8 caracteres, 1 número e 1 especial"
+              onChange={(e) => setF({ ...f, novaSenha: e.target.value })}
+              className="w-full bg-[#F4F5F7] rounded-xl px-4 py-2.5 text-sm font-medium outline-none focus:ring-2 ring-[#FF5400]"
+            />
+            {!pwdValid && (
+              <p className="text-xs font-bold text-[#EF4444] mt-1">
+                A nova senha precisa ter no mínimo 8 caracteres, 1 número e 1
+                caractere especial.
+              </p>
+            )}
+          </div>
+        </div>
+
+        <Btn
+          dis={!f.nome.trim() || !pwdValid}
+          onClick={() => {
+            const patch: Partial<HeziUser> = {
+              nome: f.nome.trim(),
+              apelido: f.apelido.trim(),
+              dataNascimento: f.dataNascimento,
+              wpp: f.wpp.trim(),
+              instagram: f.instagram.trim(),
+              email: f.email.trim().toLowerCase(),
+              foto: f.foto.trim() || undefined,
+              avatarIcon: f.avatarIcon || undefined,
+            };
+            if (f.novaSenha) {
+              patch.senha = f.novaSenha;
+            }
+            save(patch);
+          }}
+          c={OB}
+        >
+          <CheckCircle2 className="w-4 h-4" />
+          Salvar Alterações
+        </Btn>
+      </div>
     </div>
   );
 }
 
 function Painel({ S }: { S: AppContextProps }) {
   const u = S.me;
+  const [editOpen, setEditOpen] = useState(false);
 
   if (!u) {
     return (
@@ -1514,8 +1991,8 @@ function Painel({ S }: { S: AppContextProps }) {
     );
   }
 
-  // Área do Usuário Comum (exibe apenas o cabeçalho sem posição/conta convencional grátis + Hezi Pass)
-  if (u.tipo === "jogador") {
+  // Área do Usuário Comum OU Ex-Aluno (cujos dados de assinante continuam salvos no banco, mas exibe perfil comum)
+  if (u.tipo === "jogador" || (u.tipo === "aluno" && u.st === "ex_aluno")) {
     return (
       <div className="p-4 space-y-4">
         <div className={C + " p-4 flex gap-3 items-center"}>
@@ -1530,47 +2007,38 @@ function Painel({ S }: { S: AppContextProps }) {
               </p>
             )}
           </div>
+          <button
+            type="button"
+            onClick={() => setEditOpen(true)}
+            className="w-10 h-10 rounded-xl bg-[#F4F5F7] hover:bg-[#EAEBEF] text-[#111317] flex items-center justify-center shrink-0 transition"
+            title="Configurações do Perfil (Alterar dados e ícone)"
+            aria-label="Editar Perfil"
+          >
+            <Settings className="w-5 h-5 text-[#111317]" />
+          </button>
         </div>
 
         <Pass u={u} />
+
+        {editOpen && (
+          <ProfileEditModal
+            u={u}
+            close={() => setEditOpen(false)}
+            save={(patch) => {
+              S.upd(u.id, patch);
+              setEditOpen(false);
+              S.say("Dados e ícone de perfil atualizados!");
+            }}
+          />
+        )}
       </div>
     );
   }
 
-  // Área do Assinante (Aluno Hezi Skills) — Lógica de Bloqueio de Mensalidade
-  if (u.st === "inativo") {
-    return (
-      <div className="p-4">
-        <div className="bg-[#FEF2F2] border-2 border-[#EF4444]/40 rounded-2xl p-6 text-center space-y-3">
-          <div className="w-14 h-14 rounded-full bg-[#EF4444]/10 text-[#EF4444] flex items-center justify-center mx-auto">
-            <ShieldAlert className="w-8 h-8" />
-          </div>
-          <h2 className="font-extrabold text-xl text-[#EF4444]">
-            ACESSO RESTRITO · Mensalidade Pendente
-          </h2>
-          <p className="text-sm text-[#6E7381]">
-            Olá, <strong className="text-[#111317]">{u.nome}</strong>.
-            Regularize o plano para liberar seu Boletim de Evolução, continuar
-            pontuando no Hezi Pass e manter sua ofensiva semanal.
-          </p>
-          <Btn
-            href={wa(
-              "Olá treinador! Sou " +
-                u.nome +
-                " e quero regularizar minha mensalidade da Hezi Skills.",
-            )}
-            c="bg-[#EF4444] text-white"
-          >
-            <MessageCircle className="w-4 h-4" />
-            Falar com o Treinador no WhatsApp
-          </Btn>
-        </div>
-      </div>
-    );
-  }
-
-  // Aluno Hezi Skills Ativo
+  // Aluno Hezi Skills (Assinante Regular ou com Mensalidade Pendente — sem bloqueio de acesso!)
   const sub = u.sub || baseSub;
+  const isPaymentPending = u.st === "pendente" || u.st === "inativo";
+
   return (
     <div className="p-4 space-y-4">
       <div className={C + " p-4"}>
@@ -1583,15 +2051,30 @@ function Painel({ S }: { S: AppContextProps }) {
             <p className="text-xs text-[#6E7381] mb-1.5">
               {u.pos ? `${u.pos} · ` : ""}Turma Terça 16:30
             </p>
-            <Chip c={GRN}>🟢 Matrícula Regular</Chip>
+            {isPaymentPending ? (
+              <Chip c={RED}>🔴 Mensalidade Pendente</Chip>
+            ) : (
+              <Chip c={GRN}>🟢 Matrícula Regular</Chip>
+            )}
           </div>
-          <div className="text-center bg-[#FFF4EE] px-3.5 py-2 rounded-2xl border border-[#FF5400]/20">
-            <p className="n font-bold text-4xl text-[#FF5400] leading-none">
-              {ovr(sub)}
-            </p>
-            <p className="text-xs font-extrabold text-[#6E7381] mt-0.5">
-              OVR
-            </p>
+          <div className="flex items-center gap-2">
+            <div className="text-center bg-[#FFF4EE] px-3.5 py-2 rounded-2xl border border-[#FF5400]/20">
+              <p className="n font-bold text-4xl text-[#FF5400] leading-none">
+                {ovr(sub)}
+              </p>
+              <p className="text-xs font-extrabold text-[#6E7381] mt-0.5">
+                OVR
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setEditOpen(true)}
+              className="w-10 h-10 rounded-xl bg-[#F4F5F7] hover:bg-[#EAEBEF] text-[#111317] flex items-center justify-center shrink-0 transition"
+              title="Configurações do Perfil (Alterar dados e ícone)"
+              aria-label="Editar Perfil"
+            >
+              <Settings className="w-5 h-5 text-[#111317]" />
+            </button>
           </div>
         </div>
       </div>
@@ -1621,6 +2104,18 @@ function Painel({ S }: { S: AppContextProps }) {
 
       <Pass u={u} />
       <Boletim u={u} />
+
+      {editOpen && (
+        <ProfileEditModal
+          u={u}
+          close={() => setEditOpen(false)}
+          save={(patch) => {
+            S.upd(u.id, patch);
+            setEditOpen(false);
+            S.say("Dados e ícone de perfil atualizados!");
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -1653,9 +2148,9 @@ function Step({ v, set }: { v: number; set: (val: number) => void }) {
 }
 
 function Avaliar({ S }: { S: AppContextProps }) {
-  const al = S.users.filter((x) => x.tipo === "aluno");
+  const al = S.users.filter((x) => x.tipo === "aluno" && x.st !== "ex_aluno");
   const [id, setId] = useState<number>(al[0]?.id ?? 1);
-  const [ci, setCi] = useState<"Quinzenal" | "Mensal">("Quinzenal");
+  const ci = "Mensal";
   const u = al.find((x) => x.id === id) || al[0];
 
   const [r, setR] = useState<Record<NanoKey, number>>(() =>
@@ -1726,22 +2221,8 @@ function Avaliar({ S }: { S: AppContextProps }) {
           ))}
         </select>
 
-        <div className="grid grid-cols-2 gap-2">
-          {(["Quinzenal", "Mensal"] as const).map((x) => (
-            <button
-              type="button"
-              key={x}
-              onClick={() => setCi(x)}
-              className={
-                "rounded-xl py-2.5 text-xs font-extrabold transition " +
-                (ci === x
-                  ? OB
-                  : "bg-[#F4F5F7] text-[#6E7381] border border-[#EAEBEF]")
-              }
-            >
-              Ciclo {x}
-            </button>
-          ))}
+        <div className="rounded-xl py-2.5 px-3 text-center text-xs font-extrabold bg-[#FF5400] text-white">
+          Ciclo Mensal
         </div>
 
         <div className="bg-[#FFF4EE] rounded-xl p-3 flex items-center justify-between">
@@ -1840,7 +2321,7 @@ function Alunos({ S }: { S: AppContextProps }) {
   const u = S.users.find((x) => x.id === sel) || S.users[0];
   if (!u) return null;
 
-  const al = u.tipo === "aluno";
+  const al = u.tipo === "aluno" && u.st !== "ex_aluno";
   const A: [string, number, number][] = al
     ? [
         ["+10 HP & +1 🔥 (Treino Pago de Terça-feira)", 10, 1],
@@ -1849,15 +2330,27 @@ function Alunos({ S }: { S: AppContextProps }) {
         ["+100 HP (Evento Especial Aluno Hezi)", 100, 0],
       ]
     : [
-        ["+5 HP (Presença na Pelada · Jogador Grátis)", 5, 0],
-        ["+50 HP (Evento Especial · Jogador Grátis)", 50, 0],
+        ["+5 HP (Presença na Pelada · Jogador Comum)", 5, 0],
+        ["+50 HP (Evento Especial · Jogador Comum)", 50, 0],
       ];
+
+  const getStatusLabel = (st?: HeziUser["st"]) => {
+    if (st === "ex_aluno") return "⚪ Ex-Aluno (Comum)";
+    if (st === "pendente" || st === "inativo") return "🔴 Mensalidade Pendente";
+    return "🟢 Matrícula Regular";
+  };
+
+  const getStatusChipClass = (st?: HeziUser["st"]) => {
+    if (st === "ex_aluno") return "bg-[#F4F5F7] text-[#6E7381]";
+    if (st === "pendente" || st === "inativo") return RED;
+    return GRN;
+  };
 
   return (
     <div className="space-y-3">
       <p className="text-xs text-[#6E7381] px-1">
-        Toque em um aluno ou jogador para lançar check-in de beira de quadra em
-        tempo real:
+        Gerencie alunos, mensalidades, promoções para Professor e check-ins de
+        quadra:
       </p>
 
       {S.users.map((x) => (
@@ -1866,45 +2359,124 @@ function Alunos({ S }: { S: AppContextProps }) {
           onClick={() => setSel(x.id)}
           className={
             C +
-            " p-3 flex items-center gap-3 cursor-pointer transition " +
+            " p-3 space-y-2.5 cursor-pointer transition " +
             (x.id === sel ? "ring-2 ring-[#FF5400] bg-[#FFF4EE]/30" : "")
           }
         >
-          <Av u={x} s="w-10 h-10 text-sm" />
-          <div className="flex-1 min-w-0">
-            <p className="font-bold text-sm text-[#111317] truncate">
-              {x.nome}
-            </p>
-            <p className="text-xs text-[#6E7381]">
-              {x.tipo === "aluno" ? "Aluno Hezi Skills" : "Jogador Grátis"} ·{" "}
-              <span className="n font-bold text-[#FF5400]">{x.hp} HP</span>
-              {x.tipo === "aluno" ? ` · 🔥 ${x.of ?? 0} sem.` : ""}
-            </p>
+          <div className="flex items-center gap-3">
+            <Av u={x} s="w-10 h-10 text-sm" />
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-sm text-[#111317] truncate">
+                {x.nome}
+              </p>
+              <p className="text-xs text-[#6E7381]">
+                {x.tipo === "aluno"
+                  ? x.st === "ex_aluno"
+                    ? "Ex-Aluno (Exibido como Comum)"
+                    : "Aluno Hezi Skills"
+                  : x.tipo === "professor"
+                    ? "🧑‍🏫 Professor (Organizador)"
+                    : "Usuário Comum"}{" "}
+                · <span className="n font-bold text-[#FF5400]">{x.hp} HP</span>
+                {x.tipo === "aluno" && x.st !== "ex_aluno"
+                  ? ` · 🔥 ${x.of ?? 0} sem.`
+                  : ""}
+              </p>
+            </div>
+
+            {x.tipo === "aluno" ? (
+              <Chip c={getStatusChipClass(x.st)}>{getStatusLabel(x.st)}</Chip>
+            ) : x.tipo === "professor" ? (
+              <Chip c="bg-[#ECFDF5] text-[#10B981]">🧑‍🏫 Professor</Chip>
+            ) : null}
           </div>
-          {x.tipo === "aluno" &&
-            (S.role === "admin" ? (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const nextSt = x.st === "ativo" ? "inativo" : "ativo";
-                  S.upd(x.id, { st: nextSt });
-                  S.say(
-                    `${x.nome}: mensalidade ${nextSt === "ativo" ? "Ativa" : "Pendente"}`,
-                  );
-                }}
-                className={
-                  "text-xs font-bold rounded-full px-3 py-1.5 transition " +
-                  (x.st === "ativo" ? GRN : RED)
-                }
-              >
-                {x.st === "ativo" ? "🟢 Ativo" : "🔴 Pendente"}
-              </button>
-            ) : (
-              <Chip c={x.st === "ativo" ? GRN : RED}>
-                {x.st === "ativo" ? "🟢 Ativo" : "🔴 Pendente"}
-              </Chip>
-            ))}
+
+          {/* Controles exclusivos do Administrador: Status de Mensalidade/Ex-Aluno ou Promoção para Professor */}
+          {S.role === "admin" && (
+            <div
+              className="pt-2 border-t border-[#EAEBEF] flex flex-wrap items-center justify-between gap-1.5"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {x.tipo === "aluno" ? (
+                <>
+                  <span className="text-[11px] font-extrabold uppercase text-[#6E7381]">
+                    Situação:
+                  </span>
+                  <div className="flex flex-wrap gap-1">
+                    {(
+                      [
+                        ["ativo", "🟢 Regular"],
+                        ["pendente", "🔴 Pendente"],
+                        ["ex_aluno", "⚪ Ex-Aluno"],
+                      ] as const
+                    ).map(([stKey, label]) => {
+                      const active =
+                        (x.st === "inativo" ? "pendente" : x.st ?? "ativo") ===
+                        stKey;
+                      return (
+                        <button
+                          key={stKey}
+                          type="button"
+                          onClick={() => {
+                            S.upd(x.id, { st: stKey });
+                            S.say(
+                              `${x.nome}: atualizado para ${
+                                stKey === "ativo"
+                                  ? "Matrícula Regular"
+                                  : stKey === "pendente"
+                                    ? "Mensalidade Pendente (acesso liberado com aviso em vermelho)"
+                                    : "Ex-Aluno (dados preservados, exibido como usuário comum)"
+                              }`,
+                            );
+                          }}
+                          className={
+                            "text-[11px] font-extrabold rounded-lg px-2.5 py-1 transition " +
+                            (active
+                              ? "bg-[#111317] text-white"
+                              : "bg-[#F4F5F7] text-[#6E7381] hover:text-[#111317]")
+                          }
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <span className="text-[11px] font-extrabold uppercase text-[#6E7381]">
+                    Cargo / Poderes:
+                  </span>
+                  {x.tipo === "jogador" ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        S.upd(x.id, { tipo: "professor" });
+                        S.say(
+                          `${x.nome} foi promovido a Professor! Agora possui todos os poderes de organização e avaliação.`,
+                        );
+                      }}
+                      className="text-xs font-extrabold rounded-xl bg-[#111317] hover:bg-[#FF5400] text-white px-3 py-1.5 transition flex items-center gap-1.5"
+                    >
+                      <UserCog className="w-3.5 h-3.5 text-[#FF5400]" />
+                      Promover a Professor
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        S.upd(x.id, { tipo: "jogador" });
+                        S.say(`${x.nome} voltou a ser Usuário Comum.`);
+                      }}
+                      className="text-xs font-extrabold rounded-xl bg-[#F4F5F7] hover:bg-[#FEF2F2] text-[#6E7381] hover:text-[#EF4444] px-3 py-1.5 transition"
+                    >
+                      Remover cargo de Professor
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </div>
       ))}
 
@@ -1917,11 +2489,6 @@ function Alunos({ S }: { S: AppContextProps }) {
           <Btn
             key={t}
             onClick={() => {
-              if (al && u.st === "inativo") {
-                return S.say(
-                  "Mensalidade pendente: regularize para pontuar no Hezi Pass",
-                );
-              }
               S.upd(u.id, { hp: u.hp + h, of: (u.of || 0) + o });
               S.say(`${u.nome}: ${t} ✓`);
             }}
@@ -1933,8 +2500,8 @@ function Alunos({ S }: { S: AppContextProps }) {
         {S.role !== "admin" && (
           <p className="text-xs text-[#6E7381] pt-1 flex items-center gap-1">
             <Lock className="w-3.5 h-3.5" />
-            Modo Professor: apenas o Administrador pode alterar o status da
-            mensalidade.
+            Modo Professor: apenas o Administrador pode promover usuários ou
+            alterar situação de matrícula.
           </p>
         )}
       </div>
@@ -1952,6 +2519,7 @@ function Eventos({ S }: { S: AppContextProps }) {
   });
 
   const peladaStore = usePelada();
+  const maxTeamSize = getMaxTeamSize(peladaStore.gameFormat);
 
   return (
     <div className="space-y-3">
@@ -1978,10 +2546,15 @@ function Eventos({ S }: { S: AppContextProps }) {
         </select>
         <input
           value={f.q}
-          placeholder="Dia e horário (ex: Sábado · 17:00)"
+          placeholder="Dia e horário (ex: Terça · 19:00 ou Sábado · 17:00)"
           onChange={(e) => setF({ ...f, q: e.target.value })}
           className="w-full bg-[#F4F5F7] rounded-xl px-4 py-3 text-sm outline-none"
         />
+        <p className="text-[11px] text-[#6E7381]">
+          💡 Eventos aparecem automaticamente na Página Inicial com o destaque{" "}
+          <strong>&ldquo;Está rolando&rdquo;</strong> a partir de{" "}
+          <strong>30 minutos antes</strong> do horário programado.
+        </p>
         <input
           value={f.l}
           placeholder="Quadra / local (ex: Quadra Central)"
@@ -2008,74 +2581,339 @@ function Eventos({ S }: { S: AppContextProps }) {
         </Btn>
       </div>
 
-      {S.evs.map((e) => (
-        <div key={e.id} className={C + " p-4"}>
-          <div className="flex justify-between items-center">
-            <div>
-              <p className="font-bold text-sm text-[#111317]">
-                {e.t}{" "}
-                <span className="text-[#6E7381] font-medium">
-                  · {e.f.length} na fila
-                </span>
-              </p>
-              <p className="text-xs text-[#6E7381]">
-                {e.q} · {e.l}
-              </p>
+      {S.evs.map((e) => {
+        const rolling = isEventRollingNow(e, new Date());
+        return (
+          <div key={e.id} className={C + " p-4 space-y-2.5"}>
+            <div className="flex justify-between items-start gap-2">
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="font-bold text-sm text-[#111317]">
+                    {e.t}{" "}
+                    <span className="text-[#6E7381] font-medium">
+                      · {e.f.length} na fila
+                    </span>
+                  </p>
+                  {rolling && (
+                    <Chip c="bg-[#EF4444] text-white">🔥 Está rolando</Chip>
+                  )}
+                </div>
+                <p className="text-xs text-[#6E7381]">
+                  {e.q} · {e.l}
+                </p>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextLive = !e.aoVivoAgora;
+                    S.setEvs(
+                      S.evs.map((x) =>
+                        x.id === e.id ? { ...x, aoVivoAgora: nextLive } : x,
+                      ),
+                    );
+                    S.say(
+                      nextLive
+                        ? `"${e.t}" destacado como "Está rolando" na Home!`
+                        : `Destaque manual removido de "${e.t}".`,
+                    );
+                  }}
+                  className={
+                    "text-xs font-extrabold px-2.5 py-1 rounded-lg transition " +
+                    (e.aoVivoAgora
+                      ? "bg-[#EF4444] text-white"
+                      : "bg-[#F4F5F7] text-[#111317] hover:bg-[#EAEBEF]")
+                  }
+                  title="Alternar destaque 'Está rolando' na Página Inicial"
+                >
+                  {e.aoVivoAgora ? "🔥 Ao Vivo" : "Destacar"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => S.setEvs(S.evs.filter((x) => x.id !== e.id))}
+                  className="text-[#EF4444] text-xs font-bold flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[#FEF2F2]"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  excluir
+                </button>
+              </div>
             </div>
-            <button
-              type="button"
-              onClick={() => S.setEvs(S.evs.filter((x) => x.id !== e.id))}
-              className="text-[#EF4444] text-xs font-bold flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[#FEF2F2]"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              excluir
-            </button>
-          </div>
-          <div className="grid grid-cols-2 gap-2 mt-3">
-            <button
-              type="button"
-              onClick={() => {
-                const calledUsers = e.f
-                  .slice(0, 5)
-                  .map((i) => S.users.find((u) => u.id === i))
-                  .filter(Boolean) as HeziUser[];
-                calledUsers.forEach((u) => {
-                  peladaStore.addPlayer(u.nome, {
-                    role: u.tipo === "aluno" ? "aluno" : "convencional",
-                    userId: String(u.id),
-                    position: u.pos,
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  const calledUsers = e.f
+                    .slice(0, maxTeamSize)
+                    .map((i) => S.users.find((u) => u.id === i))
+                    .filter(Boolean) as HeziUser[];
+                  calledUsers.forEach((u) => {
+                    peladaStore.addPlayer(u.nome, {
+                      role: u.tipo === "aluno" ? "aluno" : "convencional",
+                      userId: String(u.id),
+                      position: u.pos,
+                    });
                   });
-                });
-                const names = calledUsers.map((u) => u.nome);
-                S.setEvs(
-                  S.evs.map((x) =>
-                    x.id === e.id ? { ...x, f: x.f.slice(5) } : x,
-                  ),
-                );
-                S.say(
-                  names.length
-                    ? "Em quadra: " + names.join(", ")
-                    : "Fila vazia",
-                );
-              }}
-              className="rounded-xl bg-[#111317] text-white text-xs font-bold py-3 px-2 transition active:scale-95"
-            >
-              Chamar próximo time de 5
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                S.setEvs(
-                  S.evs.map((x) => (x.id === e.id ? { ...x, f: [] } : x)),
-                )
-              }
-              className="rounded-xl bg-[#F4F5F7] text-[#111317] text-xs font-bold py-3 px-2 transition active:scale-95"
-            >
-              Limpar fila
-            </button>
+                  const names = calledUsers.map((u) => u.nome);
+                  S.setEvs(
+                    S.evs.map((x) =>
+                      x.id === e.id
+                        ? { ...x, f: x.f.slice(maxTeamSize) }
+                        : x,
+                    ),
+                  );
+                  S.say(
+                    names.length
+                      ? "Em quadra: " + names.join(", ")
+                      : "Fila vazia",
+                  );
+                }}
+                className="rounded-xl bg-[#111317] text-white text-xs font-bold py-3 px-2 transition active:scale-95"
+              >
+                Chamar próximo time ({maxTeamSize})
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  S.setEvs(
+                    S.evs.map((x) => (x.id === e.id ? { ...x, f: [] } : x)),
+                  )
+                }
+                className="rounded-xl bg-[#F4F5F7] text-[#111317] text-xs font-bold py-3 px-2 transition active:scale-95"
+              >
+                Limpar fila
+              </button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function NotificacoesStaff({ S }: { S: AppContextProps }) {
+  const queueRequests = S.notifications.filter(
+    (n) => n.type === "queue_request",
+  );
+  const pendingRequests = queueRequests.filter((n) => n.status === "pending");
+  const resolvedRequests = queueRequests.filter((n) => n.status !== "pending");
+
+  return (
+    <div className="space-y-4">
+      <div className={C + " p-4 flex items-center justify-between"}>
+        <div className="flex items-center gap-2.5">
+          <div className="w-10 h-10 rounded-xl bg-[#FFF4EE] text-[#FF5400] flex items-center justify-center shrink-0">
+            <Bell className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="font-extrabold text-sm text-[#111317]">
+              Central de Notificações · Entrada na Fila
+            </p>
+            <p className="text-xs text-[#6E7381]">
+              Aceite solicitações para liberar a entrada na fila e conceder +5
+              Hezi Points
+            </p>
           </div>
         </div>
-      ))}
+        <Chip c={pendingRequests.length > 0 ? OB : "bg-[#F4F5F7] text-[#6E7381]"}>
+          {pendingRequests.length} pendente(s)
+        </Chip>
+      </div>
+
+      {/* Solicitações Pendentes */}
+      <div className="space-y-2.5">
+        <p className="text-xs font-extrabold uppercase tracking-wider text-[#6E7381] px-1">
+          Solicitações Aguardando Confirmação ({pendingRequests.length})
+        </p>
+        {pendingRequests.length === 0 ? (
+          <div className={C + " p-5 text-center space-y-1"}>
+            <p className="font-bold text-sm text-[#111317]">
+              Nenhuma solicitação pendente no momento
+            </p>
+            <p className="text-xs text-[#6E7381]">
+              Toda vez que um usuário clicar em &ldquo;Entrar na fila&rdquo;, a
+              solicitação com horário aparecerá aqui.
+            </p>
+          </div>
+        ) : (
+          pendingRequests.map((req) => (
+            <div
+              key={req.id}
+              className={
+                C + " p-4 border-l-4 border-l-[#FF5400] space-y-3"
+              }
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="font-extrabold text-sm text-[#111317]">
+                    🏀 {req.fromUserName} solicitou entrar na fila
+                  </p>
+                  <p className="text-xs text-[#6E7381] mt-0.5">
+                    Evento:{" "}
+                    <strong className="text-[#111317]">
+                      {req.eventTitle || "Pelada Oficial Hezi"}
+                    </strong>
+                  </p>
+                </div>
+                <Chip c="bg-[#F4F5F7] text-[#111317]">
+                  🕒 {req.timeLabel}
+                </Chip>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => S.approveQueueRequest(req.id)}
+                  className="rounded-xl bg-[#10B981] hover:bg-[#059669] text-white text-xs font-extrabold py-2.5 px-3 transition active:scale-95 flex items-center justify-center gap-1.5"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  Aceitar (+5 HP)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => S.rejectQueueRequest(req.id)}
+                  className="rounded-xl bg-[#FEF2F2] text-[#EF4444] text-xs font-extrabold py-2.5 px-3 transition active:scale-95"
+                >
+                  Recusar
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Histórico de Notificações Processadas */}
+      {resolvedRequests.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-extrabold uppercase tracking-wider text-[#6E7381] px-1">
+            Histórico Recente
+          </p>
+          {resolvedRequests.slice(0, 15).map((req) => (
+            <div
+              key={req.id}
+              className={
+                C +
+                " p-3 flex items-center justify-between gap-2 opacity-85"
+              }
+            >
+              <div className="min-w-0">
+                <p className="font-bold text-xs text-[#111317] truncate">
+                  {req.fromUserName} · {req.eventTitle || "Evento"}
+                </p>
+                <p className="text-[11px] text-[#6E7381]">
+                  Horário da notificação: <strong>{req.timeLabel}</strong>
+                </p>
+              </div>
+              <Chip c={req.status === "accepted" ? GRN : RED}>
+                {req.status === "accepted"
+                  ? "✓ Aceito (+5 HP)"
+                  : "✕ Recusado"}
+              </Chip>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NotificacoesPlayerModal({
+  S,
+  close,
+}: {
+  S: AppContextProps;
+  close: () => void;
+}) {
+  const myId = S.me?.id;
+  const myNotifs = S.notifications.filter(
+    (n) =>
+      (n.toUserId !== undefined && n.toUserId === myId) ||
+      (n.type === "queue_request" && n.fromUserId === myId),
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-[2px] flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="bg-white w-full max-w-[480px] max-h-[88dvh] overflow-y-auto rounded-t-3xl sm:rounded-3xl p-5 space-y-3.5 shadow-2xl border border-[#EAEBEF]">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <Bell className="w-5 h-5 text-[#FF5400]" />
+            <h3 className="font-extrabold text-xl text-[#111317]">
+              Minhas Notificações
+            </h3>
+          </div>
+          <button
+            type="button"
+            onClick={close}
+            className="text-[#6E7381] hover:text-[#111317] p-1.5 rounded-lg"
+            aria-label="Fechar"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {myNotifs.length === 0 ? (
+          <p className="text-xs text-[#6E7381] py-6 text-center">
+            Você ainda não possui notificações. Convites de grupo na fila e
+            confirmações de entrada aparecerão aqui com horário.
+          </p>
+        ) : (
+          <div className="space-y-2.5">
+            {myNotifs.map((n) => (
+              <div
+                key={n.id}
+                className="bg-[#F4F5F7] border border-[#EAEBEF] rounded-2xl p-3.5 space-y-2"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-extrabold uppercase text-[#FF5400]">
+                    {n.type === "group_invite"
+                      ? "👥 Convite para Grupo na Fila"
+                      : n.type === "queue_request"
+                        ? "🏀 Solicitação de Fila"
+                        : "⚡ Aviso Hezi"}
+                  </span>
+                  <span className="n text-xs font-bold text-[#6E7381]">
+                    🕒 {n.timeLabel}
+                  </span>
+                </div>
+
+                <p className="text-xs font-semibold text-[#111317]">
+                  {n.message ||
+                    (n.type === "group_invite"
+                      ? `${n.fromUserName} convidou você para formar um time na fila (${n.eventTitle || "Pelada"}).`
+                      : `Solicitação para entrar em ${n.eventTitle || "Evento"}: ${
+                          n.status === "pending"
+                            ? "Aguardando aceitação do organizador"
+                            : n.status === "accepted"
+                              ? "Confirmada! Você entrou na fila e ganhou +5 HP!"
+                              : "Não aprovada"
+                        }`)}
+                </p>
+
+                {n.type === "group_invite" && n.status === "pending" && (
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        S.acceptGroupInvite(n.id);
+                        close();
+                      }}
+                      className="rounded-xl bg-[#10B981] text-white text-xs font-extrabold py-2 px-3 transition"
+                    >
+                      ✓ Aceitar e Formar Time
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => S.rejectGroupInvite(n.id)}
+                      className="rounded-xl bg-white border border-[#EAEBEF] text-[#6E7381] text-xs font-extrabold py-2 px-3 transition"
+                    >
+                      Recusar
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -2319,7 +3157,7 @@ function BancoDados({ S }: { S: AppContextProps }) {
   );
 }
 
-type StaffSubTabKey = "av" | "al" | "ev" | "cm" | "db";
+type StaffSubTabKey = "cm" | "nf" | "ev" | "av" | "al" | "db";
 
 function Staff({
   S,
@@ -2331,20 +3169,24 @@ function Staff({
   onSubTabChange?: (st: StaffSubTabKey) => void;
 }) {
   const adm = S.role === "admin";
+  const pendingStaffCount = S.notifications.filter(
+    (n) => n.type === "queue_request" && n.status === "pending",
+  ).length;
+
   const T: [StaffSubTabKey, string][] = [
-    ...(adm ? ([["cm", "Court Master"]] as [StaffSubTabKey, string][]) : []),
+    ["cm", "Court Master"],
+    [
+      "nf",
+      pendingStaffCount > 0
+        ? `Notificações (${pendingStaffCount})`
+        : "Notificações",
+    ],
+    ["ev", "Eventos"],
     ["av", "Avaliar"],
     ["al", "Alunos"],
-    ...(adm
-      ? ([
-          ["ev", "Eventos"],
-          ["db", "Banco SQL"],
-        ] as [StaffSubTabKey, string][])
-      : []),
+    ...(adm ? ([["db", "Banco SQL"]] as [StaffSubTabKey, string][]) : []),
   ];
-  const [t, setT] = useState<StaffSubTabKey>(
-    initialSubTab || (adm ? "cm" : "av"),
-  );
+  const [t, setT] = useState<StaffSubTabKey>(initialSubTab || "cm");
 
   useEffect(() => {
     if (initialSubTab) setT(initialSubTab);
@@ -2357,10 +3199,7 @@ function Staff({
 
   return (
     <div className="p-4 space-y-4">
-      <div
-        className="grid gap-1.5"
-        style={{ gridTemplateColumns: `repeat(${T.length}, minmax(0, 1fr))` }}
-      >
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
         {T.map(([k, n]) => (
           <button
             type="button"
@@ -2378,11 +3217,13 @@ function Staff({
         ))}
       </div>
 
-      {t === "av" ? (
+      {t === "nf" ? (
+        <NotificacoesStaff S={S} />
+      ) : t === "av" ? (
         <Avaliar S={S} />
       ) : t === "al" ? (
         <Alunos S={S} />
-      ) : t === "ev" && adm ? (
+      ) : t === "ev" ? (
         <Eventos S={S} />
       ) : t === "db" && adm ? (
         <BancoDados S={S} />
@@ -2391,7 +3232,7 @@ function Staff({
           <div className={C + " p-3 flex items-center justify-between"}>
             <div>
               <p className="font-extrabold text-sm text-[#111317]">
-                Court Master · Organizador de Pelada 3x3
+                Court Master · Organizador de Pelada (3x3 / 5x5)
               </p>
               <p className="text-xs text-[#6E7381]">
                 Sincronizado com a fila de celulares da Pelada Oficial
@@ -2409,7 +3250,17 @@ function Staff({
 function HeziSuperApp() {
   useRealtimeSync();
 
-  const { users, evs, updUser, addUser, setEvs, addQueue } = useHeziPlatform();
+  const {
+    users,
+    evs,
+    notifications,
+    updUser,
+    addUser,
+    setEvs,
+    addQueue,
+    addNotification,
+    updateNotification,
+  } = useHeziPlatform();
   const { sid, setSid } = useHeziSession();
   const peladaStore = usePelada();
 
@@ -2418,6 +3269,8 @@ function HeziSuperApp() {
     "painel",
   );
   const [staffSubTab, setStaffSubTab] = useState<StaffSubTabKey>("cm");
+  const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
+  const [notifModalOpen, setNotifModalOpen] = useState(false);
   const [cad, setCad] = useState(false);
   const [pend, setPend] = useState<number | null>(null);
   const [toast, setToast] = useState("");
@@ -2435,7 +3288,7 @@ function HeziSuperApp() {
 
   const say = (t: string) => {
     setToast(t);
-    window.setTimeout(() => setToast(""), 2600);
+    window.setTimeout(() => setToast(""), 2800);
   };
 
   const syncUserToCourtMaster = (u: HeziUser) => {
@@ -2478,19 +3331,68 @@ function HeziSuperApp() {
     setTab("painel");
   };
 
-  // Navegação inteligente para "QUERO SER ASSINANTE"
+  // Navegação para "QUERO SER ASSINANTE"
+  // Se for visitante sem conta, exibe a tela Quero Ser Assinante bloqueada solicitando login ou cadastro
   const goQueroSerAssinante = () => {
-    if (role === "visitante") {
-      setLoginRedirect("assinante");
-      setTab("login");
-    } else {
-      setTab("assinante");
+    setLoginRedirect("assinante");
+    setTab("assinante");
+  };
+
+  const openLoginForAssinante = () => {
+    setLoginRedirect("assinante");
+    setTab("login");
+  };
+
+  const openRegisterForAssinante = () => {
+    setLoginRedirect("assinante");
+    setCad(true);
+  };
+
+  const sendQueueRequestForUser = (u: HeziUser, eid: number) => {
+    const targetEv = evs.find((e) => e.id === eid);
+    if (!targetEv) return;
+
+    if (targetEv.f.includes(u.id)) {
+      say("Você já está confirmado na fila deste evento!");
+      return;
     }
+
+    const alreadyPending = notifications.some(
+      (n) =>
+        n.type === "queue_request" &&
+        n.fromUserId === u.id &&
+        n.eventId === eid &&
+        n.status === "pending",
+    );
+    if (alreadyPending) {
+      say("Sua solicitação já foi enviada e aguarda aprovação do Admin! ⏳");
+      return;
+    }
+
+    const nowTs = Date.now();
+    addNotification({
+      id: `notif-q-${nowTs}-${u.id}`,
+      type: "queue_request",
+      fromUserId: u.id,
+      fromUserName: u.nome,
+      eventId: targetEv.id,
+      eventTitle: targetEv.t,
+      status: "pending",
+      createdAt: nowTs,
+      timeLabel: formatTimeHHMM(nowTs),
+      message: `${u.nome} solicitou entrar na fila de "${targetEv.t}". Ao aprovar, entra na fila e ganha +5 Hezi Points.`,
+    });
+
+    say(
+      "Solicitação enviada ao Administrador! Assim que aceita, você entra na fila e ganha +5 HP 🏀",
+    );
   };
 
   const join = (eid: number) => {
     if (role === "professor" || role === "admin") {
-      return say("Troque para um perfil de Jogador ou Aluno para entrar na fila");
+      return say(
+        "Acesse Notificações ou Court Master para gerenciar a fila dos jogadores",
+      );
     }
     const targetEv = evs.find((e) => e.id === eid);
     if (!me) {
@@ -2501,14 +3403,152 @@ function HeziSuperApp() {
     if (targetEv?.tp === "Treino" && me.tipo !== "aluno") {
       return say("Treino exclusivo para alunos assinantes Hezi Skills!");
     }
-    if (targetEv?.tp === "Treino" && me.st === "inativo") {
-      return say("Regularize sua mensalidade para entrar no treino!");
+    sendQueueRequestForUser(me, eid);
+  };
+
+  const approveQueueRequest = (notifId: string) => {
+    const n = notifications.find((x) => x.id === notifId);
+    if (!n || n.status !== "pending") return;
+
+    updateNotification(notifId, { status: "accepted" });
+
+    const targetUser = users.find((u) => u.id === n.fromUserId);
+    const targetEv = evs.find((e) => e.id === n.eventId);
+
+    if (targetEv && targetUser) {
+      addQueue(targetEv.id, targetUser.id);
+      if (targetEv.tp === "Pelada") {
+        syncUserToCourtMaster(targetUser);
+      }
+      // Concede +5 Hezi Points por participar do evento/pelada
+      updUser(targetUser.id, { hp: targetUser.hp + 5 });
+
+      const nowTs = Date.now();
+      addNotification({
+        id: `notif-info-${nowTs}-${targetUser.id}`,
+        type: "system",
+        fromUserId: me?.id || 0,
+        fromUserName: role === "admin" ? "Administrador" : "Professor",
+        toUserId: targetUser.id,
+        eventId: targetEv.id,
+        eventTitle: targetEv.t,
+        status: "accepted",
+        createdAt: nowTs,
+        timeLabel: formatTimeHHMM(nowTs),
+        message: `Sua entrada em "${targetEv.t}" foi aprovada! Você entrou na fila e ganhou +5 Hezi Points (+5 HP)! 🏀`,
+      });
+
+      say(
+        `✅ ${targetUser.nome} aprovado na fila e recebeu +5 Hezi Points!`,
+      );
     }
-    addQueue(eid, me.id);
-    if (targetEv?.tp === "Pelada") {
-      syncUserToCourtMaster(me);
+  };
+
+  const rejectQueueRequest = (notifId: string) => {
+    const n = notifications.find((x) => x.id === notifId);
+    if (!n || n.status !== "pending") return;
+    updateNotification(notifId, { status: "rejected" });
+    say(`Solicitação de ${n.fromUserName} recusada.`);
+  };
+
+  const sendGroupInvite = (toUserId: number, eventId: number) => {
+    if (!me) {
+      return say("Faça login para convidar jogadores para o seu grupo!");
     }
-    say("Você entrou na fila! 🏀");
+    if (me.id === toUserId) return;
+
+    const toUser = users.find((u) => u.id === toUserId);
+    const targetEv = evs.find((e) => e.id === eventId);
+    if (!toUser || !targetEv) return;
+
+    const alreadyInvited = notifications.some(
+      (n) =>
+        n.type === "group_invite" &&
+        n.fromUserId === me.id &&
+        n.toUserId === toUser.id &&
+        n.eventId === eventId &&
+        n.status === "pending",
+    );
+    if (alreadyInvited) {
+      return say(`Você já enviou convite de grupo para ${toUser.nome}!`);
+    }
+
+    const nowTs = Date.now();
+    addNotification({
+      id: `notif-grp-${nowTs}-${me.id}-${toUser.id}`,
+      type: "group_invite",
+      fromUserId: me.id,
+      fromUserName: me.nome,
+      toUserId: toUser.id,
+      toUserName: toUser.nome,
+      eventId: targetEv.id,
+      eventTitle: targetEv.t,
+      status: "pending",
+      createdAt: nowTs,
+      timeLabel: formatTimeHHMM(nowTs),
+      message: `${me.nome} convidou você para formar um grupo/time na fila de "${targetEv.t}".`,
+    });
+
+    say(`Convite de grupo enviado para ${toUser.nome}! 🤝`);
+  };
+
+  const acceptGroupInvite = (notifId: string) => {
+    const n = notifications.find((x) => x.id === notifId);
+    if (!n || n.status !== "pending") return;
+
+    const fromUser = users.find((u) => u.id === n.fromUserId);
+    const toUser = users.find((u) => u.id === n.toUserId);
+
+    if (!fromUser || !toUser) return;
+
+    // Garante que ambos estejam sincronizados no Court Master
+    syncUserToCourtMaster(fromUser);
+    syncUserToCourtMaster(toUser);
+
+    const res = peladaStore.groupPlayersByUser(
+      {
+        userId: String(fromUser.id),
+        name: fromUser.nome,
+        role: fromUser.tipo === "aluno" ? "aluno" : "convencional",
+      },
+      {
+        userId: String(toUser.id),
+        name: toUser.nome,
+        role: toUser.tipo === "aluno" ? "aluno" : "convencional",
+      },
+    );
+
+    if (!res.ok) {
+      return say(res.reason || "Não foi possível formar o grupo.");
+    }
+
+    updateNotification(notifId, { status: "accepted" });
+
+    const nowTs = Date.now();
+    addNotification({
+      id: `notif-grp-ok-${nowTs}`,
+      type: "system",
+      fromUserId: toUser.id,
+      fromUserName: toUser.nome,
+      toUserId: fromUser.id,
+      eventId: n.eventId,
+      eventTitle: n.eventTitle,
+      status: "accepted",
+      createdAt: nowTs,
+      timeLabel: formatTimeHHMM(nowTs),
+      message: `${toUser.nome} aceitou seu convite! Vocês agora formam o ${res.teamLabel} na fila.`,
+    });
+
+    say(
+      `🤝 Grupo formado! ${fromUser.nome} e ${toUser.nome} estão juntos no ${res.teamLabel}!`,
+    );
+  };
+
+  const rejectGroupInvite = (notifId: string) => {
+    const n = notifications.find((x) => x.id === notifId);
+    if (!n || n.status !== "pending") return;
+    updateNotification(notifId, { status: "rejected" });
+    say("Convite de grupo recusado.");
   };
 
   const reg = (f: RegisterFormPayload) => {
@@ -2528,15 +3568,14 @@ function HeziSuperApp() {
     setSid(u.id);
     setCad(false);
     if (pend) {
-      const targetEv = evs.find((e) => e.id === pend);
-      addQueue(pend, u.id);
-      if (targetEv?.tp === "Pelada") {
-        syncUserToCourtMaster(u);
-      }
+      sendQueueRequestForUser(u, pend);
+      setSelectedEventId(pend);
       setPend(null);
       setTab("pelada");
-      say("Conta criada! Você já está na fila! 🏀");
-    } else if (tab === "login" && loginRedirect === "assinante") {
+    } else if (
+      (tab === "login" || tab === "assinante") &&
+      loginRedirect === "assinante"
+    ) {
       setTab("assinante");
       say("Cadastro concluído! Veja as vantagens de ser assinante.");
     } else {
@@ -2561,22 +3600,44 @@ function HeziSuperApp() {
     users,
     evs,
     setEvs,
+    notifications,
     me,
     role,
     upd: updUser,
     say,
     join,
+    approveQueueRequest,
+    rejectQueueRequest,
+    sendGroupInvite,
+    acceptGroupInvite,
+    rejectGroupInvite,
     setTab,
     setCad,
     openCourtMaster,
     goMeuPerfil,
     goQueroSerAssinante,
+    openLoginForAssinante,
+    openRegisterForAssinante,
+    selectedEventId,
+    setSelectedEventId,
   };
 
   const staff = role === "admin" || role === "professor";
   const isWideCourtMaster =
-    role === "admin" &&
+    staff &&
     (tab === "pelada" || (tab === "painel" && staffSubTab === "cm"));
+
+  const pendingNotifCount = staff
+    ? notifications.filter(
+        (n) => n.type === "queue_request" && n.status === "pending",
+      ).length
+    : me
+      ? notifications.filter(
+          (n) =>
+            n.toUserId === me.id &&
+            (n.type === "group_invite" ? n.status === "pending" : true),
+        ).length
+      : 0;
 
   return (
     <div className="h-dvh w-full flex justify-center bg-[#F4F5F7] text-[#111317] overflow-hidden">
@@ -2605,7 +3666,10 @@ function HeziSuperApp() {
             <nav className="flex items-center gap-2 sm:gap-3 text-xs font-extrabold uppercase tracking-wider">
               <button
                 type="button"
-                onClick={() => setTab("pelada")}
+                onClick={() => {
+                  setSelectedEventId(null);
+                  setTab("pelada");
+                }}
                 className={
                   "ote-nav-link transition hover:text-[#FF5400] " +
                   (tab === "pelada" ? "text-[#FF5400]" : "text-white")
@@ -2644,66 +3708,67 @@ function HeziSuperApp() {
             </nav>
           </div>
 
-          {/* Sub-barra rápida de sessão / simulador de login para testes */}
+          {/* Barra Oficial de Sessão e Notificações (Simulador de login desativado) */}
           <div className="bg-[#111317] border-t border-white/10 px-3.5 py-1.5 flex items-center justify-between text-xs">
             <div className="flex items-center gap-1.5 truncate">
-              <span className="text-[#9CA3AF]">Sessão:</span>
+              <span className="text-[#9CA3AF]">Conta:</span>
               <span className="font-extrabold text-white truncate">
                 {role === "visitante"
-                  ? "👤 Visitante (Deslogado)"
+                  ? "Visitante (Não autenticado)"
                   : role === "admin"
                     ? "🔑 Administrador"
                     : role === "professor"
-                      ? "🧑‍🏫 Professor"
-                      : `${me?.tipo === "aluno" ? "⚡" : "🏀"} ${me?.nome}`}
+                      ? `🧑‍🏫 ${me ? me.nome : "Professor"}`
+                      : `${me?.tipo === "aluno" && me?.st !== "ex_aluno" ? "⚡" : "🏀"} ${me?.nome}`}
               </span>
             </div>
 
             <div className="flex items-center gap-1.5 shrink-0">
-              <select
-                value={String(sid)}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  const nextSid =
-                    v === "visitante" || v === "prof" || v === "admin"
-                      ? v
-                      : Number(v);
-                  setSid(nextSid);
-                  if (nextSid === "admin") {
-                    setStaffSubTab("cm");
-                  } else if (nextSid === "prof") {
-                    setStaffSubTab("av");
-                  }
-                }}
-                className="bg-black/60 border border-white/15 text-white text-xs font-bold rounded-lg px-2 py-1 max-w-[145px] outline-none"
-                aria-label="Trocar Perfil"
-              >
-                <option value="visitante">👤 Visitante (Deslogado)</option>
-                <optgroup label="⚡ Alunos Hezi Skills">
-                  {users
-                    .filter((x) => x.tipo === "aluno")
-                    .map((x) => (
-                      <option key={x.id} value={x.id}>
-                        {x.st === "ativo" ? "🟢" : "🔴"} {x.nome}
-                      </option>
-                    ))}
-                </optgroup>
-                <optgroup label="🏀 Jogador Grátis">
-                  {users
-                    .filter((x) => x.tipo === "jogador")
-                    .map((x) => (
-                      <option key={x.id} value={x.id}>
-                        🏀 {x.nome}
-                      </option>
-                    ))}
-                </optgroup>
-                <optgroup label="Staff">
-                  <option value="prof">🧑‍🏫 Professor</option>
-                  <option value="admin">🔑 Administrador</option>
-                </optgroup>
-              </select>
-
               {role !== "visitante" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (staff) {
+                      setStaffSubTab("nf");
+                      setTab("painel");
+                    } else {
+                      setNotifModalOpen(true);
+                    }
+                  }}
+                  className="relative flex items-center gap-1 rounded-lg bg-white/10 hover:bg-white/20 text-white px-2.5 py-1 text-xs font-extrabold transition"
+                  title="Abrir Notificações"
+                >
+                  <Bell className="w-3.5 h-3.5 text-[#FF5400]" />
+                  <span className="hidden sm:inline">Notificações</span>
+                  {pendingNotifCount > 0 && (
+                    <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-[#FF5400] text-white text-[10px] font-black">
+                      {pendingNotifCount}
+                    </span>
+                  )}
+                </button>
+              )}
+
+              {role === "visitante" ? (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginRedirect("painel");
+                      setTab("login");
+                    }}
+                    className="rounded-lg bg-[#FF5400] text-white px-2.5 py-1 text-xs font-extrabold hover:bg-[#E04800] transition"
+                  >
+                    Entrar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCad(true)}
+                    className="rounded-lg bg-white/10 text-white px-2.5 py-1 text-xs font-extrabold hover:bg-white/20 transition"
+                  >
+                    Criar Conta
+                  </button>
+                </div>
+              ) : (
                 <button
                   type="button"
                   onClick={() => {
@@ -2711,10 +3776,11 @@ function HeziSuperApp() {
                     setTab("home");
                     say("Você saiu da conta.");
                   }}
-                  className="p-1 rounded-lg bg-white/10 text-white hover:bg-[#EF4444] transition"
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/10 text-white hover:bg-[#EF4444] transition text-xs font-bold"
                   title="Sair da conta"
                 >
                   <LogOut className="w-3.5 h-3.5" />
+                  <span>Sair</span>
                 </button>
               )}
             </div>
@@ -2723,15 +3789,27 @@ function HeziSuperApp() {
           {staff && (
             <div
               className={
-                "text-center text-xs font-extrabold py-1 tracking-wide " +
+                "text-center text-xs font-extrabold py-1 tracking-wide flex items-center justify-center gap-2 px-3 " +
                 (role === "admin"
                   ? "bg-[#FF5400] text-white"
                   : "bg-[#10B981] text-white")
               }
             >
-              {role === "admin"
-                ? "🔑 MODO ADMINISTRADOR ATIVO (COURT MASTER + EDIÇÃO GERAL)"
-                : "👑 MODO PROFESSOR ATIVO (AVALIAÇÃO & CHECK-IN EM QUADRA)"}
+              <span>
+                {role === "admin"
+                  ? "🔑 MODO ADMINISTRADOR ATIVO"
+                  : "🧑‍🏫 MODO PROFESSOR ATIVO (ORGANIZADOR DE EVENTOS & AVALIAÇÃO)"}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setStaffSubTab("nf");
+                  setTab("painel");
+                }}
+                className="underline font-black text-white/95 hover:text-white"
+              >
+                Ver Notificações ({pendingNotifCount})
+              </button>
             </div>
           )}
         </header>
@@ -2748,12 +3826,23 @@ function HeziSuperApp() {
               redirectAfter={loginRedirect}
               onLoginSuccess={(chosenSid) => {
                 setSid(chosenSid);
-                if (chosenSid === "admin") setStaffSubTab("cm");
-                else if (chosenSid === "prof") setStaffSubTab("av");
+                const loggedUser =
+                  typeof chosenSid === "number"
+                    ? users.find((u) => u.id === chosenSid)
+                    : null;
+                if (
+                  chosenSid === "admin" ||
+                  chosenSid === "prof" ||
+                  loggedUser?.tipo === "professor"
+                ) {
+                  setStaffSubTab("cm");
+                }
 
                 if (loginRedirect === "assinante") {
                   setTab("assinante");
-                  say("Login realizado! Confira as vantagens de ser assinante.");
+                  say(
+                    "Login realizado! Confira as vantagens de ser assinante.",
+                  );
                 } else {
                   setTab("painel");
                   say("Bem-vindo de volta!");
@@ -2774,6 +3863,14 @@ function HeziSuperApp() {
             <Painel S={S} />
           )}
         </main>
+
+        {/* Modal de Notificações do Jogador/Aluno */}
+        {notifModalOpen && (
+          <NotificacoesPlayerModal
+            S={S}
+            close={() => setNotifModalOpen(false)}
+          />
+        )}
 
         {/* Floating Toast Feedback */}
         {toast && (
