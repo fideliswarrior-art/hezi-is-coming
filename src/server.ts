@@ -9,7 +9,11 @@ import {
   getDbStatusSummary,
   resetDbToFactorySeed,
 } from "./lib/db/sqlite";
-import type { HeziUser, HeziEventItem } from "./lib/hezi/store";
+import type {
+  HeziUser,
+  HeziEventItem,
+  HeziNotification,
+} from "./lib/hezi/store";
 
 type ServerEntry = {
   fetch: (
@@ -28,8 +32,76 @@ interface SyncPayloadBody {
     lastModified?: number;
     users?: HeziUser[];
     evs?: HeziEventItem[];
+    notifications?: HeziNotification[];
   } | null;
   heziUpdatedAt?: number;
+}
+
+interface AuthEmailPayload {
+  action: "send_verification" | "send_password_reset";
+  email: string;
+  nome?: string;
+  username?: string;
+  code: string;
+}
+
+async function sendTransactionalEmail(payload: AuthEmailPayload): Promise<{
+  ok: boolean;
+  deliveredVia: "resend" | "instant_preview";
+}> {
+  const apiKey = process.env.RESEND_API_KEY;
+  const fromEmail =
+    process.env.HEZI_EMAIL_FROM || "HEZI FAM <nao-responda@hezi.com.br>";
+
+  const isVerify = payload.action === "send_verification";
+  const subject = isVerify
+    ? `Código de ativação da sua conta HEZI FAM: ${payload.code}`
+    : `Recuperação de senha HEZI FAM: código ${payload.code}`;
+
+  const html = `
+    <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; background: #111317; color: #ffffff; padding: 28px; border-radius: 16px;">
+      <h2 style="color: #FF5400; margin-top: 0;">HEZI FAM® — Moving the game.</h2>
+      <p style="font-size: 15px; line-height: 1.5;">Olá${payload.nome ? `, <strong>${payload.nome}</strong>` : ""}!</p>
+      <p style="font-size: 14px; color: #D1D5DB; line-height: 1.5;">
+        ${
+          isVerify
+            ? "Use o código de confirmação abaixo para ativar sua conta oficial na plataforma HEZI FAM:"
+            : "Recebemos uma solicitação para redefinir a senha da sua conta HEZI FAM. Use o código abaixo para criar sua nova senha:"
+        }
+      </p>
+      <div style="background: #1F242D; border: 2px solid #FF5400; border-radius: 12px; padding: 16px; text-align: center; margin: 20px 0;">
+        <span style="font-size: 28px; font-weight: 800; letter-spacing: 6px; color: #ffffff;">${payload.code}</span>
+      </div>
+      <p style="font-size: 12px; color: #9CA3AF;">
+        Suporte oficial WhatsApp HEZI: (21) 99311-8041
+      </p>
+    </div>
+  `;
+
+  if (apiKey) {
+    try {
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: fromEmail,
+          to: [payload.email],
+          subject,
+          html,
+        }),
+      });
+      if (res.ok) {
+        return { ok: true, deliveredVia: "resend" };
+      }
+    } catch {
+      // Fallback to instant preview if email provider fails
+    }
+  }
+
+  return { ok: true, deliveredVia: "instant_preview" };
 }
 
 async function getServerEntry(): Promise<ServerEntry> {
@@ -151,6 +223,19 @@ export default {
             });
           }
         }
+      }
+
+      // 3. Transactional Email Endpoint for Account Activation & Password Reset (/api/hezi-auth)
+      if (url.pathname === "/api/hezi-auth" && request.method === "POST") {
+        const body = (await request.json()) as AuthEmailPayload;
+        const result = await sendTransactionalEmail(body);
+        return new Response(JSON.stringify(result), {
+          status: 200,
+          headers: {
+            "content-type": "application/json",
+            "cache-control": "no-store",
+          },
+        });
       }
 
       const handler = await getServerEntry();

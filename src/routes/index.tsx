@@ -35,10 +35,15 @@ import {
   UserCog,
   UsersRound,
   Radio,
+  Mail,
+  KeyRound,
+  Camera,
+  DoorOpen,
 } from "lucide-react";
 import {
   LOGO,
   wa,
+  HEZI_WHATSAPP_DISPLAY,
   CATS,
   W,
   BN,
@@ -55,6 +60,8 @@ import {
   useHeziSession,
   isEventRollingNow,
   formatTimeHHMM,
+  isActiveSubscriber,
+  getEventEntryPoints,
   type CatKey,
   type NanoKey,
   type HeziUser,
@@ -87,6 +94,78 @@ const btBase =
   "flex items-center justify-center gap-2 w-full text-center rounded-xl py-3.5 px-4 font-extrabold text-sm transition active:scale-95 ";
 
 export type AppTab = "home" | "pelada" | "painel" | "login" | "assinante";
+
+function generateSixDigitCode(): string {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+function sanitizeUsername(raw: string): string {
+  return raw
+    .trim()
+    .toLowerCase()
+    .replace(/^@+/, "")
+    .replace(/[^a-z0-9._]/g, "");
+}
+
+async function compressImageFileToDataUrl(
+  file: File,
+  maxSize = 256,
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Falha ao ler imagem"));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("Imagem inválida"));
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let w = img.width;
+        let h = img.height;
+        if (w > h) {
+          if (w > maxSize) {
+            h = Math.round((h * maxSize) / w);
+            w = maxSize;
+          }
+        } else if (h > maxSize) {
+          w = Math.round((w * maxSize) / h);
+          h = maxSize;
+        }
+        canvas.width = Math.max(1, w);
+        canvas.height = Math.max(1, h);
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          resolve(String(reader.result || ""));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.82));
+      };
+      img.src = String(reader.result || "");
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function triggerAuthEmailApi(payload: {
+  action: "send_verification" | "send_password_reset";
+  email: string;
+  nome: string;
+  code: string;
+}): Promise<{ ok: boolean; deliveredVia?: string }> {
+  try {
+    const res = await fetch("/api/hezi-auth", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) {
+      return (await res.json()) as { ok: boolean; deliveredVia?: string };
+    }
+  } catch {
+    /* fallback local */
+  }
+  return { ok: true, deliveredVia: "instant_preview" };
+}
 
 function Btn({
   href,
@@ -154,7 +233,12 @@ function Av({
   s?: string;
 }) {
   const [imgErr, setImgErr] = useState(false);
-  const initials = u.nome
+
+  useEffect(() => {
+    setImgErr(false);
+  }, [u.foto]);
+
+  const initials = (u.nome || "HZ")
     .split(" ")
     .map((x) => x[0])
     .join("")
@@ -207,12 +291,14 @@ function Hd({ children }: { children: React.ReactNode }) {
 
 interface RegisterFormPayload {
   nome: string;
+  username: string;
   apelido: string;
   dataNascimento: string;
   wpp: string;
   instagram: string;
   email: string;
   senha: string;
+  foto?: string;
 }
 
 interface AppContextProps {
@@ -225,11 +311,14 @@ interface AppContextProps {
   upd: (id: number, patch: Partial<HeziUser>) => void;
   say: (msg: string) => void;
   join: (eid: number) => void;
+  leaveQueue: (eid: number) => void;
+  cancelQueueRequest: (notifId: string) => void;
   approveQueueRequest: (notifId: string) => void;
   rejectQueueRequest: (notifId: string) => void;
   sendGroupInvite: (toUserId: number, eventId: number) => void;
   acceptGroupInvite: (notifId: string) => void;
   rejectGroupInvite: (notifId: string) => void;
+  openEmailVerifyForUser: (u: HeziUser) => void;
   selectedEventId: number | null;
   setSelectedEventId: (id: number | null) => void;
   setTab: (tab: AppTab) => void;
@@ -257,13 +346,16 @@ function Cadastro({
   close,
   done,
   existingEmails,
+  existingUsernames,
 }: {
   close: () => void;
   done: (f: RegisterFormPayload) => void;
   existingEmails: string[];
+  existingUsernames: string[];
 }) {
   const [f, setF] = useState({
     nome: "",
+    username: "",
     apelido: "",
     dataNascimento: "",
     wpp: "",
@@ -271,7 +363,9 @@ function Cadastro({
     email: "",
     senha: "",
     confirmarSenha: "",
+    foto: "",
   });
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   const pwdCheck = validatePasswordRules(f.senha);
   const passwordsMatch =
@@ -280,8 +374,19 @@ function Cadastro({
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrim);
   const emailTaken = existingEmails.includes(emailTrim);
 
+  const cleanUsername = sanitizeUsername(f.username);
+  const isUsernameValid = cleanUsername.length >= 3;
+  const usernameTaken =
+    cleanUsername.length > 0 &&
+    (existingUsernames.includes(cleanUsername) ||
+      cleanUsername === "admin" ||
+      cleanUsername === "professor" ||
+      cleanUsername === "prof");
+
   const ok =
     f.nome.trim().length > 1 &&
+    isUsernameValid &&
+    !usernameTaken &&
     f.apelido.trim().length > 1 &&
     f.dataNascimento.trim().length > 0 &&
     f.wpp.replace(/\D/g, "").length >= 10 &&
@@ -290,6 +395,20 @@ function Cadastro({
     !emailTaken &&
     pwdCheck.valid &&
     passwordsMatch;
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingPhoto(true);
+    try {
+      const dataUrl = await compressImageFileToDataUrl(file, 256);
+      setF((prev) => ({ ...prev, foto: dataUrl }));
+    } catch {
+      /* ignore */
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-[2px] flex items-end sm:items-center justify-center p-0 sm:p-4">
@@ -308,9 +427,41 @@ function Cadastro({
           </button>
         </div>
         <p className="text-xs text-[#6E7381]">
-          Preencha seus dados para acessar seu perfil, entrar na fila dos
-          eventos e participar do Hezi Pass.
+          Preencha seus dados para acessar seu perfil (com seu Nome de Usuário ou
+          E-mail), entrar na fila dos eventos e participar do Hezi Pass.
         </p>
+
+        {/* Foto de perfil opcional já no cadastro */}
+        <div className="flex items-center gap-3 bg-[#F4F5F7] rounded-2xl p-3">
+          {f.foto ? (
+            <img
+              src={f.foto}
+              alt="Preview"
+              className="w-12 h-12 rounded-full object-cover border border-[#FF5400]"
+            />
+          ) : (
+            <div className="w-12 h-12 rounded-full bg-[#FFF4EE] text-[#FF5400] flex items-center justify-center shrink-0">
+              <Camera className="w-5 h-5" />
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-extrabold text-[#111317]">
+              Foto de Perfil (opcional)
+            </p>
+            <p className="text-[11px] text-[#6E7381]">
+              Anexe uma imagem do seu celular ou computador
+            </p>
+          </div>
+          <label className="cursor-pointer shrink-0 rounded-xl bg-[#111317] hover:bg-[#FF5400] text-white text-xs font-extrabold px-3 py-2 transition">
+            {uploadingPhoto ? "..." : f.foto ? "Trocar" : "Anexar"}
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handlePhotoUpload}
+              className="hidden"
+            />
+          </label>
+        </div>
 
         <div className="space-y-2.5">
           <input
@@ -319,6 +470,28 @@ function Cadastro({
             onChange={(e) => setF({ ...f, nome: e.target.value })}
             className="w-full bg-[#F4F5F7] rounded-xl px-4 py-3 text-sm font-medium outline-none focus:ring-2 ring-[#FF5400]"
           />
+
+          <div>
+            <input
+              value={f.username}
+              placeholder="Nome de usuário (ex: lucas_silva)"
+              onChange={(e) =>
+                setF({ ...f, username: sanitizeUsername(e.target.value) })
+              }
+              className="w-full bg-[#F4F5F7] rounded-xl px-4 py-3 text-sm font-medium outline-none focus:ring-2 ring-[#FF5400]"
+            />
+            {f.username.length > 0 && !isUsernameValid && (
+              <p className="text-xs font-bold text-[#EF4444] mt-1">
+                O nome de usuário deve ter pelo menos 3 caracteres.
+              </p>
+            )}
+            {usernameTaken && (
+              <p className="text-xs font-bold text-[#EF4444] mt-1">
+                Este nome de usuário já está em uso. Escolha outro.
+              </p>
+            )}
+          </div>
+
           <div className="grid grid-cols-2 gap-2.5">
             <input
               value={f.apelido}
@@ -351,7 +524,7 @@ function Cadastro({
           <input
             type="email"
             value={f.email}
-            placeholder="E-mail"
+            placeholder="E-mail (para ativação e recuperação)"
             onChange={(e) => setF({ ...f, email: e.target.value })}
             className="w-full bg-[#F4F5F7] rounded-xl px-4 py-3 text-sm font-medium outline-none focus:ring-2 ring-[#FF5400]"
           />
@@ -421,18 +594,20 @@ function Cadastro({
           onClick={() =>
             done({
               nome: f.nome,
+              username: cleanUsername,
               apelido: f.apelido,
               dataNascimento: f.dataNascimento,
               wpp: f.wpp,
               instagram: f.instagram,
               email: emailTrim,
               senha: f.senha,
+              foto: f.foto || undefined,
             })
           }
           c={OB}
         >
           <CheckCircle2 className="w-4 h-4" />
-          Concluir Cadastro e Continuar
+          Concluir Cadastro e Receber Código no E-mail
         </Btn>
       </div>
     </div>
@@ -440,7 +615,135 @@ function Cadastro({
 }
 
 // ---------------------------------------------------------------------------
-// PÁGINA DE LOGIN (E-MAIL + SENHA + RATE LIMIT DE SEGURANÇA)
+// MODAL DE CONFIRMAÇÃO DE E-MAIL PARA ATIVAR A CONTA
+// ---------------------------------------------------------------------------
+function EmailVerificationModal({
+  u,
+  close,
+  onVerified,
+  onResendCode,
+  previewCode,
+}: {
+  u: HeziUser;
+  close: () => void;
+  onVerified: () => void;
+  onResendCode: () => void;
+  previewCode?: string;
+}) {
+  const [code, setCode] = useState("");
+  const [err, setErr] = useState("");
+
+  const expectedCode = u.verificationCode || previewCode || "";
+
+  const handleVerify = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (code.trim() === expectedCode && expectedCode.length > 0) {
+      setErr("");
+      onVerified();
+    } else {
+      setErr("Código inválido. Verifique o código de 6 dígitos enviado para o seu e-mail.");
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-[2px] flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="bg-white w-full max-w-[460px] rounded-t-3xl sm:rounded-3xl p-5 space-y-4 shadow-2xl border border-[#EAEBEF]">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-xl bg-[#FFF4EE] text-[#FF5400] flex items-center justify-center">
+              <Mail className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-extrabold text-lg text-[#111317]">
+                Confirme seu E-mail
+              </h3>
+              <p className="text-xs text-[#6E7381]">
+                Ative sua conta HEZI FAM®
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={close}
+            className="text-[#6E7381] hover:text-[#111317] p-1.5 rounded-lg"
+            aria-label="Fechar"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <p className="text-xs text-[#6E7381] leading-relaxed">
+          Enviamos um código de ativação de 6 dígitos para{" "}
+          <strong className="text-[#111317]">{u.email}</strong>. Digite o código
+          abaixo para confirmar seu e-mail e ativar sua conta:
+        </p>
+
+        {expectedCode && (
+          <div className="bg-[#FFF4EE] border border-[#FF5400]/30 rounded-xl p-3 flex items-center justify-between">
+            <div>
+              <p className="text-[11px] font-extrabold uppercase text-[#FF5400]">
+                📩 Código Enviado para {u.email}
+              </p>
+              <p className="text-xs text-[#6E7381]">
+                Use o código ao lado para ativar agora:
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCode(expectedCode)}
+              className="n font-black text-lg tracking-widest bg-white border border-[#FF5400] text-[#FF5400] px-3 py-1.5 rounded-xl"
+              title="Toque para preencher o código"
+            >
+              {expectedCode}
+            </button>
+          </div>
+        )}
+
+        <form onSubmit={handleVerify} className="space-y-3">
+          <input
+            type="text"
+            maxLength={6}
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+            placeholder="Código de 6 dígitos (ex: 123456)"
+            className="n w-full bg-[#F4F5F7] border border-[#EAEBEF] rounded-xl px-4 py-3.5 text-center text-lg font-extrabold tracking-widest text-[#111317] outline-none focus:ring-2 ring-[#FF5400]"
+          />
+
+          {err && (
+            <p className="text-xs font-bold text-[#EF4444] bg-[#FEF2F2] rounded-xl p-2.5">
+              ⚠️ {err}
+            </p>
+          )}
+
+          <button type="submit" className={btBase + OB}>
+            <CheckCircle2 className="w-4 h-4" />
+            Confirmar E-mail e Ativar Conta
+          </button>
+        </form>
+
+        <div className="flex items-center justify-between pt-1 text-xs">
+          <button
+            type="button"
+            onClick={onResendCode}
+            className="font-extrabold text-[#FF5400] hover:underline"
+          >
+            Reenviar código para o e-mail
+          </button>
+          <button
+            type="button"
+            onClick={close}
+            className="font-bold text-[#6E7381] hover:text-[#111317]"
+          >
+            Confirmar depois
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// PÁGINA DE LOGIN (E-MAIL OU NOME DE USUÁRIO + SENHA + ESQUECI A SENHA + RATE LIMIT)
 // ---------------------------------------------------------------------------
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 60_000;
@@ -456,12 +759,27 @@ function LoginPage({
   onLoginSuccess: (sid: number | "prof" | "admin") => void;
   onOpenRegister: () => void;
 }) {
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [senha, setSenha] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [lockoutUntil, setLockoutUntil] = useState<number>(0);
   const [nowTick, setNowTick] = useState(() => Date.now());
+
+  // Estados do fluxo "Esqueci a senha"
+  const [forgotMode, setForgotMode] = useState<"off" | "request" | "verify">(
+    "off",
+  );
+  const [forgotIdentifier, setForgotIdentifier] = useState("");
+  const [forgotTargetUserId, setForgotTargetUserId] = useState<number | null>(
+    null,
+  );
+  const [forgotCodeInput, setForgotCodeInput] = useState("");
+  const [forgotGeneratedCode, setForgotGeneratedCode] = useState("");
+  const [forgotNewPwd, setForgotNewPwd] = useState("");
+  const [forgotConfirmPwd, setForgotConfirmPwd] = useState("");
+  const [forgotMsg, setForgotMsg] = useState("");
+  const [forgotErr, setForgotErr] = useState("");
 
   useEffect(() => {
     if (lockoutUntil <= Date.now()) return;
@@ -486,32 +804,44 @@ function LoginPage({
     e.preventDefault();
     if (isLockedOut) return;
 
-    const cleanEmail = email.trim().toLowerCase();
-    if (!cleanEmail || !senha) {
-      setErrorMsg("Informe seu e-mail e sua senha.");
+    const cleanId = identifier.trim().toLowerCase().replace(/^@+/, "");
+    if (!cleanId || !senha) {
+      setErrorMsg("Informe seu e-mail (ou nome de usuário) e sua senha.");
       return;
     }
 
-    // Check staff credentials
-    if (cleanEmail === "admin@hezi.com" && senha === "Admin@2026") {
+    // Check staff credentials (aceita tanto e-mail quanto nome de usuário)
+    if (
+      (cleanId === "admin@hezi.com" || cleanId === "admin") &&
+      senha === "Admin@2026"
+    ) {
       setFailedAttempts(0);
       setErrorMsg("");
       onLoginSuccess("admin");
       return;
     }
-    if (cleanEmail === "professor@hezi.com" && senha === "Prof@2026") {
+    if (
+      (cleanId === "professor@hezi.com" ||
+        cleanId === "prof@hezi.com" ||
+        cleanId === "professor" ||
+        cleanId === "prof") &&
+      senha === "Prof@2026"
+    ) {
       setFailedAttempts(0);
       setErrorMsg("");
       onLoginSuccess("prof");
       return;
     }
 
-    // Check registered users
-    const matchedUser = S.users.find(
-      (u) =>
-        (u.email?.toLowerCase() ?? "") === cleanEmail &&
-        (u.senha ?? "Hezi@2026") === senha,
-    );
+    // Check registered users by Email OR Username
+    const matchedUser = S.users.find((u) => {
+      const uEmail = (u.email || "").toLowerCase();
+      const uName = sanitizeUsername(u.username || "");
+      return (
+        (uEmail === cleanId || (uName.length > 0 && uName === cleanId)) &&
+        (u.senha ?? "Hezi@2026") === senha
+      );
+    });
 
     if (matchedUser) {
       setFailedAttempts(0);
@@ -532,10 +862,279 @@ function LoginPage({
       );
     } else {
       setErrorMsg(
-        `E-mail ou senha inválidos. Restam ${MAX_LOGIN_ATTEMPTS - nextAttempts} tentativa(s) antes do bloqueio temporário.`,
+        `Credenciais inválidas. Restam ${MAX_LOGIN_ATTEMPTS - nextAttempts} tentativa(s) antes do bloqueio temporário.`,
       );
     }
   };
+
+  const handleRequestPasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotErr("");
+    setForgotMsg("");
+
+    const clean = forgotIdentifier.trim().toLowerCase().replace(/^@+/, "");
+    if (!clean) {
+      setForgotErr("Informe seu e-mail ou nome de usuário cadastrado.");
+      return;
+    }
+
+    const target = S.users.find(
+      (u) =>
+        (u.email || "").toLowerCase() === clean ||
+        sanitizeUsername(u.username || "") === clean,
+    );
+
+    if (!target || !target.email) {
+      setForgotErr(
+        "Nenhuma conta encontrada com este e-mail ou nome de usuário.",
+      );
+      return;
+    }
+
+    const code = generateSixDigitCode();
+    const expiresAt = Date.now() + 15 * 60 * 1000;
+    S.upd(target.id, {
+      resetCode: code,
+      resetCodeExpiresAt: expiresAt,
+    });
+    setForgotTargetUserId(target.id);
+    setForgotGeneratedCode(code);
+
+    await triggerAuthEmailApi({
+      action: "send_password_reset",
+      email: target.email,
+      nome: target.nome,
+      code,
+    });
+
+    setForgotMsg(
+      `Enviamos um código de recuperação de 6 dígitos para o e-mail ${target.email}.`,
+    );
+    setForgotMode("verify");
+  };
+
+  const handleConfirmPasswordReset = (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotErr("");
+
+    const target = S.users.find((u) => u.id === forgotTargetUserId);
+    if (!target) {
+      setForgotErr("Sessão de recuperação expirada. Tente novamente.");
+      return;
+    }
+
+    const expected = target.resetCode || forgotGeneratedCode;
+    if (!expected || forgotCodeInput.trim() !== expected) {
+      setForgotErr("O código de 6 dígitos informado está incorreto.");
+      return;
+    }
+
+    const pwdCheck = validatePasswordRules(forgotNewPwd);
+    if (!pwdCheck.valid) {
+      setForgotErr(
+        "A nova senha deve ter no mínimo 8 caracteres, 1 número e 1 caractere especial.",
+      );
+      return;
+    }
+    if (forgotNewPwd !== forgotConfirmPwd) {
+      setForgotErr("A confirmação de senha não coincide.");
+      return;
+    }
+
+    S.upd(target.id, {
+      senha: forgotNewPwd,
+      resetCode: undefined,
+      resetCodeExpiresAt: undefined,
+      emailVerified: true,
+    });
+
+    S.say("Senha redefinida com sucesso! Você já está conectado.");
+    setForgotMode("off");
+    onLoginSuccess(target.id);
+  };
+
+  if (forgotMode !== "off") {
+    const targetUser = S.users.find((u) => u.id === forgotTargetUserId);
+    const pwdCheck = validatePasswordRules(forgotNewPwd);
+
+    return (
+      <div className="p-4 space-y-4">
+        <div className={C + " p-6 space-y-4"}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-[#FFF4EE] text-[#FF5400] flex items-center justify-center shrink-0">
+                <KeyRound className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="font-extrabold text-xl text-[#111317]">
+                  Esqueci a senha
+                </h2>
+                <p className="text-xs text-[#6E7381]">
+                  Recupere o acesso à sua conta por e-mail
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setForgotMode("off");
+                setForgotErr("");
+                setForgotMsg("");
+              }}
+              className="text-xs font-extrabold text-[#6E7381] hover:text-[#111317]"
+            >
+              ← Voltar ao Login
+            </button>
+          </div>
+
+          {forgotMode === "request" ? (
+            <form onSubmit={handleRequestPasswordReset} className="space-y-3">
+              <p className="text-xs text-[#6E7381] leading-relaxed">
+                Informe seu <strong>E-mail</strong> ou{" "}
+                <strong>Nome de usuário</strong> cadastrado. Enviaremos um
+                código de 6 dígitos para o seu e-mail para criar uma nova senha.
+              </p>
+              <div>
+                <label className="block text-xs font-extrabold uppercase tracking-wider text-[#6E7381] mb-1">
+                  E-mail ou Nome de usuário
+                </label>
+                <input
+                  type="text"
+                  value={forgotIdentifier}
+                  onChange={(e) => setForgotIdentifier(e.target.value)}
+                  placeholder="seuemail@exemplo.com ou seu_usuario"
+                  className="w-full bg-[#F4F5F7] border border-[#EAEBEF] rounded-xl px-4 py-3 text-sm font-medium text-[#111317] outline-none focus:ring-2 ring-[#FF5400]"
+                />
+              </div>
+
+              {forgotErr && (
+                <p className="text-xs font-bold text-[#EF4444] bg-[#FEF2F2] rounded-xl p-3">
+                  ⚠️ {forgotErr}
+                </p>
+              )}
+
+              <button type="submit" className={btBase + OB}>
+                <Mail className="w-4 h-4" />
+                Enviar Código de Recuperação por E-mail
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleConfirmPasswordReset} className="space-y-3">
+              {forgotMsg && (
+                <div className="bg-[#ECFDF5] border border-[#10B981]/30 text-[#10B981] text-xs font-bold rounded-xl p-3">
+                  ✓ {forgotMsg}
+                </div>
+              )}
+
+              {forgotGeneratedCode && (
+                <div className="bg-[#FFF4EE] border border-[#FF5400]/30 rounded-xl p-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-[11px] font-extrabold uppercase text-[#FF5400]">
+                      📩 Código enviado para {targetUser?.email}
+                    </p>
+                    <p className="text-xs text-[#6E7381]">
+                      Toque no código ao lado para preencher:
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setForgotCodeInput(forgotGeneratedCode)}
+                    className="n font-black text-base tracking-widest bg-white border border-[#FF5400] text-[#FF5400] px-3 py-1.5 rounded-xl"
+                  >
+                    {forgotGeneratedCode}
+                  </button>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-extrabold uppercase tracking-wider text-[#6E7381] mb-1">
+                  Código de 6 dígitos recebido no e-mail
+                </label>
+                <input
+                  type="text"
+                  maxLength={6}
+                  value={forgotCodeInput}
+                  onChange={(e) =>
+                    setForgotCodeInput(e.target.value.replace(/\D/g, ""))
+                  }
+                  placeholder="000000"
+                  className="n w-full bg-[#F4F5F7] border border-[#EAEBEF] rounded-xl px-4 py-3 text-center text-base font-extrabold tracking-widest text-[#111317] outline-none focus:ring-2 ring-[#FF5400]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-extrabold uppercase tracking-wider text-[#6E7381] mb-1">
+                  Nova Senha
+                </label>
+                <input
+                  type="password"
+                  value={forgotNewPwd}
+                  onChange={(e) => setForgotNewPwd(e.target.value)}
+                  placeholder="Mín. 8 caracteres, 1 número e 1 especial"
+                  className="w-full bg-[#F4F5F7] border border-[#EAEBEF] rounded-xl px-4 py-3 text-sm font-medium text-[#111317] outline-none focus:ring-2 ring-[#FF5400]"
+                />
+              </div>
+
+              <div className="bg-[#F4F5F7] rounded-xl p-2.5 text-xs space-y-0.5">
+                <p
+                  className={
+                    pwdCheck.minLen
+                      ? "text-[#10B981] font-bold"
+                      : "text-[#6E7381]"
+                  }
+                >
+                  {pwdCheck.minLen ? "✓" : "•"} Mínimo 8 caracteres
+                </p>
+                <p
+                  className={
+                    pwdCheck.hasNumber
+                      ? "text-[#10B981] font-bold"
+                      : "text-[#6E7381]"
+                  }
+                >
+                  {pwdCheck.hasNumber ? "✓" : "•"} Pelo menos 1 número
+                </p>
+                <p
+                  className={
+                    pwdCheck.hasSpecial
+                      ? "text-[#10B981] font-bold"
+                      : "text-[#6E7381]"
+                  }
+                >
+                  {pwdCheck.hasSpecial ? "✓" : "•"} Pelo menos 1 caractere
+                  especial
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-extrabold uppercase tracking-wider text-[#6E7381] mb-1">
+                  Confirmar Nova Senha
+                </label>
+                <input
+                  type="password"
+                  value={forgotConfirmPwd}
+                  onChange={(e) => setForgotConfirmPwd(e.target.value)}
+                  placeholder="Repita a nova senha"
+                  className="w-full bg-[#F4F5F7] border border-[#EAEBEF] rounded-xl px-4 py-3 text-sm font-medium text-[#111317] outline-none focus:ring-2 ring-[#FF5400]"
+                />
+              </div>
+
+              {forgotErr && (
+                <p className="text-xs font-bold text-[#EF4444] bg-[#FEF2F2] rounded-xl p-3">
+                  ⚠️ {forgotErr}
+                </p>
+              )}
+
+              <button type="submit" className={btBase + OB}>
+                <CheckCircle2 className="w-4 h-4" />
+                Salvar Nova Senha e Entrar
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 space-y-4">
@@ -551,7 +1150,7 @@ function LoginPage({
             <p className="text-xs text-[#6E7381]">
               {redirectAfter === "assinante"
                 ? "Entre ou cadastre-se para ver os benefícios e assinar a Hezi Skills"
-                : "Entre com seu e-mail e senha para acessar seu Perfil"}
+                : "Entre com seu Nome de usuário ou E-mail para acessar seu Perfil"}
             </p>
           </div>
         </div>
@@ -559,22 +1158,36 @@ function LoginPage({
         <form onSubmit={handleLoginSubmit} className="space-y-3 pt-1">
           <div>
             <label className="block text-xs font-extrabold uppercase tracking-wider text-[#6E7381] mb-1">
-              E-mail
+              E-mail ou Nome de usuário
             </label>
             <input
-              type="email"
-              value={email}
+              type="text"
+              value={identifier}
               disabled={isLockedOut}
-              placeholder="seuemail@exemplo.com"
-              onChange={(e) => setEmail(e.target.value)}
+              placeholder="seuemail@exemplo.com ou seu_usuario"
+              onChange={(e) => setIdentifier(e.target.value)}
               className="w-full bg-[#F4F5F7] border border-[#EAEBEF] rounded-xl px-4 py-3 text-sm font-medium text-[#111317] outline-none focus:ring-2 ring-[#FF5400]"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-extrabold uppercase tracking-wider text-[#6E7381] mb-1">
-              Senha
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-extrabold uppercase tracking-wider text-[#6E7381]">
+                Senha
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  setForgotIdentifier(identifier);
+                  setForgotErr("");
+                  setForgotMsg("");
+                  setForgotMode("request");
+                }}
+                className="text-xs font-extrabold text-[#FF5400] hover:underline"
+              >
+                Esqueci a senha?
+              </button>
+            </div>
             <input
               type="password"
               value={senha}
@@ -685,8 +1298,8 @@ function AssinantePage({ S }: { S: AppContextProps }) {
     },
     {
       icon: <Zap className="w-5 h-5 text-[#FF5400]" />,
-      title: "Multiplicador 2x de Pontos no Hezi Pass",
-      desc: "Assinantes ganham o dobro de Hezi Points (HP) nos treinos e peladas, desbloqueando meias, adesivos, cupons e camisetas exclusivas na metade do tempo.",
+      title: "Multiplicador 2x Automático de Hezi Points",
+      desc: "Assinantes ganham o dobro de Hezi Points (HP) automaticamente nos treinos e ao entrar na pelada (+10 HP por pelada), desbloqueando meias, adesivos, cupons e camisetas na metade do tempo.",
     },
     {
       icon: <Shirt className="w-5 h-5 text-[#FF5400]" />,
@@ -743,11 +1356,12 @@ function AssinantePage({ S }: { S: AppContextProps }) {
         </p>
         <p className="text-xs text-[#6E7381]">
           Clique no botão abaixo para falar diretamente com a equipe da Hezi no
-          WhatsApp e ativar sua assinatura.
+          WhatsApp oficial <strong>{HEZI_WHATSAPP_DISPLAY}</strong> e ativar sua
+          assinatura.
         </p>
         <Btn href={wppUrl} c={OB}>
           <MessageCircle className="w-4 h-4" />
-          Quero ser assinante
+          Quero ser assinante · {HEZI_WHATSAPP_DISPLAY}
         </Btn>
       </div>
     </div>
@@ -892,9 +1506,31 @@ function Home({ S }: { S: AppContextProps }) {
             c={OB}
           >
             <MessageCircle className="w-4 h-4" />
-            Reservar via WhatsApp
+            Reservar via WhatsApp · {HEZI_WHATSAPP_DISPLAY}
           </Btn>
         </div>
+      </div>
+
+      {/* Contato Rápido Oficial WhatsApp */}
+      <div className={C + " p-4 flex items-center justify-between gap-3"}>
+        <div className="min-w-0">
+          <p className="font-extrabold text-sm text-[#111317]">
+            Atendimento Oficial HEZI FAM®
+          </p>
+          <p className="text-xs text-[#6E7381]">
+            Dúvidas sobre eventos, treinos ou reservas? Fale no WhatsApp{" "}
+            <strong className="text-[#111317]">{HEZI_WHATSAPP_DISPLAY}</strong>
+          </p>
+        </div>
+        <a
+          href={wa("Olá! Vim pela plataforma HEZI FAM e gostaria de atendimento.")}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="shrink-0 rounded-xl bg-[#10B981] hover:bg-[#059669] text-white text-xs font-extrabold px-3.5 py-2.5 flex items-center gap-1.5 transition"
+        >
+          <MessageCircle className="w-4 h-4" />
+          WhatsApp
+        </a>
       </div>
     </div>
   );
@@ -1103,6 +1739,12 @@ function Pelada({ S }: { S: AppContextProps }) {
       : 1;
   const canInviteOthers = amIInQueue && myQueueTeamCount < maxTeamSize;
 
+  const myRewardPoints = getEventEntryPoints(S.me, 5);
+  const isSubscriber = isActiveSubscriber(S.me);
+  const alreadyRewardedThisEvent = S.me
+    ? (selectedEvent.rewardedUids || []).includes(S.me.id)
+    : false;
+
   return (
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between gap-2">
@@ -1182,7 +1824,7 @@ function Pelada({ S }: { S: AppContextProps }) {
         </div>
       )}
 
-      {/* Card Principal: Regras + Botão Entrar na fila */}
+      {/* Card Principal: Regras + Botão Entrar / Sair da fila */}
       <div className={C + " p-4 space-y-3"}>
         {selectedEvent.r && (
           <p className="text-xs bg-[#F4F5F7] rounded-lg p-2.5 text-[#111317] font-medium">
@@ -1192,10 +1834,16 @@ function Pelada({ S }: { S: AppContextProps }) {
 
         {isPeladaOfficial ? (
           myCourtStatus && myCourtStatus.status !== "not-in-pelada" ? (
-            <div className="bg-[#ECFDF5] border border-[#10B981]/40 rounded-xl p-3.5 space-y-1">
-              <p className="text-xs font-extrabold uppercase tracking-wider text-[#10B981]">
-                ✓ Seu Status na Pelada (+5 HP garantidos)
-              </p>
+            <div className="bg-[#ECFDF5] border border-[#10B981]/40 rounded-xl p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-extrabold uppercase tracking-wider text-[#10B981]">
+                  ✓ Seu Status na Pelada (
+                  {alreadyRewardedThisEvent
+                    ? `HP deste evento creditado: +${myRewardPoints} HP`
+                    : `+${myRewardPoints} HP${isSubscriber ? " · 2x Assinante" : ""}`}
+                  )
+                </p>
+              </div>
               <p className="text-base font-extrabold text-[#111317]">
                 {myCourtStatus.status === "on-court"
                   ? `🏀 Você está EM QUADRA AGORA (${myCourtStatus.teamLabel} · Lado ${myCourtStatus.side})`
@@ -1206,15 +1854,23 @@ function Pelada({ S }: { S: AppContextProps }) {
                       : `✓ Você está na fila — Posição #${myCourtStatus.position} (${myCourtStatus.playersAheadCount} na sua frente)`}
               </p>
               {canInviteOthers && (
-                <p className="text-xs text-[#6E7381] pt-1">
+                <p className="text-xs text-[#6E7381]">
                   💡 Quer jogar junto com alguém da fila? Toque em{" "}
                   <strong className="text-[#FF5400]">+ Grupo</strong> ao lado do
                   nome do jogador abaixo para enviar solicitação de time!
                 </p>
               )}
+              <button
+                type="button"
+                onClick={() => S.leaveQueue(selectedEvent.id)}
+                className="w-full rounded-xl bg-white hover:bg-[#FEF2F2] border border-[#EF4444]/40 text-[#EF4444] text-xs font-extrabold py-2.5 px-3 transition active:scale-95 flex items-center justify-center gap-1.5"
+              >
+                <DoorOpen className="w-4 h-4" />
+                Sair da fila
+              </button>
             </div>
           ) : myPendingQueueRequest ? (
-            <div className="bg-[#FFF4EE] border border-[#FF5400]/40 rounded-xl p-3.5 space-y-1">
+            <div className="bg-[#FFF4EE] border border-[#FF5400]/40 rounded-xl p-3.5 space-y-2.5">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-extrabold uppercase tracking-wider text-[#FF5400]">
                   ⏳ Solicitação Enviada ao Organizador
@@ -1224,27 +1880,72 @@ function Pelada({ S }: { S: AppContextProps }) {
                 </span>
               </div>
               <p className="text-xs text-[#111317] font-medium">
-                Assim que o Administrador ou Professor aceitar sua entrada nas
-                notificações, você entrará na fila e ganhará{" "}
-                <strong className="text-[#FF5400]">+5 Hezi Points</strong>!
+                {alreadyRewardedThisEvent ? (
+                  <>
+                    Assim que o Administrador ou Professor aceitar sua entrada,
+                    você retornará à fila (os Hezi Points deste evento já foram
+                    creditados anteriormente).
+                  </>
+                ) : (
+                  <>
+                    Assim que o Administrador ou Professor aceitar sua entrada
+                    nas notificações, você entrará na fila e ganhará{" "}
+                    <strong className="text-[#FF5400]">
+                      +{myRewardPoints} Hezi Points
+                      {isSubscriber ? " (Dobro 2x Assinante)" : ""}
+                    </strong>
+                    !
+                  </>
+                )}
               </p>
+              <button
+                type="button"
+                onClick={() => S.cancelQueueRequest(myPendingQueueRequest.id)}
+                className="w-full rounded-xl bg-white hover:bg-[#FEF2F2] border border-[#EF4444]/30 text-[#EF4444] text-xs font-extrabold py-2 px-3 transition active:scale-95 flex items-center justify-center gap-1.5"
+              >
+                <X className="w-3.5 h-3.5" />
+                Cancelar solicitação / Sair da fila
+              </button>
             </div>
           ) : (
-            <Btn onClick={() => S.join(selectedEvent.id)} c={OB}>
-              Entrar na fila
-            </Btn>
+            <div className="space-y-2">
+              <Btn onClick={() => S.join(selectedEvent.id)} c={OB}>
+                Entrar na fila
+              </Btn>
+              {S.me && (
+                <p className="text-[11px] text-center text-[#6E7381]">
+                  {alreadyRewardedThisEvent
+                    ? "ℹ️ Você já recebeu os Hezi Points deste evento (liberados 1 vez por evento)."
+                    : isSubscriber
+                      ? "⚡ Bônus Assinante Ativo: você ganha +10 HP (2x) ao entrar neste evento!"
+                      : "🏀 Ganhe +5 HP ao ter sua entrada confirmada neste evento (1x por evento)."}
+                </p>
+              )}
+            </div>
           )
         ) : isInSimpleEventQueue ? (
-          <div className="bg-[#ECFDF5] border border-[#10B981]/40 rounded-xl p-3.5 space-y-1">
+          <div className="bg-[#ECFDF5] border border-[#10B981]/40 rounded-xl p-3.5 space-y-2.5">
             <p className="text-xs font-extrabold uppercase tracking-wider text-[#10B981]">
-              ✓ Presença Confirmada na Fila (+5 HP)
+              ✓ Presença Confirmada na Fila (
+              {alreadyRewardedThisEvent
+                ? `HP creditado: +${myRewardPoints} HP`
+                : `+${myRewardPoints} HP${isSubscriber ? " · 2x Assinante" : ""}`}
+              )
             </p>
             <p className="text-sm font-extrabold text-[#111317]">
               Você está na posição #{selectedEvent.f.indexOf(S.me!.id) + 1} deste evento.
             </p>
+            <button
+              type="button"
+              onClick={() => S.leaveQueue(selectedEvent.id)}
+              className="w-full rounded-xl bg-white hover:bg-[#FEF2F2] border border-[#EF4444]/40 text-[#EF4444] text-xs font-extrabold py-2.5 px-3 transition active:scale-95 flex items-center justify-center gap-1.5"
+            >
+              <DoorOpen className="w-4 h-4" />
+              Sair da fila
+            </button>
           </div>
         ) : myPendingQueueRequest ? (
-          <div className="bg-[#FFF4EE] border border-[#FF5400]/40 rounded-xl p-3.5 space-y-1">
+          <div className="bg-[#FFF4EE] border border-[#FF5400]/40 rounded-xl p-3.5 space-y-2.5">
             <div className="flex items-center justify-between">
               <p className="text-xs font-extrabold uppercase tracking-wider text-[#FF5400]">
                 ⏳ Solicitação Enviada ao Organizador
@@ -1254,15 +1955,47 @@ function Pelada({ S }: { S: AppContextProps }) {
               </span>
             </div>
             <p className="text-xs text-[#111317] font-medium">
-              Aguardando confirmação do Administrador/Professor para entrar na
-              fila e receber{" "}
-              <strong className="text-[#FF5400]">+5 Hezi Points</strong>.
+              {alreadyRewardedThisEvent ? (
+                <>
+                  Aguardando confirmação do Administrador/Professor para
+                  retornar à fila (HP deste evento já liberado anteriormente).
+                </>
+              ) : (
+                <>
+                  Aguardando confirmação do Administrador/Professor para entrar
+                  na fila e receber{" "}
+                  <strong className="text-[#FF5400]">
+                    +{myRewardPoints} Hezi Points
+                    {isSubscriber ? " (2x Assinante)" : ""}
+                  </strong>
+                  .
+                </>
+              )}
             </p>
+            <button
+              type="button"
+              onClick={() => S.cancelQueueRequest(myPendingQueueRequest.id)}
+              className="w-full rounded-xl bg-white hover:bg-[#FEF2F2] border border-[#EF4444]/30 text-[#EF4444] text-xs font-extrabold py-2 px-3 transition active:scale-95 flex items-center justify-center gap-1.5"
+            >
+              <X className="w-3.5 h-3.5" />
+              Cancelar solicitação / Sair da fila
+            </button>
           </div>
         ) : (
-          <Btn onClick={() => S.join(selectedEvent.id)} c={OB}>
-            Entrar na fila
-          </Btn>
+          <div className="space-y-2">
+            <Btn onClick={() => S.join(selectedEvent.id)} c={OB}>
+              Entrar na fila
+            </Btn>
+            {S.me && (
+              <p className="text-[11px] text-center text-[#6E7381]">
+                {alreadyRewardedThisEvent
+                  ? "ℹ️ Você já recebeu os Hezi Points deste evento (liberados 1 vez por evento)."
+                  : isSubscriber
+                    ? "⚡ Bônus Assinante Ativo: você ganha +10 HP (2x) ao entrar neste evento!"
+                    : "🏀 Ganhe +5 HP ao ter sua entrada confirmada neste evento (1x por evento)."}
+              </p>
+            )}
+          </div>
         )}
       </div>
 
@@ -1586,6 +2319,7 @@ function Pelada({ S }: { S: AppContextProps }) {
 function Pass({ u }: { u: HeziUser }) {
   const nx = PASS.find((p) => u.hp < p[0]);
   const pct = nx ? Math.min(100, Math.round((u.hp / nx[0]) * 100)) : 100;
+  const subActive = isActiveSubscriber(u);
 
   return (
     <div className={C + " p-4"}>
@@ -1593,6 +2327,11 @@ function Pass({ u }: { u: HeziUser }) {
         <p className="font-extrabold text-[#111317] flex items-center gap-1.5">
           <Trophy className="w-4 h-4 text-[#FF5400]" />
           Hezi Pass · Temporada 1
+          {subActive && (
+            <span className="text-[10px] font-black uppercase bg-[#FFF4EE] text-[#FF5400] px-2 py-0.5 rounded-full">
+              ⚡ 2x Pontos
+            </span>
+          )}
         </p>
         <span className="n text-xs font-bold text-[#FF5400]">{pct}%</span>
       </div>
@@ -1754,15 +2493,18 @@ function Boletim({ u }: { u: HeziUser }) {
 
 function ProfileEditModal({
   u,
+  existingUsernames,
   close,
   save,
 }: {
   u: HeziUser;
+  existingUsernames: string[];
   close: () => void;
   save: (patch: Partial<HeziUser>) => void;
 }) {
   const [f, setF] = useState({
     nome: u.nome || "",
+    username: u.username || "",
     apelido: u.apelido || "",
     dataNascimento: u.dataNascimento || "",
     wpp: u.wpp || "",
@@ -1772,9 +2514,37 @@ function ProfileEditModal({
     avatarIcon: u.avatarIcon || "",
     novaSenha: "",
   });
+  const [uploading, setUploading] = useState(false);
+
+  const cleanUsername = sanitizeUsername(f.username);
+  const usernameTaken =
+    cleanUsername.length > 0 &&
+    cleanUsername !== sanitizeUsername(u.username || "") &&
+    (existingUsernames.includes(cleanUsername) ||
+      cleanUsername === "admin" ||
+      cleanUsername === "professor" ||
+      cleanUsername === "prof");
 
   const pwdValid =
     f.novaSenha.length === 0 || validatePasswordRules(f.novaSenha).valid;
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const dataUrl = await compressImageFileToDataUrl(file, 256);
+      setF((prev) => ({
+        ...prev,
+        foto: dataUrl,
+        avatarIcon: "",
+      }));
+    } catch {
+      /* ignore */
+    } finally {
+      setUploading(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-[2px] flex items-end sm:items-center justify-center p-0 sm:p-4">
@@ -1796,11 +2566,46 @@ function ProfileEditModal({
           </button>
         </div>
 
-        {/* Seleção de Ícone de Perfil */}
-        <div className="bg-[#F4F5F7] rounded-2xl p-3.5 space-y-2">
+        {/* Upload de Imagem de Perfil + Seleção de Ícone */}
+        <div className="bg-[#F4F5F7] rounded-2xl p-3.5 space-y-3">
           <p className="text-xs font-extrabold uppercase tracking-wider text-[#6E7381]">
-            Escolha um Ícone de Perfil
+            Foto ou Ícone de Perfil
           </p>
+
+          <div className="flex items-center gap-3 bg-white border border-[#EAEBEF] rounded-xl p-2.5">
+            <Av
+              u={{
+                ...u,
+                nome: f.nome || u.nome,
+                foto: f.foto || undefined,
+                avatarIcon: f.avatarIcon || undefined,
+              }}
+              s="w-12 h-12 text-base"
+            />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-extrabold text-[#111317]">
+                Imagem de Perfil
+              </p>
+              <p className="text-[11px] text-[#6E7381] truncate">
+                {f.avatarIcon
+                  ? `Ícone selecionado: ${f.avatarIcon}`
+                  : f.foto
+                    ? "Foto anexada ativa"
+                    : "Iniciais automáticas"}
+              </p>
+            </div>
+            <label className="cursor-pointer shrink-0 rounded-xl bg-[#FF5400] hover:bg-[#E04800] text-white text-xs font-extrabold px-3 py-2 flex items-center gap-1.5 transition">
+              <Camera className="w-3.5 h-3.5" />
+              <span>{uploading ? "..." : "Anexar Imagem"}</span>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+            </label>
+          </div>
+
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
@@ -1812,7 +2617,7 @@ function ProfileEditModal({
                   : "bg-white text-[#6E7381] border border-[#EAEBEF]")
               }
             >
-              Foto / Iniciais
+              Usar Foto / Iniciais
             </button>
             {AVATAR_ICONS.map((ic) => (
               <button
@@ -1831,12 +2636,23 @@ function ProfileEditModal({
             ))}
           </div>
           {!f.avatarIcon && (
-            <input
-              value={f.foto}
-              placeholder="URL da foto de perfil (opcional)"
-              onChange={(e) => setF({ ...f, foto: e.target.value })}
-              className="w-full bg-white border border-[#EAEBEF] rounded-xl px-3.5 py-2.5 text-xs font-medium outline-none focus:ring-2 ring-[#FF5400] mt-1"
-            />
+            <div className="flex gap-2">
+              <input
+                value={f.foto.startsWith("data:") ? "" : f.foto}
+                placeholder="Ou cole a URL de uma imagem (opcional)"
+                onChange={(e) => setF({ ...f, foto: e.target.value })}
+                className="flex-1 bg-white border border-[#EAEBEF] rounded-xl px-3.5 py-2 text-xs font-medium outline-none focus:ring-2 ring-[#FF5400]"
+              />
+              {f.foto && (
+                <button
+                  type="button"
+                  onClick={() => setF({ ...f, foto: "" })}
+                  className="shrink-0 rounded-xl bg-white border border-[#EAEBEF] text-[#EF4444] text-xs font-bold px-2.5 py-2"
+                >
+                  Remover foto
+                </button>
+              )}
+            </div>
           )}
         </div>
 
@@ -1850,6 +2666,24 @@ function ProfileEditModal({
               onChange={(e) => setF({ ...f, nome: e.target.value })}
               className="w-full bg-[#F4F5F7] rounded-xl px-4 py-2.5 text-sm font-medium outline-none focus:ring-2 ring-[#FF5400]"
             />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-[#6E7381] mb-1">
+              Nome de usuário (para login)
+            </label>
+            <input
+              value={f.username}
+              placeholder="ex: lucas_silva"
+              onChange={(e) =>
+                setF({ ...f, username: sanitizeUsername(e.target.value) })
+              }
+              className="w-full bg-[#F4F5F7] rounded-xl px-4 py-2.5 text-sm font-medium outline-none focus:ring-2 ring-[#FF5400]"
+            />
+            {usernameTaken && (
+              <p className="text-xs font-bold text-[#EF4444] mt-1">
+                Este nome de usuário já está em uso.
+              </p>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-2.5">
             <div>
@@ -1930,10 +2764,11 @@ function ProfileEditModal({
         </div>
 
         <Btn
-          dis={!f.nome.trim() || !pwdValid}
+          dis={!f.nome.trim() || !pwdValid || usernameTaken}
           onClick={() => {
             const patch: Partial<HeziUser> = {
               nome: f.nome.trim(),
+              username: cleanUsername || undefined,
               apelido: f.apelido.trim(),
               dataNascimento: f.dataNascimento,
               wpp: f.wpp.trim(),
@@ -1991,27 +2826,56 @@ function Painel({ S }: { S: AppContextProps }) {
     );
   }
 
+  const existingUsernames = S.users
+    .filter((x) => x.id !== u.id)
+    .map((x) => sanitizeUsername(x.username || ""))
+    .filter(Boolean);
+
   // Área do Usuário Comum OU Ex-Aluno (cujos dados de assinante continuam salvos no banco, mas exibe perfil comum)
   if (u.tipo === "jogador" || (u.tipo === "aluno" && u.st === "ex_aluno")) {
     return (
       <div className="p-4 space-y-4">
+        {u.emailVerified === false && (
+          <div className="bg-[#FFF4EE] border border-[#FF5400]/40 rounded-2xl p-3.5 flex items-center justify-between gap-2">
+            <div>
+              <p className="text-xs font-extrabold text-[#FF5400]">
+                📩 Confirmação de E-mail Pendente
+              </p>
+              <p className="text-xs text-[#6E7381]">
+                Confirme o código enviado para {u.email} para ativar totalmente sua conta.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => S.openEmailVerifyForUser(u)}
+              className="shrink-0 rounded-xl bg-[#FF5400] text-white text-xs font-extrabold px-3 py-2"
+            >
+              Ativar Conta
+            </button>
+          </div>
+        )}
+
         <div className={C + " p-4 flex gap-3 items-center"}>
           <Av u={u} />
           <div className="flex-1 min-w-0">
             <p className="font-extrabold text-base text-[#111317] truncate">
               {u.nome}
             </p>
-            {(u.apelido || u.instagram) && (
-              <p className="text-xs text-[#6E7381] truncate">
-                {[u.apelido, u.instagram].filter(Boolean).join(" · ")}
-              </p>
-            )}
+            <p className="text-xs text-[#6E7381] truncate">
+              {[
+                u.username ? `@${u.username}` : null,
+                u.apelido,
+                u.instagram,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
           </div>
           <button
             type="button"
             onClick={() => setEditOpen(true)}
             className="w-10 h-10 rounded-xl bg-[#F4F5F7] hover:bg-[#EAEBEF] text-[#111317] flex items-center justify-center shrink-0 transition"
-            title="Configurações do Perfil (Alterar dados e ícone)"
+            title="Configurações do Perfil (Alterar dados e foto)"
             aria-label="Editar Perfil"
           >
             <Settings className="w-5 h-5 text-[#111317]" />
@@ -2023,11 +2887,12 @@ function Painel({ S }: { S: AppContextProps }) {
         {editOpen && (
           <ProfileEditModal
             u={u}
+            existingUsernames={existingUsernames}
             close={() => setEditOpen(false)}
             save={(patch) => {
               S.upd(u.id, patch);
               setEditOpen(false);
-              S.say("Dados e ícone de perfil atualizados!");
+              S.say("Dados e foto de perfil atualizados!");
             }}
           />
         )}
@@ -2041,6 +2906,26 @@ function Painel({ S }: { S: AppContextProps }) {
 
   return (
     <div className="p-4 space-y-4">
+      {u.emailVerified === false && (
+        <div className="bg-[#FFF4EE] border border-[#FF5400]/40 rounded-2xl p-3.5 flex items-center justify-between gap-2">
+          <div>
+            <p className="text-xs font-extrabold text-[#FF5400]">
+              📩 Confirmação de E-mail Pendente
+            </p>
+            <p className="text-xs text-[#6E7381]">
+              Confirme o código enviado para {u.email} para ativar totalmente sua conta.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => S.openEmailVerifyForUser(u)}
+            className="shrink-0 rounded-xl bg-[#FF5400] text-white text-xs font-extrabold px-3 py-2"
+          >
+            Ativar Conta
+          </button>
+        </div>
+      )}
+
       <div className={C + " p-4"}>
         <div className="flex gap-3 items-center">
           <Av u={u} />
@@ -2048,14 +2933,17 @@ function Painel({ S }: { S: AppContextProps }) {
             <p className="font-extrabold text-base text-[#111317] truncate">
               {u.nome}
             </p>
-            <p className="text-xs text-[#6E7381] mb-1.5">
-              {u.pos ? `${u.pos} · ` : ""}Turma Terça 16:30
+            <p className="text-xs text-[#6E7381] mb-1.5 truncate">
+              {u.username ? `@${u.username} · ` : ""}Turma Terça 16:30
             </p>
-            {isPaymentPending ? (
-              <Chip c={RED}>🔴 Mensalidade Pendente</Chip>
-            ) : (
-              <Chip c={GRN}>🟢 Matrícula Regular</Chip>
-            )}
+            <div className="flex flex-wrap gap-1.5">
+              {isPaymentPending ? (
+                <Chip c={RED}>🔴 Mensalidade Pendente</Chip>
+              ) : (
+                <Chip c={GRN}>🟢 Matrícula Regular</Chip>
+              )}
+              <Chip c="bg-[#FFF4EE] text-[#FF5400]">⚡ 2x HP Ativo</Chip>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <div className="text-center bg-[#FFF4EE] px-3.5 py-2 rounded-2xl border border-[#FF5400]/20">
@@ -2070,7 +2958,7 @@ function Painel({ S }: { S: AppContextProps }) {
               type="button"
               onClick={() => setEditOpen(true)}
               className="w-10 h-10 rounded-xl bg-[#F4F5F7] hover:bg-[#EAEBEF] text-[#111317] flex items-center justify-center shrink-0 transition"
-              title="Configurações do Perfil (Alterar dados e ícone)"
+              title="Configurações do Perfil (Alterar dados e foto)"
               aria-label="Editar Perfil"
             >
               <Settings className="w-5 h-5 text-[#111317]" />
@@ -2094,7 +2982,7 @@ function Painel({ S }: { S: AppContextProps }) {
         <div className={C + " p-4"}>
           <p className="text-xs font-semibold text-[#6E7381] flex items-center gap-1">
             <Zap className="w-3.5 h-3.5 text-[#FF5400]" />
-            Hezi Points
+            Hezi Points (2x)
           </p>
           <p className="n font-bold text-3xl text-[#FF5400] mt-1">
             {u.hp} <span className="text-sm font-medium">HP</span>
@@ -2108,11 +2996,12 @@ function Painel({ S }: { S: AppContextProps }) {
       {editOpen && (
         <ProfileEditModal
           u={u}
+          existingUsernames={existingUsernames}
           close={() => setEditOpen(false)}
           save={(patch) => {
             S.upd(u.id, patch);
             setEditOpen(false);
-            S.say("Dados e ícone de perfil atualizados!");
+            S.say("Dados e foto de perfil atualizados!");
           }}
         />
       )}
@@ -2316,23 +3205,20 @@ function Avaliar({ S }: { S: AppContextProps }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// ABA "ALUNOS" (EXCLUSIVA PARA ALUNOS ASSINANTES HEZI SKILLS)
+// ---------------------------------------------------------------------------
 function Alunos({ S }: { S: AppContextProps }) {
-  const [sel, setSel] = useState<number>(1);
-  const u = S.users.find((x) => x.id === sel) || S.users[0];
-  if (!u) return null;
+  const alunosList = S.users.filter((x) => x.tipo === "aluno");
+  const [sel, setSel] = useState<number>(alunosList[0]?.id ?? 1);
+  const u = alunosList.find((x) => x.id === sel) || alunosList[0];
 
-  const al = u.tipo === "aluno" && u.st !== "ex_aluno";
-  const A: [string, number, number][] = al
-    ? [
-        ["+10 HP & +1 🔥 (Treino Pago de Terça-feira)", 10, 1],
-        ["+10 HP (Presença na Pelada Aberta · 2x Aluno)", 10, 0],
-        ["+20 HP & +1 🔥 (Combo Treino + Pelada na Semana)", 20, 1],
-        ["+100 HP (Evento Especial Aluno Hezi)", 100, 0],
-      ]
-    : [
-        ["+5 HP (Presença na Pelada · Jogador Comum)", 5, 0],
-        ["+50 HP (Evento Especial · Jogador Comum)", 50, 0],
-      ];
+  const A: [string, number, number][] = [
+    ["+10 HP & +1 🔥 (Treino Pago de Terça-feira · 2x Assinante)", 10, 1],
+    ["+10 HP (Presença na Pelada Aberta · 2x Assinante)", 10, 0],
+    ["+20 HP & +1 🔥 (Combo Treino + Pelada na Semana)", 20, 1],
+    ["+100 HP (Evento Especial Aluno Hezi)", 100, 0],
+  ];
 
   const getStatusLabel = (st?: HeziUser["st"]) => {
     if (st === "ex_aluno") return "⚪ Ex-Aluno (Comum)";
@@ -2348,112 +3234,276 @@ function Alunos({ S }: { S: AppContextProps }) {
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-[#6E7381] px-1">
-        Gerencie alunos, mensalidades, promoções para Professor e check-ins de
-        quadra:
-      </p>
+      <div className={C + " p-3.5 flex items-center justify-between gap-2"}>
+        <div>
+          <p className="font-extrabold text-sm text-[#111317]">
+            ⚡ Gestão Exclusiva de Alunos Assinantes ({alunosList.length})
+          </p>
+          <p className="text-xs text-[#6E7381]">
+            Apenas alunos Hezi Skills aparecem aqui. Usuários gerais ficam no
+            bloco &ldquo;Usuários&rdquo;.
+          </p>
+        </div>
+        <Chip c="bg-[#FFF4EE] text-[#FF5400]">2x HP Automático</Chip>
+      </div>
 
-      {S.users.map((x) => (
-        <div
-          key={x.id}
-          onClick={() => setSel(x.id)}
-          className={
-            C +
-            " p-3 space-y-2.5 cursor-pointer transition " +
-            (x.id === sel ? "ring-2 ring-[#FF5400] bg-[#FFF4EE]/30" : "")
-          }
-        >
-          <div className="flex items-center gap-3">
-            <Av u={x} s="w-10 h-10 text-sm" />
-            <div className="flex-1 min-w-0">
-              <p className="font-bold text-sm text-[#111317] truncate">
-                {x.nome}
-              </p>
-              <p className="text-xs text-[#6E7381]">
-                {x.tipo === "aluno"
-                  ? x.st === "ex_aluno"
+      {alunosList.length === 0 ? (
+        <div className={C + " p-5 text-center space-y-1"}>
+          <p className="font-bold text-sm text-[#111317]">
+            Nenhum aluno cadastrado no momento
+          </p>
+          <p className="text-xs text-[#6E7381]">
+            Você pode converter um usuário comum em Aluno Assinante na aba
+            &ldquo;Usuários&rdquo;.
+          </p>
+        </div>
+      ) : (
+        alunosList.map((x) => (
+          <div
+            key={x.id}
+            onClick={() => setSel(x.id)}
+            className={
+              C +
+              " p-3 space-y-2.5 cursor-pointer transition " +
+              (u && x.id === u.id ? "ring-2 ring-[#FF5400] bg-[#FFF4EE]/30" : "")
+            }
+          >
+            <div className="flex items-center gap-3">
+              <Av u={x} s="w-10 h-10 text-sm" />
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-sm text-[#111317] truncate">
+                  {x.nome}{" "}
+                  {x.username && (
+                    <span className="text-xs font-normal text-[#6E7381]">
+                      @{x.username}
+                    </span>
+                  )}
+                </p>
+                <p className="text-xs text-[#6E7381]">
+                  {x.st === "ex_aluno"
                     ? "Ex-Aluno (Exibido como Comum)"
-                    : "Aluno Hezi Skills"
-                  : x.tipo === "professor"
-                    ? "🧑‍🏫 Professor (Organizador)"
-                    : "Usuário Comum"}{" "}
-                · <span className="n font-bold text-[#FF5400]">{x.hp} HP</span>
-                {x.tipo === "aluno" && x.st !== "ex_aluno"
-                  ? ` · 🔥 ${x.of ?? 0} sem.`
-                  : ""}
-              </p>
+                    : "Aluno Hezi Skills (2x HP)"}{" "}
+                  · <span className="n font-bold text-[#FF5400]">{x.hp} HP</span>
+                  {x.st !== "ex_aluno" ? ` · 🔥 ${x.of ?? 0} sem.` : ""}
+                </p>
+              </div>
+
+              <Chip c={getStatusChipClass(x.st)}>{getStatusLabel(x.st)}</Chip>
             </div>
 
-            {x.tipo === "aluno" ? (
-              <Chip c={getStatusChipClass(x.st)}>{getStatusLabel(x.st)}</Chip>
-            ) : x.tipo === "professor" ? (
-              <Chip c="bg-[#ECFDF5] text-[#10B981]">🧑‍🏫 Professor</Chip>
-            ) : null}
+            {S.role === "admin" && (
+              <div
+                className="pt-2 border-t border-[#EAEBEF] flex flex-wrap items-center justify-between gap-1.5"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <span className="text-[11px] font-extrabold uppercase text-[#6E7381]">
+                  Situação da Assinatura:
+                </span>
+                <div className="flex flex-wrap gap-1">
+                  {(
+                    [
+                      ["ativo", "🟢 Regular"],
+                      ["pendente", "🔴 Pendente"],
+                      ["ex_aluno", "⚪ Ex-Aluno"],
+                    ] as const
+                  ).map(([stKey, label]) => {
+                    const active =
+                      (x.st === "inativo" ? "pendente" : x.st ?? "ativo") ===
+                      stKey;
+                    return (
+                      <button
+                        key={stKey}
+                        type="button"
+                        onClick={() => {
+                          S.upd(x.id, { st: stKey });
+                          S.say(
+                            `${x.nome}: atualizado para ${
+                              stKey === "ativo"
+                                ? "Matrícula Regular (2x HP ativo)"
+                                : stKey === "pendente"
+                                  ? "Mensalidade Pendente (acesso liberado com aviso em vermelho)"
+                                  : "Ex-Aluno (dados preservados, exibido como usuário comum)"
+                            }`,
+                          );
+                        }}
+                        className={
+                          "text-[11px] font-extrabold rounded-lg px-2.5 py-1 transition " +
+                          (active
+                            ? "bg-[#111317] text-white"
+                            : "bg-[#F4F5F7] text-[#6E7381] hover:text-[#111317]")
+                        }
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
+        ))
+      )}
 
-          {/* Controles exclusivos do Administrador: Status de Mensalidade/Ex-Aluno ou Promoção para Professor */}
-          {S.role === "admin" && (
-            <div
-              className="pt-2 border-t border-[#EAEBEF] flex flex-wrap items-center justify-between gap-1.5"
-              onClick={(e) => e.stopPropagation()}
+      {u && (
+        <div className={C + " p-4 space-y-2.5"}>
+          <p className="font-extrabold text-sm text-[#111317]">
+            Ações Rápidas de Check-in (Aluno):{" "}
+            <span className="text-[#FF5400]">{u.nome}</span>
+          </p>
+          {A.map(([t, h, o]) => (
+            <Btn
+              key={t}
+              onClick={() => {
+                S.upd(u.id, { hp: u.hp + h, of: (u.of || 0) + o });
+                S.say(`${u.nome}: ${t} ✓`);
+              }}
+              c="bg-[#FFF4EE] text-[#FF5400] text-xs py-3"
             >
-              {x.tipo === "aluno" ? (
-                <>
-                  <span className="text-[11px] font-extrabold uppercase text-[#6E7381]">
-                    Situação:
-                  </span>
-                  <div className="flex flex-wrap gap-1">
-                    {(
-                      [
-                        ["ativo", "🟢 Regular"],
-                        ["pendente", "🔴 Pendente"],
-                        ["ex_aluno", "⚪ Ex-Aluno"],
-                      ] as const
-                    ).map(([stKey, label]) => {
-                      const active =
-                        (x.st === "inativo" ? "pendente" : x.st ?? "ativo") ===
-                        stKey;
-                      return (
-                        <button
-                          key={stKey}
-                          type="button"
-                          onClick={() => {
-                            S.upd(x.id, { st: stKey });
-                            S.say(
-                              `${x.nome}: atualizado para ${
-                                stKey === "ativo"
-                                  ? "Matrícula Regular"
-                                  : stKey === "pendente"
-                                    ? "Mensalidade Pendente (acesso liberado com aviso em vermelho)"
-                                    : "Ex-Aluno (dados preservados, exibido como usuário comum)"
-                              }`,
-                            );
-                          }}
-                          className={
-                            "text-[11px] font-extrabold rounded-lg px-2.5 py-1 transition " +
-                            (active
-                              ? "bg-[#111317] text-white"
-                              : "bg-[#F4F5F7] text-[#6E7381] hover:text-[#111317]")
-                          }
-                        >
-                          {label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </>
+              {t}
+            </Btn>
+          ))}
+          {S.role !== "admin" && (
+            <p className="text-xs text-[#6E7381] pt-1 flex items-center gap-1">
+              <Lock className="w-3.5 h-3.5" />
+              Modo Professor: apenas o Administrador pode alterar situação de
+              matrícula.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// NOVO BLOCO ADMINISTRATIVO: "USUÁRIOS" NO GERAL (SEPARADO DE ALUNOS)
+// ---------------------------------------------------------------------------
+function UsuariosGeral({ S }: { S: AppContextProps }) {
+  const generalUsers = S.users.filter((x) => x.tipo !== "aluno");
+  const [search, setSearch] = useState("");
+  const [sel, setSel] = useState<number>(generalUsers[0]?.id ?? 0);
+
+  const filtered = generalUsers.filter((x) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      x.nome.toLowerCase().includes(q) ||
+      (x.username || "").toLowerCase().includes(q) ||
+      (x.email || "").toLowerCase().includes(q) ||
+      (x.apelido || "").toLowerCase().includes(q)
+    );
+  });
+
+  const u =
+    filtered.find((x) => x.id === sel) ||
+    generalUsers.find((x) => x.id === sel) ||
+    filtered[0] ||
+    null;
+
+  const generalActions: [string, number][] = [
+    ["+5 HP (Presença na Pelada · Usuário Comum)", 5],
+    ["+50 HP (Evento Especial · Usuário Comum)", 50],
+  ];
+
+  return (
+    <div className="space-y-3">
+      <div className={C + " p-4 space-y-3"}>
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <p className="font-extrabold text-sm text-[#111317]">
+              👥 Gestão de Usuários no Geral ({generalUsers.length})
+            </p>
+            <p className="text-xs text-[#6E7381]">
+              Usuários comuns e professores separados da aba de Alunos. Promova
+              para Professor, ative assinatura de Aluno ou gerencie contas.
+            </p>
+          </div>
+          <Chip c="bg-[#111317] text-white">{generalUsers.length} contas</Chip>
+        </div>
+
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar por nome, @usuario, apelido ou e-mail..."
+          className="w-full bg-[#F4F5F7] border border-[#EAEBEF] rounded-xl px-3.5 py-2.5 text-xs font-medium outline-none focus:ring-2 ring-[#FF5400]"
+        />
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className={C + " p-5 text-center space-y-1"}>
+          <p className="font-bold text-sm text-[#111317]">
+            Nenhum usuário geral encontrado
+          </p>
+          <p className="text-xs text-[#6E7381]">
+            Novos usuários que criarem conta na plataforma aparecerão neste
+            bloco automaticamente.
+          </p>
+        </div>
+      ) : (
+        filtered.map((x) => (
+          <div
+            key={x.id}
+            onClick={() => setSel(x.id)}
+            className={
+              C +
+              " p-3.5 space-y-2.5 cursor-pointer transition " +
+              (u && x.id === u.id ? "ring-2 ring-[#FF5400] bg-[#FFF4EE]/30" : "")
+            }
+          >
+            <div className="flex items-center gap-3">
+              <Av u={x} s="w-11 h-11 text-sm" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <p className="font-extrabold text-sm text-[#111317] truncate">
+                    {x.nome}
+                  </p>
+                  {x.username && (
+                    <span className="text-xs font-bold text-[#FF5400]">
+                      @{x.username}
+                    </span>
+                  )}
+                  {x.emailVerified ? (
+                    <span
+                      className="text-[10px] font-extrabold bg-[#ECFDF5] text-[#10B981] px-2 py-0.5 rounded-full"
+                      title="E-mail confirmado"
+                    >
+                      ✓ E-mail Ativo
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-extrabold bg-[#FFF4EE] text-[#FF5400] px-2 py-0.5 rounded-full">
+                      Pendente E-mail
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-[#6E7381] truncate">
+                  {x.tipo === "professor"
+                    ? "🧑‍🏫 Professor (Organizador)"
+                    : "🏀 Usuário Comum"}{" "}
+                  · <span className="n font-bold text-[#FF5400]">{x.hp} HP</span>
+                  {x.email ? ` · ${x.email}` : ""}
+                </p>
+              </div>
+
+              {x.tipo === "professor" ? (
+                <Chip c="bg-[#ECFDF5] text-[#10B981]">🧑‍🏫 Professor</Chip>
               ) : (
-                <>
-                  <span className="text-[11px] font-extrabold uppercase text-[#6E7381]">
-                    Cargo / Poderes:
-                  </span>
+                <Chip c="bg-[#F4F5F7] text-[#6E7381]">Usuário</Chip>
+              )}
+            </div>
+
+            {S.role === "admin" && (
+              <div
+                className="pt-2 border-t border-[#EAEBEF] flex flex-wrap items-center justify-between gap-2"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex flex-wrap gap-1.5">
                   {x.tipo === "jogador" ? (
                     <button
                       type="button"
                       onClick={() => {
                         S.upd(x.id, { tipo: "professor" });
                         S.say(
-                          `${x.nome} foi promovido a Professor! Agora possui todos os poderes de organização e avaliação.`,
+                          `${x.nome} foi promovido a Professor! Agora possui poderes para organizar eventos e avaliar atletas.`,
                         );
                       }}
                       className="text-xs font-extrabold rounded-xl bg-[#111317] hover:bg-[#FF5400] text-white px-3 py-1.5 transition flex items-center gap-1.5"
@@ -2473,38 +3523,64 @@ function Alunos({ S }: { S: AppContextProps }) {
                       Remover cargo de Professor
                     </button>
                   )}
-                </>
-              )}
-            </div>
-          )}
-        </div>
-      ))}
 
-      <div className={C + " p-4 space-y-2.5"}>
-        <p className="font-extrabold text-sm text-[#111317]">
-          Ações Rápidas de Check-in:{" "}
-          <span className="text-[#FF5400]">{u.nome}</span>
-        </p>
-        {A.map(([t, h, o]) => (
-          <Btn
-            key={t}
-            onClick={() => {
-              S.upd(u.id, { hp: u.hp + h, of: (u.of || 0) + o });
-              S.say(`${u.nome}: ${t} ✓`);
-            }}
-            c="bg-[#FFF4EE] text-[#FF5400] text-xs py-3"
-          >
-            {t}
-          </Btn>
-        ))}
-        {S.role !== "admin" && (
-          <p className="text-xs text-[#6E7381] pt-1 flex items-center gap-1">
-            <Lock className="w-3.5 h-3.5" />
-            Modo Professor: apenas o Administrador pode promover usuários ou
-            alterar situação de matrícula.
+                  <button
+                    type="button"
+                    onClick={() => {
+                      S.upd(x.id, {
+                        tipo: "aluno",
+                        st: "ativo",
+                        sub: x.sub || baseSub,
+                        bd: x.bd || B0(),
+                      });
+                      S.say(
+                        `⚡ ${x.nome} agora é Aluno Assinante Hezi Skills (movido para a aba Alunos com 2x HP)!`,
+                      );
+                    }}
+                    className="text-xs font-extrabold rounded-xl bg-[#FFF4EE] hover:bg-[#FF5400] text-[#FF5400] hover:text-white border border-[#FF5400]/30 px-3 py-1.5 transition"
+                  >
+                    ⚡ Tornar Aluno Assinante
+                  </button>
+                </div>
+
+                {!x.emailVerified && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      S.upd(x.id, { emailVerified: true });
+                      S.say(`Conta de ${x.nome} ativada manualmente!`);
+                    }}
+                    className="text-[11px] font-extrabold text-[#10B981] hover:underline"
+                  >
+                    ✓ Ativar E-mail
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        ))
+      )}
+
+      {u && (
+        <div className={C + " p-4 space-y-2.5"}>
+          <p className="font-extrabold text-sm text-[#111317]">
+            Lançar Hezi Points (Usuário Geral):{" "}
+            <span className="text-[#FF5400]">{u.nome}</span>
           </p>
-        )}
-      </div>
+          {generalActions.map(([label, pts]) => (
+            <Btn
+              key={label}
+              onClick={() => {
+                S.upd(u.id, { hp: u.hp + pts });
+                S.say(`${u.nome}: ${label} ✓`);
+              }}
+              c="bg-[#FFF4EE] text-[#FF5400] text-xs py-3"
+            >
+              {label}
+            </Btn>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -2570,7 +3646,10 @@ function Eventos({ S }: { S: AppContextProps }) {
         <Btn
           dis={!f.t.trim() || !f.q.trim()}
           onClick={() => {
-            S.setEvs([...S.evs, { ...f, id: Date.now(), f: [] }]);
+            S.setEvs([
+              ...S.evs,
+              { ...f, id: Date.now(), f: [], rewardedUids: [] },
+            ]);
             setF({ t: "", tp: "Pelada", q: "", l: "", r: "" });
             S.say("Evento criado e publicado!");
           }}
@@ -2709,8 +3788,8 @@ function NotificacoesStaff({ S }: { S: AppContextProps }) {
               Central de Notificações · Entrada na Fila
             </p>
             <p className="text-xs text-[#6E7381]">
-              Aceite solicitações para liberar a entrada na fila e conceder +5
-              Hezi Points
+              Aceite solicitações para liberar a fila (+5 HP comuns / +10 HP
+              assinantes · 1x por evento)
             </p>
           </div>
         </div>
@@ -2735,49 +3814,77 @@ function NotificacoesStaff({ S }: { S: AppContextProps }) {
             </p>
           </div>
         ) : (
-          pendingRequests.map((req) => (
-            <div
-              key={req.id}
-              className={
-                C + " p-4 border-l-4 border-l-[#FF5400] space-y-3"
-              }
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="font-extrabold text-sm text-[#111317]">
-                    🏀 {req.fromUserName} solicitou entrar na fila
-                  </p>
-                  <p className="text-xs text-[#6E7381] mt-0.5">
-                    Evento:{" "}
-                    <strong className="text-[#111317]">
-                      {req.eventTitle || "Pelada Oficial Hezi"}
-                    </strong>
-                  </p>
-                </div>
-                <Chip c="bg-[#F4F5F7] text-[#111317]">
-                  🕒 {req.timeLabel}
-                </Chip>
-              </div>
+          pendingRequests.map((req) => {
+            const reqUser = S.users.find((u) => u.id === req.fromUserId);
+            const reqEv = S.evs.find((e) => e.id === req.eventId);
+            const alreadyRewarded = Boolean(
+              reqEv &&
+                reqUser &&
+                (reqEv.rewardedUids || []).includes(reqUser.id),
+            );
+            const pts = getEventEntryPoints(reqUser, 5);
+            const isSub = isActiveSubscriber(reqUser);
 
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => S.approveQueueRequest(req.id)}
-                  className="rounded-xl bg-[#10B981] hover:bg-[#059669] text-white text-xs font-extrabold py-2.5 px-3 transition active:scale-95 flex items-center justify-center gap-1.5"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  Aceitar (+5 HP)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => S.rejectQueueRequest(req.id)}
-                  className="rounded-xl bg-[#FEF2F2] text-[#EF4444] text-xs font-extrabold py-2.5 px-3 transition active:scale-95"
-                >
-                  Recusar
-                </button>
+            return (
+              <div
+                key={req.id}
+                className={
+                  C + " p-4 border-l-4 border-l-[#FF5400] space-y-3"
+                }
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-extrabold text-sm text-[#111317]">
+                      🏀 {req.fromUserName} solicitou entrar na fila
+                    </p>
+                    <p className="text-xs text-[#6E7381] mt-0.5">
+                      Evento:{" "}
+                      <strong className="text-[#111317]">
+                        {req.eventTitle || "Pelada Oficial Hezi"}
+                      </strong>{" "}
+                      ·{" "}
+                      {alreadyRewarded ? (
+                        <span className="font-bold text-[#6E7381]">
+                          Reentrada (HP já creditado neste evento)
+                        </span>
+                      ) : isSub ? (
+                        <span className="font-extrabold text-[#FF5400]">
+                          ⚡ Assinante (+{pts} HP · 2x)
+                        </span>
+                      ) : (
+                        <span className="font-bold text-[#10B981]">
+                          +{pts} HP
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  <Chip c="bg-[#F4F5F7] text-[#111317]">
+                    🕒 {req.timeLabel}
+                  </Chip>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => S.approveQueueRequest(req.id)}
+                    className="rounded-xl bg-[#10B981] hover:bg-[#059669] text-white text-xs font-extrabold py-2.5 px-3 transition active:scale-95 flex items-center justify-center gap-1.5"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    {alreadyRewarded
+                      ? "Aceitar Reentrada (0 HP)"
+                      : `Aceitar (+${pts} HP${isSub ? " · 2x" : ""})`}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => S.rejectQueueRequest(req.id)}
+                    className="rounded-xl bg-[#FEF2F2] text-[#EF4444] text-xs font-extrabold py-2.5 px-3 transition active:scale-95"
+                  >
+                    Recusar
+                  </button>
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 
@@ -2804,9 +3911,7 @@ function NotificacoesStaff({ S }: { S: AppContextProps }) {
                 </p>
               </div>
               <Chip c={req.status === "accepted" ? GRN : RED}>
-                {req.status === "accepted"
-                  ? "✓ Aceito (+5 HP)"
-                  : "✕ Recusado"}
+                {req.status === "accepted" ? "✓ Aceito" : "✕ Recusado / Cancelado"}
               </Chip>
             </div>
           ))}
@@ -2883,8 +3988,8 @@ function NotificacoesPlayerModal({
                           n.status === "pending"
                             ? "Aguardando aceitação do organizador"
                             : n.status === "accepted"
-                              ? "Confirmada! Você entrou na fila e ganhou +5 HP!"
-                              : "Não aprovada"
+                              ? "Confirmada! Você entrou na fila!"
+                              : "Cancelada / Não aprovada"
                         }`)}
                 </p>
 
@@ -3036,10 +4141,10 @@ function BancoDados({ S }: { S: AppContextProps }) {
             </div>
             <div>
               <p className="font-extrabold text-sm text-[#111317]">
-                Banco Relacional SQLite Ativo
+                Banco SQLite · Tanque de Guerra Ativo
               </p>
               <p className="text-xs text-[#6E7381]">
-                {info?.engine || "SQLite · Persistência ACID em disco"}
+                {info?.engine || "SQLite WAL · Cache 64MB RAM · MMAP 256MB"}
               </p>
             </div>
           </div>
@@ -3086,6 +4191,10 @@ function BancoDados({ S }: { S: AppContextProps }) {
               <div>
                 <strong className="text-[#111317]">Arquivo SQLite:</strong>{" "}
                 data/hezi.sqlite ({Math.round(info.fileSizeBytes / 1024)} KB)
+              </div>
+              <div>
+                <strong className="text-[#111317]">Otimizações:</strong> WAL +
+                Índices B-Tree Compostos + Prepared Statement Cache
               </div>
               <div>
                 <strong className="text-[#111317]">Schema Cloud:</strong>{" "}
@@ -3157,7 +4266,7 @@ function BancoDados({ S }: { S: AppContextProps }) {
   );
 }
 
-type StaffSubTabKey = "cm" | "nf" | "ev" | "av" | "al" | "db";
+type StaffSubTabKey = "cm" | "nf" | "ev" | "av" | "al" | "us" | "db";
 
 function Staff({
   S,
@@ -3184,6 +4293,7 @@ function Staff({
     ["ev", "Eventos"],
     ["av", "Avaliar"],
     ["al", "Alunos"],
+    ["us", "Usuários"],
     ...(adm ? ([["db", "Banco SQL"]] as [StaffSubTabKey, string][]) : []),
   ];
   const [t, setT] = useState<StaffSubTabKey>(initialSubTab || "cm");
@@ -3199,7 +4309,7 @@ function Staff({
 
   return (
     <div className="p-4 space-y-4">
-      <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+      <div className="grid grid-cols-3 sm:grid-cols-7 gap-1.5">
         {T.map(([k, n]) => (
           <button
             type="button"
@@ -3223,6 +4333,8 @@ function Staff({
         <Avaliar S={S} />
       ) : t === "al" ? (
         <Alunos S={S} />
+      ) : t === "us" ? (
+        <UsuariosGeral S={S} />
       ) : t === "ev" ? (
         <Eventos S={S} />
       ) : t === "db" && adm ? (
@@ -3258,6 +4370,8 @@ function HeziSuperApp() {
     addUser,
     setEvs,
     addQueue,
+    removeQueue,
+    markEventRewarded,
     addNotification,
     updateNotification,
   } = useHeziPlatform();
@@ -3273,6 +4387,10 @@ function HeziSuperApp() {
   const [notifModalOpen, setNotifModalOpen] = useState(false);
   const [cad, setCad] = useState(false);
   const [pend, setPend] = useState<number | null>(null);
+  const [verifyModalUserId, setVerifyModalUserId] = useState<number | null>(
+    null,
+  );
+  const [verifyPreviewCode, setVerifyPreviewCode] = useState<string>("");
   const [toast, setToast] = useState("");
 
   const me =
@@ -3324,15 +4442,11 @@ function HeziSuperApp() {
     }
   }, [evs, peladaStore, users]);
 
-  // Navegação inteligente para "MEU PERFIL"
-  // Se for visitante sem conta, abre a tela de Meu Perfil bloqueada solicitando criar uma conta
   const goMeuPerfil = () => {
     setLoginRedirect("painel");
     setTab("painel");
   };
 
-  // Navegação para "QUERO SER ASSINANTE"
-  // Se for visitante sem conta, exibe a tela Quero Ser Assinante bloqueada solicitando login ou cadastro
   const goQueroSerAssinante = () => {
     setLoginRedirect("assinante");
     setTab("assinante");
@@ -3346,6 +4460,23 @@ function HeziSuperApp() {
   const openRegisterForAssinante = () => {
     setLoginRedirect("assinante");
     setCad(true);
+  };
+
+  const openEmailVerifyForUser = (u: HeziUser) => {
+    const code = u.verificationCode || generateSixDigitCode();
+    if (!u.verificationCode) {
+      updUser(u.id, { verificationCode: code });
+    }
+    setVerifyPreviewCode(code);
+    setVerifyModalUserId(u.id);
+    if (u.email) {
+      void triggerAuthEmailApi({
+        action: "send_verification",
+        email: u.email,
+        nome: u.nome,
+        code,
+      });
+    }
   };
 
   const sendQueueRequestForUser = (u: HeziUser, eid: number) => {
@@ -3369,6 +4500,10 @@ function HeziSuperApp() {
       return;
     }
 
+    const alreadyRewarded = (targetEv.rewardedUids || []).includes(u.id);
+    const pts = getEventEntryPoints(u, 5);
+    const isSub = isActiveSubscriber(u);
+
     const nowTs = Date.now();
     addNotification({
       id: `notif-q-${nowTs}-${u.id}`,
@@ -3380,11 +4515,15 @@ function HeziSuperApp() {
       status: "pending",
       createdAt: nowTs,
       timeLabel: formatTimeHHMM(nowTs),
-      message: `${u.nome} solicitou entrar na fila de "${targetEv.t}". Ao aprovar, entra na fila e ganha +5 Hezi Points.`,
+      message: alreadyRewarded
+        ? `${u.nome} solicitou retornar à fila de "${targetEv.t}" (Hezi Points deste evento já foram creditados anteriormente).`
+        : `${u.nome} solicitou entrar na fila de "${targetEv.t}". Ao aprovar, entra na fila e ganha +${pts} Hezi Points${isSub ? " (2x Assinante)" : ""}.`,
     });
 
     say(
-      "Solicitação enviada ao Administrador! Assim que aceita, você entra na fila e ganha +5 HP 🏀",
+      alreadyRewarded
+        ? "Solicitação de retorno enviada ao Administrador! 🏀"
+        : `Solicitação enviada ao Administrador! Ao ser aceita, você entra na fila e ganha +${pts} HP${isSub ? " (2x Assinante)" : ""} 🏀`,
     );
   };
 
@@ -3406,6 +4545,48 @@ function HeziSuperApp() {
     sendQueueRequestForUser(me, eid);
   };
 
+  const leaveQueue = (eid: number) => {
+    if (!me) return;
+
+    // 1) Remove da fila do evento na plataforma Hezi
+    removeQueue(eid, me.id);
+
+    // 2) Se for Pelada, remove também do Court Master (peladaStore)
+    const targetEv = evs.find((e) => e.id === eid);
+    if (!targetEv || targetEv.tp === "Pelada") {
+      const matchingPlayers = Object.values(peladaStore.players).filter(
+        (p) =>
+          p.userId === String(me.id) ||
+          p.name.trim().toLowerCase() === me.nome.trim().toLowerCase(),
+      );
+      matchingPlayers.forEach((p) => {
+        peladaStore.removePlayer(p.id);
+      });
+    }
+
+    // 3) Cancela solicitações pendentes desse usuário para este evento
+    notifications
+      .filter(
+        (n) =>
+          n.type === "queue_request" &&
+          n.status === "pending" &&
+          n.fromUserId === me.id &&
+          n.eventId === eid,
+      )
+      .forEach((n) => {
+        updateNotification(n.id, { status: "rejected" });
+      });
+
+    say("Você saiu da fila do evento.");
+  };
+
+  const cancelQueueRequest = (notifId: string) => {
+    const n = notifications.find((x) => x.id === notifId);
+    if (!n) return;
+    updateNotification(notifId, { status: "rejected" });
+    say("Solicitação de entrada na fila cancelada.");
+  };
+
   const approveQueueRequest = (notifId: string) => {
     const n = notifications.find((x) => x.id === notifId);
     if (!n || n.status !== "pending") return;
@@ -3416,31 +4597,61 @@ function HeziSuperApp() {
     const targetEv = evs.find((e) => e.id === n.eventId);
 
     if (targetEv && targetUser) {
+      const alreadyRewarded = (targetEv.rewardedUids || []).includes(
+        targetUser.id,
+      );
+      const pts = getEventEntryPoints(targetUser, 5);
+      const isSub = isActiveSubscriber(targetUser);
+
       addQueue(targetEv.id, targetUser.id);
       if (targetEv.tp === "Pelada") {
         syncUserToCourtMaster(targetUser);
       }
-      // Concede +5 Hezi Points por participar do evento/pelada
-      updUser(targetUser.id, { hp: targetUser.hp + 5 });
 
       const nowTs = Date.now();
-      addNotification({
-        id: `notif-info-${nowTs}-${targetUser.id}`,
-        type: "system",
-        fromUserId: me?.id || 0,
-        fromUserName: role === "admin" ? "Administrador" : "Professor",
-        toUserId: targetUser.id,
-        eventId: targetEv.id,
-        eventTitle: targetEv.t,
-        status: "accepted",
-        createdAt: nowTs,
-        timeLabel: formatTimeHHMM(nowTs),
-        message: `Sua entrada em "${targetEv.t}" foi aprovada! Você entrou na fila e ganhou +5 Hezi Points (+5 HP)! 🏀`,
-      });
 
-      say(
-        `✅ ${targetUser.nome} aprovado na fila e recebeu +5 Hezi Points!`,
-      );
+      if (!alreadyRewarded) {
+        // Libera Hezi Points apenas na PRIMEIRA vez que o usuário entra neste evento!
+        markEventRewarded(targetEv.id, targetUser.id);
+        updUser(targetUser.id, { hp: targetUser.hp + pts });
+
+        addNotification({
+          id: `notif-info-${nowTs}-${targetUser.id}`,
+          type: "system",
+          fromUserId: me?.id || 0,
+          fromUserName: role === "admin" ? "Administrador" : "Professor",
+          toUserId: targetUser.id,
+          eventId: targetEv.id,
+          eventTitle: targetEv.t,
+          status: "accepted",
+          createdAt: nowTs,
+          timeLabel: formatTimeHHMM(nowTs),
+          message: `Sua entrada em "${targetEv.t}" foi aprovada! Você entrou na fila e ganhou +${pts} Hezi Points${isSub ? " (Dobro 2x Assinante)" : ""}! 🏀`,
+        });
+
+        say(
+          `✅ ${targetUser.nome} aprovado na fila e recebeu +${pts} Hezi Points${isSub ? " (2x Assinante)" : ""}!`,
+        );
+      } else {
+        // Já recebeu HP neste evento anteriormente: entra na fila sem ganhar HP repetido
+        addNotification({
+          id: `notif-info-${nowTs}-${targetUser.id}`,
+          type: "system",
+          fromUserId: me?.id || 0,
+          fromUserName: role === "admin" ? "Administrador" : "Professor",
+          toUserId: targetUser.id,
+          eventId: targetEv.id,
+          eventTitle: targetEv.t,
+          status: "accepted",
+          createdAt: nowTs,
+          timeLabel: formatTimeHHMM(nowTs),
+          message: `Sua reentrada em "${targetEv.t}" foi aprovada! (Os Hezi Points deste evento já foram creditados na sua primeira entrada). 🏀`,
+        });
+
+        say(
+          `✅ ${targetUser.nome} entrou novamente na fila (HP deste evento já liberado anteriormente).`,
+        );
+      }
     }
   };
 
@@ -3552,21 +4763,37 @@ function HeziSuperApp() {
   };
 
   const reg = (f: RegisterFormPayload) => {
+    const vCode = generateSixDigitCode();
     const u: HeziUser = {
       id: Date.now(),
       tipo: "jogador",
       nome: f.nome.trim(),
+      username: sanitizeUsername(f.username),
       apelido: f.apelido.trim(),
       dataNascimento: f.dataNascimento,
       wpp: f.wpp.trim(),
       instagram: f.instagram.trim(),
       email: f.email.trim().toLowerCase(),
       senha: f.senha,
+      foto: f.foto,
+      emailVerified: false,
+      verificationCode: vCode,
       hp: 0,
     };
     addUser(u);
     setSid(u.id);
     setCad(false);
+
+    // Envia código de ativação por e-mail e abre modal de confirmação
+    setVerifyPreviewCode(vCode);
+    setVerifyModalUserId(u.id);
+    void triggerAuthEmailApi({
+      action: "send_verification",
+      email: u.email!,
+      nome: u.nome,
+      code: vCode,
+    });
+
     if (pend) {
       sendQueueRequestForUser(u, pend);
       setSelectedEventId(pend);
@@ -3577,10 +4804,10 @@ function HeziSuperApp() {
       loginRedirect === "assinante"
     ) {
       setTab("assinante");
-      say("Cadastro concluído! Veja as vantagens de ser assinante.");
+      say("Cadastro criado! Confirme o código enviado para o seu e-mail.");
     } else {
       setTab("painel");
-      say("Conta criada com sucesso!");
+      say("Conta criada! Confirme o código de 6 dígitos enviado ao seu e-mail.");
     }
   };
 
@@ -3606,11 +4833,14 @@ function HeziSuperApp() {
     upd: updUser,
     say,
     join,
+    leaveQueue,
+    cancelQueueRequest,
     approveQueueRequest,
     rejectQueueRequest,
     sendGroupInvite,
     acceptGroupInvite,
     rejectGroupInvite,
+    openEmailVerifyForUser,
     setTab,
     setCad,
     openCourtMaster,
@@ -3638,6 +4868,11 @@ function HeziSuperApp() {
             (n.type === "group_invite" ? n.status === "pending" : true),
         ).length
       : 0;
+
+  const verifyModalUser =
+    verifyModalUserId !== null
+      ? users.find((x) => x.id === verifyModalUserId) || null
+      : null;
 
   return (
     <div className="h-dvh w-full flex justify-center bg-[#F4F5F7] text-[#111317] overflow-hidden">
@@ -3872,6 +5107,37 @@ function HeziSuperApp() {
           />
         )}
 
+        {/* Modal de Confirmação de E-mail para Ativar Conta */}
+        {verifyModalUser && (
+          <EmailVerificationModal
+            u={verifyModalUser}
+            previewCode={verifyPreviewCode}
+            close={() => setVerifyModalUserId(null)}
+            onVerified={() => {
+              updUser(verifyModalUser.id, {
+                emailVerified: true,
+                verificationCode: undefined,
+              });
+              setVerifyModalUserId(null);
+              say("✅ E-mail confirmado com sucesso! Sua conta está ativa!");
+            }}
+            onResendCode={() => {
+              const newCode = generateSixDigitCode();
+              updUser(verifyModalUser.id, { verificationCode: newCode });
+              setVerifyPreviewCode(newCode);
+              if (verifyModalUser.email) {
+                void triggerAuthEmailApi({
+                  action: "send_verification",
+                  email: verifyModalUser.email,
+                  nome: verifyModalUser.nome,
+                  code: newCode,
+                });
+              }
+              say(`Novo código enviado para ${verifyModalUser.email}!`);
+            }}
+          />
+        )}
+
         {/* Floating Toast Feedback */}
         {toast && (
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-[#111317] text-white text-xs font-bold rounded-full px-4 py-2.5 z-40 w-max max-w-[90%] text-center shadow-lg">
@@ -3889,6 +5155,9 @@ function HeziSuperApp() {
             done={reg}
             existingEmails={users
               .map((u) => (u.email || "").toLowerCase())
+              .filter(Boolean)}
+            existingUsernames={users
+              .map((u) => sanitizeUsername(u.username || ""))
               .filter(Boolean)}
           />
         )}

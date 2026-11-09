@@ -1,5 +1,5 @@
 -- ============================================================================
--- HEZI FAM® + COURT MASTER — SUPABASE / POSTGRESQL SCHEMA COMPLETO
+-- HEZI FAM® + COURT MASTER — SUPABASE / POSTGRESQL SCHEMA (TANQUE DE GUERRA)
 -- Compatível com Supabase SQL Editor (PostgreSQL 15+)
 -- ============================================================================
 
@@ -9,20 +9,31 @@ CREATE TABLE IF NOT EXISTS public.hezi_users (
   auth_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   tipo TEXT NOT NULL CHECK (tipo IN ('aluno', 'jogador', 'professor', 'admin')),
   nome TEXT NOT NULL,
-  pos TEXT NOT NULL DEFAULT 'Armador',
-  status_mensalidade TEXT CHECK (status_mensalidade IN ('ativo', 'inativo')),
+  username TEXT UNIQUE,
+  apelido TEXT,
+  email TEXT UNIQUE,
+  senha_hash TEXT,
+  email_verified BOOLEAN NOT NULL DEFAULT TRUE,
+  verification_code TEXT,
+  reset_code TEXT,
+  reset_code_expires_at TIMESTAMPTZ,
+  data_nascimento TEXT,
+  instagram TEXT,
+  pos TEXT DEFAULT 'Armador',
+  status_mensalidade TEXT CHECK (status_mensalidade IN ('ativo', 'pendente', 'inativo', 'ex_aluno')),
   hp INTEGER NOT NULL DEFAULT 0,
   ofensiva INTEGER NOT NULL DEFAULT 0,
-  foto TEXT,
+  foto TEXT, -- Suporta URL ou Data URI WebP/JPEG comprimida do anexo de perfil
+  avatar_icon TEXT,
   whatsapp TEXT,
   -- 6 Sub-Overalls (ban, arr, pla, def, fis, qi) — Base 65
   sub_overalls JSONB DEFAULT '{"ban":65,"arr":65,"pla":65,"def":65,"fis":65,"qi":65}'::jsonb,
   -- 14 Nano-Overalls (acertos em 20 tentativas)
   nano_attempts JSONB DEFAULT '{"dir":6,"esq":6,"mid":6,"tres":6,"lt":6,"pas":6,"ctr":6,"lat":6,"con":6,"vel":6,"res":6,"imp":6,"dec":6,"rea":6}'::jsonb,
-  -- 6 Badges Quinzenais/Mensais ({ l: 0..3, s: 0..2 })
+  -- 6 Badges Mensais ({ l: 0..3, s: 0..2 })
   badges JSONB DEFAULT '{"ban":{"l":0,"s":0},"arr":{"l":0,"s":0},"pla":{"l":0,"s":0},"def":{"l":0,"s":0},"fis":{"l":0,"s":0},"qi":{"l":0,"s":0}}'::jsonb,
   last_eval_date TEXT,
-  last_eval_cycle TEXT CHECK (last_eval_cycle IN ('Quinzenal', 'Mensal')),
+  last_eval_cycle TEXT CHECK (last_eval_cycle IN ('Mensal')),
   nota_tecnica TEXT DEFAULT '',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -34,7 +45,7 @@ CREATE TABLE IF NOT EXISTS public.hezi_evaluations_history (
   user_id BIGINT NOT NULL REFERENCES public.hezi_users(id) ON DELETE CASCADE,
   evaluator_id BIGINT REFERENCES public.hezi_users(id) ON DELETE SET NULL,
   eval_date TEXT NOT NULL,
-  cycle TEXT NOT NULL CHECK (cycle IN ('Quinzenal', 'Mensal')),
+  cycle TEXT NOT NULL CHECK (cycle IN ('Mensal')),
   ovr_before INTEGER NOT NULL,
   ovr_after INTEGER NOT NULL,
   sub_overalls JSONB NOT NULL,
@@ -53,6 +64,7 @@ CREATE TABLE IF NOT EXISTS public.hezi_events (
   quando TEXT NOT NULL,
   local TEXT NOT NULL,
   regras TEXT NOT NULL,
+  ao_vivo_agora BOOLEAN NOT NULL DEFAULT FALSE,
   ativo BOOLEAN NOT NULL DEFAULT TRUE,
   created_by BIGINT REFERENCES public.hezi_users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -67,7 +79,16 @@ CREATE TABLE IF NOT EXISTS public.hezi_event_queue (
   PRIMARY KEY (event_id, user_id)
 );
 
--- 5. ESTADO DO TOTEM COURT MASTER 3x3 (Times em quadra, cronômetro, campeão esperando)
+-- 5. CONTROLE DE HEZI POINTS LIBERADOS POR EVENTO (1x por evento por usuário)
+CREATE TABLE IF NOT EXISTS public.hezi_event_rewarded_users (
+  event_id BIGINT NOT NULL REFERENCES public.hezi_events(id) ON DELETE CASCADE,
+  user_id BIGINT NOT NULL REFERENCES public.hezi_users(id) ON DELETE CASCADE,
+  points_awarded INTEGER NOT NULL DEFAULT 5,
+  rewarded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (event_id, user_id)
+);
+
+-- 6. ESTADO DO TOTEM COURT MASTER (Times em quadra, cronômetro, campeão esperando)
 CREATE TABLE IF NOT EXISTS public.court_master_state (
   id INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
   payload JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -75,89 +96,12 @@ CREATE TABLE IF NOT EXISTS public.court_master_state (
 );
 
 -- ============================================================================
--- ÍNDICES DE PERFORMANCE
+-- ÍNDICES DE PERFORMANCE DE ALTO FLUXO
 -- ============================================================================
-CREATE INDEX IF NOT EXISTS idx_hezi_users_tipo ON public.hezi_users(tipo);
+CREATE INDEX IF NOT EXISTS idx_hezi_users_tipo_st ON public.hezi_users(tipo, status_mensalidade);
+CREATE INDEX IF NOT EXISTS idx_hezi_users_username ON public.hezi_users(LOWER(username));
+CREATE INDEX IF NOT EXISTS idx_hezi_users_email ON public.hezi_users(LOWER(email));
+CREATE INDEX IF NOT EXISTS idx_hezi_users_hp_desc ON public.hezi_users(hp DESC);
 CREATE INDEX IF NOT EXISTS idx_hezi_eval_history_user ON public.hezi_evaluations_history(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_hezi_event_queue_order ON public.hezi_event_queue(event_id, position ASC);
-
--- ============================================================================
--- ROW LEVEL SECURITY (RLS) — DIVISÃO DOS 5 PERFIS
--- ============================================================================
-ALTER TABLE public.hezi_users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.hezi_evaluations_history ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.hezi_events ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.hezi_event_queue ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.court_master_state ENABLE ROW LEVEL SECURITY;
-
--- Eventos e Fila da Pelada são visíveis para todos (inclusive visitantes)
-CREATE POLICY "Eventos visiveis para todos" ON public.hezi_events
-  FOR SELECT USING (true);
-
-CREATE POLICY "Fila visivel para todos" ON public.hezi_event_queue
-  FOR SELECT USING (true);
-
-CREATE POLICY "Court Master visivel para todos" ON public.court_master_state
-  FOR SELECT USING (true);
-
--- ============================================================================
--- DADOS INICIAIS (SEED DA TURMA DE TERÇA 16:30 E JOGADORES DA PELADA)
--- ============================================================================
-INSERT INTO public.hezi_users (
-  id, tipo, nome, pos, status_mensalidade, hp, ofensiva, foto, whatsapp,
-  sub_overalls, nano_attempts, badges, last_eval_date, last_eval_cycle, nota_tecnica
-) VALUES
-  (
-    1, 'aluno', 'Lucas Silva', 'Armador', 'ativo', 120, 3,
-    'https://images.unsplash.com/photo-1546519638-68e109498ffc?w=150', NULL,
-    '{"ban":72,"arr":70,"pla":71,"def":70,"fis":74,"qi":70}'::jsonb,
-    '{"dir":19,"esq":10,"mid":8,"tres":8,"lt":8,"pas":9,"ctr":9,"lat":8,"con":8,"vel":10,"res":10,"imp":10,"dec":8,"rea":8}'::jsonb,
-    '{"ban":{"l":1,"s":0},"arr":{"l":0,"s":0},"pla":{"l":0,"s":0},"def":{"l":0,"s":0},"fis":{"l":2,"s":0},"qi":{"l":0,"s":0}}'::jsonb,
-    '03/11/2026', 'Quinzenal',
-    'Ótima mão direita! Foco na esquerda: faça séries de bandeja só com a esquerda antes do treino.'
-  ),
-  (
-    2, 'aluno', 'Matheus Rocha', 'Ala', 'ativo', 45, 1,
-    'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150', NULL,
-    '{"ban":68,"arr":66,"pla":67,"def":67,"fis":68,"qi":66}'::jsonb,
-    '{"dir":14,"esq":13,"mid":7,"tres":7,"lt":7,"pas":7,"ctr":7,"lat":7,"con":7,"vel":7,"res":7,"imp":7,"dec":7,"rea":7}'::jsonb,
-    '{"ban":{"l":0,"s":0},"arr":{"l":0,"s":0},"pla":{"l":0,"s":0},"def":{"l":0,"s":0},"fis":{"l":1,"s":0},"qi":{"l":0,"s":0}}'::jsonb,
-    '03/11/2026', 'Quinzenal',
-    'Evolução equilibrada. Manter a constância nos treinos.'
-  ),
-  (
-    3, 'aluno', 'Gabriel Santos', 'Pivô', 'inativo', 90, 0,
-    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150', NULL,
-    '{"ban":65,"arr":65,"pla":65,"def":65,"fis":65,"qi":65}'::jsonb,
-    '{"dir":6,"esq":6,"mid":6,"tres":6,"lt":6,"pas":6,"ctr":6,"lat":6,"con":6,"vel":6,"res":6,"imp":6,"dec":6,"rea":6}'::jsonb,
-    '{"ban":{"l":1,"s":0},"arr":{"l":1,"s":0},"pla":{"l":0,"s":0},"def":{"l":0,"s":0},"fis":{"l":0,"s":0},"qi":{"l":0,"s":0}}'::jsonb,
-    NULL, NULL, ''
-  ),
-  (
-    4, 'aluno', 'Enzo Pereira', 'Ala', 'ativo', 15, 1,
-    'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150', NULL,
-    '{"ban":65,"arr":65,"pla":65,"def":65,"fis":65,"qi":65}'::jsonb,
-    '{"dir":6,"esq":6,"mid":6,"tres":6,"lt":6,"pas":6,"ctr":6,"lat":6,"con":6,"vel":6,"res":6,"imp":6,"dec":6,"rea":6}'::jsonb,
-    '{"ban":{"l":0,"s":0},"arr":{"l":0,"s":0},"pla":{"l":0,"s":0},"def":{"l":0,"s":0},"fis":{"l":0,"s":0},"qi":{"l":0,"s":0}}'::jsonb,
-    NULL, NULL, ''
-  ),
-  (
-    11, 'jogador', 'Carlos Mendes', 'Ala', NULL, 30, 0,
-    NULL, '(21) 98888-1111', NULL, NULL, NULL, NULL, NULL, ''
-  ),
-  (
-    12, 'jogador', 'Rafael Souza', 'Pivô', NULL, 10, 0,
-    NULL, '(21) 97777-2222', NULL, NULL, NULL, NULL, NULL, ''
-  )
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO public.hezi_events (id, titulo, tipo, quando, local, regras) VALUES
-  (1, 'Pelada Oficial Hezi', 'Pelada', 'Sábado · 17:00', 'Quadra Central', 'Jogos até 12 pontos ou 10 min'),
-  (2, 'Treino Hezi Skills', 'Treino', 'Terça · 16:30', 'Quadra Central', 'Somente alunos assinantes')
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO public.hezi_event_queue (event_id, user_id, position) VALUES
-  (1, 1, 1),
-  (1, 12, 2),
-  (1, 2, 3)
-ON CONFLICT (event_id, user_id) DO NOTHING;
+CREATE INDEX IF NOT EXISTS idx_hezi_event_rewarded_lookup ON public.hezi_event_rewarded_users(event_id, user_id);

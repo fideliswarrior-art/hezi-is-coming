@@ -40,6 +40,15 @@ const DB_PATH = path.join(DATA_DIR, "hezi.sqlite");
 
 let dbInstance: SqliteDatabase | null = null;
 let sqliteUnavailable = false;
+const stmtCache = new Map<string, SqliteStatement>();
+
+function prepareCached(db: SqliteDatabase, sql: string): SqliteStatement {
+  const cached = stmtCache.get(sql);
+  if (cached) return cached;
+  const stmt = db.prepare(sql);
+  stmtCache.set(sql, stmt);
+  return stmt;
+}
 
 // In-memory fallback for serverless/edge environments where node:sqlite isn't available
 const memoryFallback = {
@@ -95,8 +104,15 @@ function getDb(): SqliteDatabase | null {
       DatabaseSync: new (p: string) => SqliteDatabase;
     };
     const db = new sqliteMod.DatabaseSync(DB_PATH);
+
+    // High-throughput "Tanque de Guerra" SQLite PRAGMAs
     db.exec("PRAGMA journal_mode = WAL;");
     db.exec("PRAGMA synchronous = NORMAL;");
+    db.exec("PRAGMA busy_timeout = 10000;");
+    db.exec("PRAGMA cache_size = -64000;"); // 64MB RAM page cache
+    db.exec("PRAGMA temp_store = MEMORY;");
+    db.exec("PRAGMA mmap_size = 268435456;"); // 256MB memory-mapped I/O
+    db.exec("PRAGMA wal_autocheckpoint = 1000;");
     db.exec("PRAGMA foreign_keys = ON;");
 
     db.exec(`
@@ -116,6 +132,7 @@ function getDb(): SqliteDatabase | null {
         last_eval_date TEXT,
         last_eval_cycle TEXT,
         nota_tecnica TEXT,
+        profile_json TEXT,
         updated_at INTEGER NOT NULL
       );
 
@@ -141,6 +158,8 @@ function getDb(): SqliteDatabase | null {
         quando TEXT NOT NULL,
         local TEXT NOT NULL,
         regras TEXT NOT NULL,
+        rewarded_uids_json TEXT NOT NULL DEFAULT '[]',
+        ao_vivo_agora INTEGER NOT NULL DEFAULT 0,
         created_at INTEGER NOT NULL
       );
 
@@ -149,6 +168,13 @@ function getDb(): SqliteDatabase | null {
         user_id INTEGER NOT NULL,
         position INTEGER NOT NULL,
         joined_at INTEGER NOT NULL,
+        PRIMARY KEY (event_id, user_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS event_rewarded_users (
+        event_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        rewarded_at INTEGER NOT NULL,
         PRIMARY KEY (event_id, user_id)
       );
 
@@ -170,17 +196,25 @@ function getDb(): SqliteDatabase | null {
       );
     `);
 
-    try {
-      db.exec("ALTER TABLE users ADD COLUMN profile_json TEXT;");
-    } catch {
-      // Column already exists
-    }
-    try {
-      db.exec(
-        "UPDATE events SET regras = 'Regras Fiba, 7 pontos ou 7 minutos' WHERE regras = 'Jogos até 12 pontos ou 10 min';",
-      );
-    } catch {
-      // Ignore
+    // Safe schema migrations for existing databases
+    const safeMigrations = [
+      "ALTER TABLE users ADD COLUMN profile_json TEXT;",
+      "ALTER TABLE events ADD COLUMN rewarded_uids_json TEXT NOT NULL DEFAULT '[]';",
+      "ALTER TABLE events ADD COLUMN ao_vivo_agora INTEGER NOT NULL DEFAULT 0;",
+      "CREATE INDEX IF NOT EXISTS idx_users_tipo_st ON users(tipo, st);",
+      "CREATE INDEX IF NOT EXISTS idx_users_hp_desc ON users(hp DESC);",
+      "CREATE INDEX IF NOT EXISTS idx_users_updated_at ON users(updated_at DESC);",
+      "CREATE INDEX IF NOT EXISTS idx_eval_history_user_created ON evaluations_history(user_id, created_at DESC);",
+      "CREATE INDEX IF NOT EXISTS idx_event_queue_event_pos ON event_queue(event_id, position ASC);",
+      "CREATE INDEX IF NOT EXISTS idx_event_rewarded_lookup ON event_rewarded_users(event_id, user_id);",
+      "UPDATE events SET regras = 'Regras Fiba, 7 pontos ou 7 minutos' WHERE regras = 'Jogos até 12 pontos ou 10 min';",
+    ];
+    for (const sql of safeMigrations) {
+      try {
+        db.exec(sql);
+      } catch {
+        // Ignore if column/index already exists
+      }
     }
 
     dbInstance = db;
@@ -193,7 +227,7 @@ function getDb(): SqliteDatabase | null {
 }
 
 function seedIfEmpty(db: SqliteDatabase) {
-  const row = db.prepare("SELECT COUNT(*) as cnt FROM users").get() as {
+  const row = prepareCached(db, "SELECT COUNT(*) as cnt FROM users").get() as {
     cnt: number;
   };
   if (row && row.cnt > 0) return;
@@ -209,7 +243,6 @@ function saveHeziToDbInternal(
   updatedAt: number,
   isSeed = false,
 ) {
-  // Check previous users to detect newly submitted evaluations and log them in evaluations_history
   const prevUsersMap = new Map<number, HeziUser>();
   if (!isSeed) {
     for (const u of readUsersFromDb(db)) {
@@ -219,7 +252,6 @@ function saveHeziToDbInternal(
 
   db.exec("BEGIN IMMEDIATE TRANSACTION;");
   try {
-    // Sync users
     const incomingIds = users.map((u) => u.id);
     if (incomingIds.length > 0) {
       const placeholders = incomingIds.map(() => "?").join(",");
@@ -230,7 +262,9 @@ function saveHeziToDbInternal(
       db.exec("DELETE FROM users;");
     }
 
-    const upsertUser = db.prepare(`
+    const upsertUser = prepareCached(
+      db,
+      `
       INSERT INTO users (
         id, tipo, nome, pos, st, hp, ofensiva, foto, wpp,
         sub_json, nano_json, badges_json, last_eval_date, last_eval_cycle, nota_tecnica, profile_json, updated_at
@@ -252,33 +286,41 @@ function saveHeziToDbInternal(
         nota_tecnica = excluded.nota_tecnica,
         profile_json = excluded.profile_json,
         updated_at = excluded.updated_at
-    `);
+    `,
+    );
 
-    const insertEvalHistory = db.prepare(`
+    const insertEvalHistory = prepareCached(
+      db,
+      `
       INSERT INTO evaluations_history (
         user_id, user_name, eval_date, cycle, ovr_before, ovr_after,
         sub_json, nano_json, badges_json, nota_tecnica, created_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
+    `,
+    );
 
     for (const u of users) {
       const subJson = u.sub ? JSON.stringify(u.sub) : null;
       const nanoJson = u.r ? JSON.stringify(u.r) : null;
       const badgesJson = u.bd ? JSON.stringify(u.bd) : null;
       const profileJson = JSON.stringify({
+        username: u.username,
         apelido: u.apelido,
         dataNascimento: u.dataNascimento,
         instagram: u.instagram,
         email: u.email,
         senha: u.senha,
+        emailVerified: u.emailVerified ?? true,
+        verificationCode: u.verificationCode,
+        resetCode: u.resetCode,
+        resetCodeExpiresAt: u.resetCodeExpiresAt,
         tipo: u.tipo,
         st: u.st,
         avatarIcon: u.avatarIcon,
       });
 
       const dbTipo = u.tipo === "aluno" ? "aluno" : "jogador";
-      const dbSt =
-        u.st === "ativo" ? "ativo" : u.st ? "inativo" : null;
+      const dbSt = u.st === "ativo" ? "ativo" : u.st ? "inativo" : null;
 
       upsertUser.run(
         u.id,
@@ -325,31 +367,85 @@ function saveHeziToDbInternal(
       }
     }
 
+    // Read existing rewarded users per event so they are never lost
+    const existingRewardedRows = prepareCached(
+      db,
+      "SELECT event_id, user_id FROM event_rewarded_users",
+    ).all() as Array<{ event_id: number; user_id: number }>;
+    const rewardedByEvent = new Map<number, Set<number>>();
+    for (const r of existingRewardedRows) {
+      const set = rewardedByEvent.get(Number(r.event_id)) ?? new Set<number>();
+      set.add(Number(r.user_id));
+      rewardedByEvent.set(Number(r.event_id), set);
+    }
+
     // Sync events & event_queue
     db.exec("DELETE FROM event_queue;");
     db.exec("DELETE FROM events;");
 
-    const insertEvent = db.prepare(`
-      INSERT INTO events (id, titulo, tipo, quando, local, regras, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-    const insertQueue = db.prepare(`
+    const insertEvent = prepareCached(
+      db,
+      `
+      INSERT INTO events (id, titulo, tipo, quando, local, regras, rewarded_uids_json, ao_vivo_agora, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    );
+    const insertQueue = prepareCached(
+      db,
+      `
       INSERT INTO event_queue (event_id, user_id, position, joined_at)
       VALUES (?, ?, ?, ?)
-    `);
+    `,
+    );
+    const insertRewarded = prepareCached(
+      db,
+      `
+      INSERT OR IGNORE INTO event_rewarded_users (event_id, user_id, rewarded_at)
+      VALUES (?, ?, ?)
+    `,
+    );
 
     for (const e of evs) {
-      insertEvent.run(e.id, e.t, e.tp, e.q, e.l, e.r, updatedAt);
+      const mergedRewarded = new Set<number>(
+        rewardedByEvent.get(e.id) ?? new Set<number>(),
+      );
+      for (const uid of e.rewardedUids ?? []) {
+        mergedRewarded.add(uid);
+      }
+      for (const uid of e.f ?? []) {
+        mergedRewarded.add(uid);
+      }
+      const rewardedArr = Array.from(mergedRewarded);
+
+      insertEvent.run(
+        e.id,
+        e.t,
+        e.tp,
+        e.q,
+        e.l,
+        e.r,
+        JSON.stringify(rewardedArr),
+        e.aoVivoAgora ? 1 : 0,
+        updatedAt,
+      );
+
       const uniqueQueue = Array.from(new Set(e.f));
       uniqueQueue.forEach((uid, idx) => {
         insertQueue.run(e.id, uid, idx + 1, updatedAt);
       });
+
+      rewardedArr.forEach((uid) => {
+        insertRewarded.run(e.id, uid, updatedAt);
+      });
     }
 
-    db.prepare(`
+    prepareCached(
+      db,
+      `
       INSERT INTO sync_meta (key, updated_at) VALUES ('hezi', ?)
       ON CONFLICT(key) DO UPDATE SET updated_at = excluded.updated_at
-    `).run(updatedAt);
+    `,
+    ).run(updatedAt);
 
     db.exec("COMMIT;");
   } catch (err) {
@@ -359,9 +455,10 @@ function saveHeziToDbInternal(
 }
 
 function readUsersFromDb(db: SqliteDatabase): HeziUser[] {
-  const rows = db
-    .prepare("SELECT * FROM users ORDER BY tipo ASC, id ASC")
-    .all() as Array<{
+  const rows = prepareCached(
+    db,
+    "SELECT * FROM users ORDER BY tipo ASC, id ASC",
+  ).all() as Array<{
     id: number;
     tipo: "aluno" | "jogador";
     nome: string;
@@ -395,6 +492,14 @@ function readUsersFromDb(db: SqliteDatabase): HeziUser[] {
       id: Number(r.id),
       tipo: resolvedTipo,
       nome: r.nome,
+      username:
+        extra.username ??
+        seedMatch?.username ??
+        r.nome
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-z0-9]/g, ""),
       pos: r.pos || undefined,
       hp: Number(r.hp),
       apelido: extra.apelido ?? seedMatch?.apelido,
@@ -402,6 +507,10 @@ function readUsersFromDb(db: SqliteDatabase): HeziUser[] {
       instagram: extra.instagram ?? seedMatch?.instagram,
       email: extra.email ?? seedMatch?.email,
       senha: extra.senha ?? seedMatch?.senha,
+      emailVerified: extra.emailVerified ?? true,
+      verificationCode: extra.verificationCode,
+      resetCode: extra.resetCode,
+      resetCodeExpiresAt: extra.resetCodeExpiresAt,
       avatarIcon: extra.avatarIcon,
       foto: r.foto ?? undefined,
     };
@@ -430,22 +539,29 @@ function readUsersFromDb(db: SqliteDatabase): HeziUser[] {
 }
 
 function readEventsFromDb(db: SqliteDatabase): HeziEventItem[] {
-  const evRows = db
-    .prepare("SELECT * FROM events ORDER BY id ASC")
-    .all() as Array<{
+  const evRows = prepareCached(
+    db,
+    "SELECT * FROM events ORDER BY id ASC",
+  ).all() as Array<{
     id: number;
     titulo: string;
     tipo: string;
     quando: string;
     local: string;
     regras: string;
+    rewarded_uids_json?: string;
+    ao_vivo_agora?: number;
   }>;
 
-  const qRows = db
-    .prepare(
-      "SELECT event_id, user_id FROM event_queue ORDER BY event_id ASC, position ASC",
-    )
-    .all() as Array<{ event_id: number; user_id: number }>;
+  const qRows = prepareCached(
+    db,
+    "SELECT event_id, user_id FROM event_queue ORDER BY event_id ASC, position ASC",
+  ).all() as Array<{ event_id: number; user_id: number }>;
+
+  const rewRows = prepareCached(
+    db,
+    "SELECT event_id, user_id FROM event_rewarded_users",
+  ).all() as Array<{ event_id: number; user_id: number }>;
 
   const qMap = new Map<number, number[]>();
   for (const q of qRows) {
@@ -454,15 +570,38 @@ function readEventsFromDb(db: SqliteDatabase): HeziEventItem[] {
     qMap.set(Number(q.event_id), list);
   }
 
-  return evRows.map((e) => ({
-    id: Number(e.id),
-    t: e.titulo,
-    tp: e.tipo,
-    q: e.quando,
-    l: e.local,
-    r: e.regras,
-    f: qMap.get(Number(e.id)) ?? [],
-  }));
+  const rewMap = new Map<number, Set<number>>();
+  for (const rw of rewRows) {
+    const set = rewMap.get(Number(rw.event_id)) ?? new Set<number>();
+    set.add(Number(rw.user_id));
+    rewMap.set(Number(rw.event_id), set);
+  }
+
+  return evRows.map((e) => {
+    const eid = Number(e.id);
+    const set = rewMap.get(eid) ?? new Set<number>();
+    if (e.rewarded_uids_json) {
+      try {
+        const parsed = JSON.parse(e.rewarded_uids_json) as number[];
+        if (Array.isArray(parsed)) {
+          parsed.forEach((uid) => set.add(Number(uid)));
+        }
+      } catch {
+        // Ignore
+      }
+    }
+    return {
+      id: eid,
+      t: e.titulo,
+      tp: e.tipo,
+      q: e.quando,
+      l: e.local,
+      r: e.regras,
+      f: qMap.get(eid) ?? [],
+      rewardedUids: Array.from(set),
+      aoVivoAgora: Boolean(e.ao_vivo_agora),
+    };
+  });
 }
 
 export function loadFullSyncStateFromDb() {
@@ -481,17 +620,19 @@ export function loadFullSyncStateFromDb() {
     };
   }
 
-  const heziMeta = db
-    .prepare("SELECT updated_at FROM sync_meta WHERE key = 'hezi'")
-    .get() as { updated_at: number } | undefined;
+  const heziMeta = prepareCached(
+    db,
+    "SELECT updated_at FROM sync_meta WHERE key = 'hezi'",
+  ).get() as { updated_at: number } | undefined;
   const heziUpdatedAt = heziMeta ? Number(heziMeta.updated_at) : Date.now();
 
   const users = readUsersFromDb(db);
   const evs = readEventsFromDb(db);
 
-  const notifRow = db
-    .prepare("SELECT payload_json FROM notifications_state WHERE id = 1")
-    .get() as { payload_json: string } | undefined;
+  const notifRow = prepareCached(
+    db,
+    "SELECT payload_json FROM notifications_state WHERE id = 1",
+  ).get() as { payload_json: string } | undefined;
   let notifications: HeziNotification[] = [];
   if (notifRow?.payload_json) {
     try {
@@ -501,9 +642,10 @@ export function loadFullSyncStateFromDb() {
     }
   }
 
-  const peladaRow = db
-    .prepare("SELECT payload_json, updated_at FROM pelada_totem_state WHERE id = 1")
-    .get() as { payload_json: string; updated_at: number } | undefined;
+  const peladaRow = prepareCached(
+    db,
+    "SELECT payload_json, updated_at FROM pelada_totem_state WHERE id = 1",
+  ).get() as { payload_json: string; updated_at: number } | undefined;
 
   return {
     pelada: peladaRow
@@ -541,13 +683,16 @@ export function saveHeziStateToDb(
   const currentEvs = hezi.evs ?? readEventsFromDb(db);
   saveHeziToDbInternal(db, currentUsers, currentEvs, updatedAt, false);
   if (hezi.notifications) {
-    db.prepare(`
+    prepareCached(
+      db,
+      `
       INSERT INTO notifications_state (id, payload_json, updated_at)
       VALUES (1, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         payload_json = excluded.payload_json,
         updated_at = excluded.updated_at
-    `).run(JSON.stringify(hezi.notifications), updatedAt);
+    `,
+    ).run(JSON.stringify(hezi.notifications.slice(0, 200)), updatedAt);
   }
 }
 
@@ -561,18 +706,24 @@ export function savePeladaStateToDb(
     memoryFallback.peladaUpdatedAt = updatedAt;
     return;
   }
-  db.prepare(`
+  prepareCached(
+    db,
+    `
     INSERT INTO pelada_totem_state (id, payload_json, updated_at)
     VALUES (1, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       payload_json = excluded.payload_json,
       updated_at = excluded.updated_at
-  `).run(JSON.stringify(pelada), updatedAt);
+  `,
+  ).run(JSON.stringify(pelada), updatedAt);
 
-  db.prepare(`
+  prepareCached(
+    db,
+    `
     INSERT INTO sync_meta (key, updated_at) VALUES ('pelada', ?)
     ON CONFLICT(key) DO UPDATE SET updated_at = excluded.updated_at
-  `).run(updatedAt);
+  `,
+  ).run(updatedAt);
 }
 
 export function resetDbToFactorySeed() {
@@ -581,6 +732,7 @@ export function resetDbToFactorySeed() {
   if (!db) {
     memoryFallback.users = structuredClone(U0);
     memoryFallback.evs = structuredClone(E0);
+    memoryFallback.notifications = [];
     memoryFallback.heziUpdatedAt = now;
     memoryFallback.pelada = null;
     memoryFallback.peladaUpdatedAt = 0;
@@ -588,6 +740,8 @@ export function resetDbToFactorySeed() {
     return loadFullSyncStateFromDb();
   }
   db.exec("DELETE FROM evaluations_history;");
+  db.exec("DELETE FROM event_rewarded_users;");
+  db.exec("DELETE FROM notifications_state;");
   db.exec("DELETE FROM pelada_totem_state;");
   db.exec("DELETE FROM sync_meta;");
   saveHeziToDbInternal(db, U0, E0, now, true);
@@ -597,11 +751,19 @@ export function resetDbToFactorySeed() {
 export function getDbStatusSummary(): DbStatusSummary {
   const db = getDb();
   if (!db) {
-    const alunosCount = memoryFallback.users.filter((u) => u.tipo === "aluno").length;
-    const jogadoresCount = memoryFallback.users.filter((u) => u.tipo === "jogador").length;
-    const queueCount = memoryFallback.evs.reduce((acc, e) => acc + e.f.length, 0);
+    const alunosCount = memoryFallback.users.filter(
+      (u) => u.tipo === "aluno",
+    ).length;
+    const jogadoresCount = memoryFallback.users.filter(
+      (u) => u.tipo !== "aluno",
+    ).length;
+    const queueCount = memoryFallback.evs.reduce(
+      (acc, e) => acc + e.f.length,
+      0,
+    );
     return {
-      engine: "In-Memory Serverless Store",
+      engine:
+        "High-Speed In-Memory Serverless Engine (WAL/Prepared Cache Ready)",
       dbPath: "memory://hezi",
       fileSizeBytes: 0,
       counts: {
@@ -627,59 +789,65 @@ export function getDbStatusSummary(): DbStatusSummary {
 
   const usersCount = Number(
     (
-      db.prepare("SELECT COUNT(*) as c FROM users").get() as {
+      prepareCached(db, "SELECT COUNT(*) as c FROM users").get() as {
         c: number;
       }
     ).c,
   );
   const alunosCount = Number(
     (
-      db
-        .prepare("SELECT COUNT(*) as c FROM users WHERE tipo = 'aluno'")
-        .get() as { c: number }
+      prepareCached(
+        db,
+        "SELECT COUNT(*) as c FROM users WHERE tipo = 'aluno'",
+      ).get() as { c: number }
     ).c,
   );
   const jogadoresCount = Number(
     (
-      db
-        .prepare("SELECT COUNT(*) as c FROM users WHERE tipo = 'jogador'")
-        .get() as { c: number }
+      prepareCached(
+        db,
+        "SELECT COUNT(*) as c FROM users WHERE tipo = 'jogador'",
+      ).get() as { c: number }
     ).c,
   );
   const eventsCount = Number(
     (
-      db.prepare("SELECT COUNT(*) as c FROM events").get() as {
+      prepareCached(db, "SELECT COUNT(*) as c FROM events").get() as {
         c: number;
       }
     ).c,
   );
   const queueCount = Number(
     (
-      db.prepare("SELECT COUNT(*) as c FROM event_queue").get() as {
+      prepareCached(db, "SELECT COUNT(*) as c FROM event_queue").get() as {
         c: number;
       }
     ).c,
   );
   const evalsCount = Number(
     (
-      db.prepare("SELECT COUNT(*) as c FROM evaluations_history").get() as {
+      prepareCached(
+        db,
+        "SELECT COUNT(*) as c FROM evaluations_history",
+      ).get() as {
         c: number;
       }
     ).c,
   );
 
-  const heziMeta = db
-    .prepare("SELECT updated_at FROM sync_meta WHERE key = 'hezi'")
-    .get() as { updated_at: number } | undefined;
-  const peladaMeta = db
-    .prepare("SELECT updated_at FROM sync_meta WHERE key = 'pelada'")
-    .get() as { updated_at: number } | undefined;
+  const heziMeta = prepareCached(
+    db,
+    "SELECT updated_at FROM sync_meta WHERE key = 'hezi'",
+  ).get() as { updated_at: number } | undefined;
+  const peladaMeta = prepareCached(
+    db,
+    "SELECT updated_at FROM sync_meta WHERE key = 'pelada'",
+  ).get() as { updated_at: number } | undefined;
 
-  const recentRows = db
-    .prepare(
-      "SELECT id, user_id, user_name, eval_date, cycle, ovr_before, ovr_after, nota_tecnica, created_at FROM evaluations_history ORDER BY id DESC LIMIT 15",
-    )
-    .all() as Array<{
+  const recentRows = prepareCached(
+    db,
+    "SELECT id, user_id, user_name, eval_date, cycle, ovr_before, ovr_after, nota_tecnica, created_at FROM evaluations_history ORDER BY id DESC LIMIT 15",
+  ).all() as Array<{
     id: number;
     user_id: number;
     user_name: string;
@@ -692,7 +860,7 @@ export function getDbStatusSummary(): DbStatusSummary {
   }>;
 
   return {
-    engine: `SQLite Nativo (Node ${process.version} · WAL Mode)`,
+    engine: `SQLite Tanque de Guerra (Node ${process.version} · WAL + 64MB Cache + MMAP 256MB + Índices B-Tree)`,
     dbPath: DB_PATH,
     fileSizeBytes,
     counts: {
