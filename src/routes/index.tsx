@@ -39,6 +39,8 @@ import {
   KeyRound,
   Camera,
   DoorOpen,
+  Calendar,
+  Pencil,
 } from "lucide-react";
 import {
   LOGO,
@@ -105,6 +107,39 @@ function sanitizeUsername(raw: string): string {
     .toLowerCase()
     .replace(/^@+/, "")
     .replace(/[^a-z0-9._]/g, "");
+}
+
+function formatDateInput(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4, 8)}`;
+}
+
+function isValidBirthDate(val: string): boolean {
+  if (!val) return false;
+  const digits = val.replace(/\D/g, "");
+  if (digits.length < 8) return false;
+  let d = 0;
+  let m = 0;
+  let y = 0;
+  if (val.includes("/")) {
+    const parts = val.split("/");
+    d = parseInt(parts[0], 10);
+    m = parseInt(parts[1], 10);
+    y = parseInt(parts[2], 10);
+  } else if (val.includes("-")) {
+    const parts = val.split("-");
+    y = parseInt(parts[0], 10);
+    m = parseInt(parts[1], 10);
+    d = parseInt(parts[2], 10);
+  } else {
+    d = parseInt(digits.slice(0, 2), 10);
+    m = parseInt(digits.slice(2, 4), 10);
+    y = parseInt(digits.slice(4, 8), 10);
+  }
+  const currYear = new Date().getFullYear();
+  return d >= 1 && d <= 31 && m >= 1 && m <= 12 && y >= 1920 && y <= currYear;
 }
 
 async function compressImageFileToDataUrl(
@@ -383,12 +418,14 @@ function Cadastro({
       cleanUsername === "professor" ||
       cleanUsername === "prof");
 
+  const isBirthDateValid = isValidBirthDate(f.dataNascimento);
+
   const ok =
     f.nome.trim().length > 1 &&
     isUsernameValid &&
     !usernameTaken &&
     f.apelido.trim().length > 1 &&
-    f.dataNascimento.trim().length > 0 &&
+    isBirthDateValid &&
     f.wpp.replace(/\D/g, "").length >= 10 &&
     f.instagram.trim().length > 1 &&
     isEmailValid &&
@@ -499,13 +536,42 @@ function Cadastro({
               onChange={(e) => setF({ ...f, apelido: e.target.value })}
               className="w-full bg-[#F4F5F7] rounded-xl px-4 py-3 text-sm font-medium outline-none focus:ring-2 ring-[#FF5400]"
             />
-            <input
-              type="date"
-              value={f.dataNascimento}
-              title="Data de nascimento"
-              onChange={(e) => setF({ ...f, dataNascimento: e.target.value })}
-              className="w-full bg-[#F4F5F7] rounded-xl px-3.5 py-3 text-sm font-medium outline-none focus:ring-2 ring-[#FF5400]"
-            />
+            <div className="relative">
+              <input
+                type="text"
+                inputMode="numeric"
+                value={f.dataNascimento}
+                placeholder="Nascimento (DD/MM/AAAA)"
+                onChange={(e) =>
+                  setF({
+                    ...f,
+                    dataNascimento: formatDateInput(e.target.value),
+                  })
+                }
+                className={
+                  "w-full bg-[#F4F5F7] rounded-xl px-3.5 py-3 text-sm font-medium outline-none focus:ring-2 pr-9 " +
+                  (f.dataNascimento.length >= 8 && !isBirthDateValid
+                    ? "ring-2 ring-[#EF4444]"
+                    : "ring-[#FF5400]")
+                }
+              />
+              <label
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer text-[#6E7381] hover:text-[#FF5400] p-1"
+                title="Escolher no calendário"
+              >
+                <Calendar className="w-4 h-4" />
+                <input
+                  type="date"
+                  className="sr-only"
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      const [y, m, d] = e.target.value.split("-");
+                      setF({ ...f, dataNascimento: `${d}/${m}/${y}` });
+                    }
+                  }}
+                />
+              </label>
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-2.5">
             <input
@@ -804,7 +870,9 @@ function LoginPage({
     e.preventDefault();
     if (isLockedOut) return;
 
-    const cleanId = identifier.trim().toLowerCase().replace(/^@+/, "");
+    const rawInput = identifier.trim().toLowerCase();
+    const cleanId = rawInput.replace(/^@+/, "");
+    const cleanUsername = sanitizeUsername(rawInput);
     if (!cleanId || !senha) {
       setErrorMsg("Informe seu e-mail (ou nome de usuário) e sua senha.");
       return;
@@ -833,14 +901,27 @@ function LoginPage({
       return;
     }
 
-    // Check registered users by Email OR Username
+    // Check registered users by Email OR Username OR Apelido
     const matchedUser = S.users.find((u) => {
-      const uEmail = (u.email || "").toLowerCase();
-      const uName = sanitizeUsername(u.username || "");
-      return (
-        (uEmail === cleanId || (uName.length > 0 && uName === cleanId)) &&
-        (u.senha ?? "Hezi@2026") === senha
-      );
+      const uEmail = (u.email || "").trim().toLowerCase();
+      const uUserRaw = (u.username || "").trim().toLowerCase().replace(/^@+/, "");
+      const uSanitized = sanitizeUsername(u.username || "");
+      const uApelido = (u.apelido || "").trim().toLowerCase();
+
+      const emailMatches =
+        uEmail.length > 0 && (uEmail === rawInput || uEmail === cleanId);
+      const usernameMatches =
+        (uUserRaw.length > 0 &&
+          (uUserRaw === cleanId || uUserRaw === cleanUsername)) ||
+        (uSanitized.length > 0 &&
+          (uSanitized === cleanUsername || uSanitized === cleanId));
+      const apelidoMatches =
+        uApelido.length > 0 &&
+        (uApelido === cleanId || uApelido === cleanUsername);
+
+      const idMatches = emailMatches || usernameMatches || apelidoMatches;
+      const pwdMatches = (u.senha ?? "Hezi@2026") === senha;
+      return idMatches && pwdMatches;
     });
 
     if (matchedUser) {
@@ -872,17 +953,27 @@ function LoginPage({
     setForgotErr("");
     setForgotMsg("");
 
-    const clean = forgotIdentifier.trim().toLowerCase().replace(/^@+/, "");
-    if (!clean) {
+    const rawClean = forgotIdentifier.trim().toLowerCase();
+    const cleanNoAt = rawClean.replace(/^@+/, "");
+    const cleanUser = sanitizeUsername(rawClean);
+    if (!cleanNoAt) {
       setForgotErr("Informe seu e-mail ou nome de usuário cadastrado.");
       return;
     }
 
-    const target = S.users.find(
-      (u) =>
-        (u.email || "").toLowerCase() === clean ||
-        sanitizeUsername(u.username || "") === clean,
-    );
+    const target = S.users.find((u) => {
+      const uEmail = (u.email || "").trim().toLowerCase();
+      const uUserRaw = (u.username || "").trim().toLowerCase().replace(/^@+/, "");
+      const uSanitized = sanitizeUsername(u.username || "");
+      return (
+        uEmail === rawClean ||
+        uEmail === cleanNoAt ||
+        (uUserRaw.length > 0 &&
+          (uUserRaw === cleanNoAt || uUserRaw === cleanUser)) ||
+        (uSanitized.length > 0 &&
+          (uSanitized === cleanUser || uSanitized === cleanNoAt))
+      );
+    });
 
     if (!target || !target.email) {
       setForgotErr(
@@ -1356,12 +1447,11 @@ function AssinantePage({ S }: { S: AppContextProps }) {
         </p>
         <p className="text-xs text-[#6E7381]">
           Clique no botão abaixo para falar diretamente com a equipe da Hezi no
-          WhatsApp oficial <strong>{HEZI_WHATSAPP_DISPLAY}</strong> e ativar sua
-          assinatura.
+          WhatsApp oficial e ativar sua assinatura.
         </p>
         <Btn href={wppUrl} c={OB}>
           <MessageCircle className="w-4 h-4" />
-          Quero ser assinante · {HEZI_WHATSAPP_DISPLAY}
+          Quero ser assinante via WhatsApp
         </Btn>
       </div>
     </div>
@@ -1506,7 +1596,7 @@ function Home({ S }: { S: AppContextProps }) {
             c={OB}
           >
             <MessageCircle className="w-4 h-4" />
-            Reservar via WhatsApp · {HEZI_WHATSAPP_DISPLAY}
+            Reservar via WhatsApp
           </Btn>
         </div>
       </div>
@@ -1518,8 +1608,7 @@ function Home({ S }: { S: AppContextProps }) {
             Atendimento Oficial HEZI FAM®
           </p>
           <p className="text-xs text-[#6E7381]">
-            Dúvidas sobre eventos, treinos ou reservas? Fale no WhatsApp{" "}
-            <strong className="text-[#111317]">{HEZI_WHATSAPP_DISPLAY}</strong>
+            Dúvidas sobre eventos, treinos ou reservas? Fale diretamente com nossa equipe no WhatsApp oficial.
           </p>
         </div>
         <a
@@ -2698,16 +2787,39 @@ function ProfileEditModal({
             </div>
             <div>
               <label className="block text-xs font-bold text-[#6E7381] mb-1">
-                Data de nascimento
+                Data de nascimento (DD/MM/AAAA)
               </label>
-              <input
-                type="date"
-                value={f.dataNascimento}
-                onChange={(e) =>
-                  setF({ ...f, dataNascimento: e.target.value })
-                }
-                className="w-full bg-[#F4F5F7] rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 ring-[#FF5400]"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={f.dataNascimento}
+                  placeholder="DD/MM/AAAA"
+                  onChange={(e) =>
+                    setF({
+                      ...f,
+                      dataNascimento: formatDateInput(e.target.value),
+                    })
+                  }
+                  className="w-full bg-[#F4F5F7] rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 ring-[#FF5400] pr-8"
+                />
+                <label
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer text-[#6E7381] hover:text-[#FF5400] p-1"
+                  title="Escolher no calendário"
+                >
+                  <Calendar className="w-4 h-4" />
+                  <input
+                    type="date"
+                    className="sr-only"
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        const [y, m, d] = e.target.value.split("-");
+                        setF({ ...f, dataNascimento: `${d}/${m}/${y}` });
+                      }
+                    }}
+                  />
+                </label>
+              </div>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2.5">
@@ -3594,6 +3706,15 @@ function Eventos({ S }: { S: AppContextProps }) {
     r: "",
   });
 
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState({
+    t: "",
+    tp: "Pelada",
+    q: "",
+    l: "",
+    r: "",
+  });
+
   const peladaStore = usePelada();
   const maxTeamSize = getMaxTeamSize(peladaStore.gameFormat);
 
@@ -3685,6 +3806,33 @@ function Eventos({ S }: { S: AppContextProps }) {
                 <button
                   type="button"
                   onClick={() => {
+                    if (editingId === e.id) {
+                      setEditingId(null);
+                    } else {
+                      setEditingId(e.id);
+                      setEditForm({
+                        t: e.t,
+                        tp: e.tp || "Pelada",
+                        q: e.q,
+                        l: e.l,
+                        r: e.r,
+                      });
+                    }
+                  }}
+                  className={
+                    "text-xs font-bold flex items-center gap-1 px-2.5 py-1 rounded-lg transition " +
+                    (editingId === e.id
+                      ? "bg-[#FFF4EE] text-[#FF5400] ring-1 ring-[#FF5400]"
+                      : "text-[#6E7381] hover:text-[#111317] hover:bg-[#F4F5F7]")
+                  }
+                  title="Editar dados deste evento / pelada"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  {editingId === e.id ? "Fechar" : "Editar"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
                     const nextLive = !e.aoVivoAgora;
                     S.setEvs(
                       S.evs.map((x) =>
@@ -3717,6 +3865,123 @@ function Eventos({ S }: { S: AppContextProps }) {
                 </button>
               </div>
             </div>
+
+            {/* Bloco de Edição do Evento / Pelada */}
+            {editingId === e.id && (
+              <div className="bg-[#FFF4EE] border border-[#FFD8C2] rounded-2xl p-3.5 space-y-2 mt-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-extrabold text-[#111317]">
+                    Editar Evento / Pelada
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setEditingId(null)}
+                    className="text-[#6E7381] hover:text-[#111317] p-1"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-[#6E7381] mb-1">
+                    Título
+                  </label>
+                  <input
+                    value={editForm.t}
+                    placeholder="Título do evento"
+                    onChange={(ev) =>
+                      setEditForm({ ...editForm, t: ev.target.value })
+                    }
+                    className="w-full bg-white rounded-xl px-3 py-2 text-xs font-medium outline-none border border-[#EAEBEF] focus:ring-2 ring-[#FF5400]"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[11px] font-bold text-[#6E7381] mb-1">
+                      Tipo
+                    </label>
+                    <select
+                      value={editForm.tp}
+                      onChange={(ev) =>
+                        setEditForm({ ...editForm, tp: ev.target.value })
+                      }
+                      className="w-full bg-white rounded-xl px-3 py-2 text-xs font-bold outline-none border border-[#EAEBEF] focus:ring-2 ring-[#FF5400]"
+                    >
+                      {["Pelada", "Treino", "Torneio"].map((p) => (
+                        <option key={p} value={p}>
+                          {p}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-[#6E7381] mb-1">
+                      Dia e horário
+                    </label>
+                    <input
+                      value={editForm.q}
+                      placeholder="ex: Terça · 19:00"
+                      onChange={(ev) =>
+                        setEditForm({ ...editForm, q: ev.target.value })
+                      }
+                      className="w-full bg-white rounded-xl px-3 py-2 text-xs font-medium outline-none border border-[#EAEBEF] focus:ring-2 ring-[#FF5400]"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[11px] font-bold text-[#6E7381] mb-1">
+                      Quadra / Local
+                    </label>
+                    <input
+                      value={editForm.l}
+                      placeholder="ex: Quadra Central"
+                      onChange={(ev) =>
+                        setEditForm({ ...editForm, l: ev.target.value })
+                      }
+                      className="w-full bg-white rounded-xl px-3 py-2 text-xs font-medium outline-none border border-[#EAEBEF] focus:ring-2 ring-[#FF5400]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-[#6E7381] mb-1">
+                      Regras do jogo
+                    </label>
+                    <input
+                      value={editForm.r}
+                      placeholder="ex: Regras Fiba, 7 pontos ou 7 minutos"
+                      onChange={(ev) =>
+                        setEditForm({ ...editForm, r: ev.target.value })
+                      }
+                      className="w-full bg-white rounded-xl px-3 py-2 text-xs font-medium outline-none border border-[#EAEBEF] focus:ring-2 ring-[#FF5400]"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!editForm.t.trim() || !editForm.q.trim()) return;
+                      S.setEvs(
+                        S.evs.map((x) =>
+                          x.id === e.id ? { ...x, ...editForm } : x,
+                        ),
+                      );
+                      setEditingId(null);
+                      S.say("Evento atualizado com sucesso!");
+                    }}
+                    className="flex-1 rounded-xl bg-[#FF5400] hover:bg-[#E04A00] text-white text-xs font-extrabold py-2 px-3 transition active:scale-95 shadow-sm"
+                  >
+                    Salvar alterações
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingId(null)}
+                    className="rounded-xl bg-white text-[#6E7381] text-xs font-bold py-2 px-3 transition active:scale-95 border border-[#EAEBEF]"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-2 pt-1">
               <button
                 type="button"

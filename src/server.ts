@@ -9,6 +9,10 @@ import {
   getDbStatusSummary,
   resetDbToFactorySeed,
 } from "./lib/db/sqlite";
+import {
+  saveHeziToSupabase,
+  savePeladaToSupabase,
+} from "./lib/db/supabase";
 import type {
   HeziUser,
   HeziEventItem,
@@ -73,7 +77,7 @@ async function sendTransactionalEmail(payload: AuthEmailPayload): Promise<{
         <span style="font-size: 28px; font-weight: 800; letter-spacing: 6px; color: #ffffff;">${payload.code}</span>
       </div>
       <p style="font-size: 12px; color: #9CA3AF;">
-        Suporte oficial WhatsApp HEZI: (21) 99311-8041
+        Suporte oficial WhatsApp HEZI®
       </p>
     </div>
   `;
@@ -175,6 +179,7 @@ export default {
             body.peladaUpdatedAt >= current.peladaUpdatedAt
           ) {
             savePeladaStateToDb(body.pelada, body.peladaUpdatedAt);
+            void savePeladaToSupabase(body.pelada, body.peladaUpdatedAt);
           }
 
           if (
@@ -183,6 +188,7 @@ export default {
             body.heziUpdatedAt >= current.heziUpdatedAt
           ) {
             saveHeziStateToDb(body.hezi, body.heziUpdatedAt);
+            void saveHeziToSupabase(body.hezi, body.heziUpdatedAt);
           }
 
           const updated = loadFullSyncStateFromDb();

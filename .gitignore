@@ -37,3 +37,6 @@ data/*.sqlite-wal
 
 data/*.sqlite
 .vercel
+.env
+.env.*
+scripts/seed-supabase.cjs
