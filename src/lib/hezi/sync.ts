@@ -140,7 +140,7 @@ export function useRealtimeSync() {
     function onStorage(e: StorageEvent) {
       if (e.key === "pelada-store-v1") {
         void usePelada.persist.rehydrate();
-      } else if (e.key === "hezi-platform-store-v2") {
+      } else if (e.key === "hezi-platform-store-v6") {
         void useHeziPlatform.persist.rehydrate();
       }
     }

@@ -4073,7 +4073,7 @@ function Eventos({ S }: { S: AppContextProps }) {
         />
         <input
           value={f.r}
-          placeholder="Regras (ex: Regras Fiba, 7 pontos ou 7 minutos)"
+          placeholder="Descrição / Regras (ex: Regras FIBA, 7 pontos ou 7 minutos)"
           onChange={(e) => setF({ ...f, r: e.target.value })}
           className="w-full bg-[#F4F5F7] rounded-xl px-4 py-3 text-sm outline-none"
         />
@@ -4256,11 +4256,11 @@ function Eventos({ S }: { S: AppContextProps }) {
                   </div>
                   <div>
                     <label className="block text-[11px] font-bold text-[#6E7381] mb-1">
-                      Regras do jogo
+                      Descrição / Regras do jogo
                     </label>
                     <input
                       value={editForm.r}
-                      placeholder="ex: Regras Fiba, 7 pontos ou 7 minutos"
+                      placeholder="ex: Regras FIBA, 7 pontos ou 7 minutos"
                       onChange={(ev) =>
                         setEditForm({ ...editForm, r: ev.target.value })
                       }
@@ -4271,15 +4271,32 @@ function Eventos({ S }: { S: AppContextProps }) {
                 <div className="flex items-center gap-2 pt-1">
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
                       if (!editForm.t.trim() || !editForm.q.trim()) return;
-                      S.setEvs(
-                        S.evs.map((x) =>
-                          x.id === e.id ? { ...x, ...editForm } : x,
-                        ),
+                      const nextEvs = S.evs.map((x) =>
+                        x.id === e.id ? { ...x, ...editForm } : x,
                       );
+                      S.setEvs(nextEvs);
                       setEditingId(null);
                       S.say("Evento atualizado com sucesso!");
+                      try {
+                        const cur = useHeziPlatform.getState();
+                        await fetch("/api/hezi-sync", {
+                          method: "POST",
+                          headers: { "content-type": "application/json" },
+                          body: JSON.stringify({
+                            hezi: {
+                              lastModified: cur.lastModified,
+                              users: cur.users,
+                              evs: nextEvs,
+                              notifications: cur.notifications,
+                            },
+                            heziUpdatedAt: cur.lastModified,
+                          }),
+                        });
+                      } catch {
+                        /* sync em segundo plano */
+                      }
                     }}
                     className="flex-1 rounded-xl bg-[#FF5400] hover:bg-[#E04A00] text-white text-xs font-extrabold py-2 px-3 transition active:scale-95 shadow-sm"
                   >

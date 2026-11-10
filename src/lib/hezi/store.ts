@@ -353,10 +353,6 @@ export const E0: HeziEventItem[] = [
 function normalizeEvents(evs: HeziEventItem[]): HeziEventItem[] {
   return evs.map((e) => ({
     ...e,
-    r:
-      e.r === "Jogos até 12 pontos ou 10 min"
-        ? "Regras Fiba, 7 pontos ou 7 minutos"
-        : e.r,
     rewardedUids: Array.isArray(e.rewardedUids)
       ? e.rewardedUids
       : Array.from(new Set(e.f || [])),
@@ -372,6 +368,7 @@ export interface HeziPlatformState {
   addUser: (u: HeziUser) => void;
   deleteUser: (id: number) => void;
   setEvs: (evs: HeziEventItem[]) => void;
+  updateEvent: (id: number, patch: Partial<HeziEventItem>) => void;
   addQueue: (eid: number, uid: number) => void;
   removeQueue: (eid: number, uid: number) => void;
   markEventRewarded: (eid: number, uid: number) => void;
@@ -424,6 +421,13 @@ export const useHeziPlatform = create<HeziPlatformState>()(
           ...s,
           lastModified: Date.now(),
           evs: normalizeEvents(evs),
+        })),
+
+      updateEvent: (id, patch) =>
+        set((s) => ({
+          ...s,
+          lastModified: Date.now(),
+          evs: s.evs.map((e) => (e.id === id ? { ...e, ...patch } : e)),
         })),
 
       addQueue: (eid, uid) =>
