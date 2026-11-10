@@ -56,7 +56,7 @@ async function sendTransactionalEmail(payload: AuthEmailPayload): Promise<{
 }> {
   const apiKey = process.env.RESEND_API_KEY;
   const fromEmail =
-    process.env.HEZI_EMAIL_FROM || "HEZI FAM <onboarding@resend.dev>";
+    process.env.HEZI_EMAIL_FROM || "HEZI FAM <contato@hezi.com.br>";
 
   const isVerify = payload.action === "send_verification";
   const subject = isVerify
