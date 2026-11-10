@@ -55,7 +55,7 @@ const memoryFallback = {
   users: structuredClone(U0) as HeziUser[],
   evs: structuredClone(E0) as HeziEventItem[],
   notifications: [] as HeziNotification[],
-  heziUpdatedAt: Date.now(),
+  heziUpdatedAt: 0,
   pelada: null as Record<string, unknown> | null,
   peladaUpdatedAt: 0,
   evaluationsHistory: [] as EvaluationHistoryRow[],
@@ -624,7 +624,7 @@ export function loadFullSyncStateFromDb() {
     db,
     "SELECT updated_at FROM sync_meta WHERE key = 'hezi'",
   ).get() as { updated_at: number } | undefined;
-  const heziUpdatedAt = heziMeta ? Number(heziMeta.updated_at) : Date.now();
+  const heziUpdatedAt = heziMeta ? Number(heziMeta.updated_at) : 0;
 
   const users = readUsersFromDb(db);
   const evs = readEventsFromDb(db);

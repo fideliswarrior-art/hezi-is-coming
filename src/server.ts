@@ -12,6 +12,7 @@ import {
 import {
   saveHeziToSupabase,
   savePeladaToSupabase,
+  loadFullSyncStateFromSupabase,
 } from "./lib/db/supabase";
 import type {
   HeziUser,
@@ -156,10 +157,28 @@ export default {
     try {
       const url = new URL(request.url);
 
-      // 1. Real-time Sync Endpoint backed by SQLite Database (data/hezi.sqlite)
+      // 1. Real-time Sync Endpoint backed by SQLite Database & Supabase
       if (url.pathname === "/api/hezi-sync") {
         if (request.method === "GET") {
-          const current = loadFullSyncStateFromDb();
+          let current = loadFullSyncStateFromDb();
+          // Se o container serverless iniciou sem dados gravados localmente, tenta hidratar do Supabase
+          if (current.heziUpdatedAt === 0 || current.peladaUpdatedAt === 0) {
+            try {
+              const supaState = await loadFullSyncStateFromSupabase();
+              if (supaState) {
+                if (supaState.hezi && supaState.heziUpdatedAt > current.heziUpdatedAt) {
+                  saveHeziStateToDb(supaState.hezi, supaState.heziUpdatedAt);
+                }
+                if (supaState.pelada && supaState.peladaUpdatedAt > current.peladaUpdatedAt) {
+                  savePeladaStateToDb(supaState.pelada, supaState.peladaUpdatedAt);
+                }
+                current = loadFullSyncStateFromDb();
+              }
+            } catch {
+              /* ignore fallback error */
+            }
+          }
+
           return new Response(JSON.stringify(current), {
             status: 200,
             headers: {

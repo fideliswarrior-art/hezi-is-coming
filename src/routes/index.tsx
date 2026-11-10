@@ -4145,18 +4145,35 @@ function Eventos({ S }: { S: AppContextProps }) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={async () => {
                     const nextLive = !e.aoVivoAgora;
-                    S.setEvs(
-                      S.evs.map((x) =>
-                        x.id === e.id ? { ...x, aoVivoAgora: nextLive } : x,
-                      ),
+                    const nextEvs = S.evs.map((x) =>
+                      x.id === e.id ? { ...x, aoVivoAgora: nextLive } : x,
                     );
+                    S.setEvs(nextEvs);
                     S.say(
                       nextLive
                         ? `"${e.t}" destacado como "Está rolando" na Home!`
                         : `Destaque manual removido de "${e.t}".`,
                     );
+                    try {
+                      const cur = useHeziPlatform.getState();
+                      await fetch("/api/hezi-sync", {
+                        method: "POST",
+                        headers: { "content-type": "application/json" },
+                        body: JSON.stringify({
+                          hezi: {
+                            lastModified: cur.lastModified,
+                            users: cur.users,
+                            evs: nextEvs,
+                            notifications: cur.notifications,
+                          },
+                          heziUpdatedAt: cur.lastModified,
+                        }),
+                      });
+                    } catch {
+                      /* sync em segundo plano */
+                    }
                   }}
                   className={
                     "text-xs font-extrabold px-2.5 py-1 rounded-lg transition " +
