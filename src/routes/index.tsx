@@ -4347,11 +4347,15 @@ function Eventos({ S }: { S: AppContextProps }) {
               </button>
               <button
                 type="button"
-                onClick={() =>
+                onClick={() => {
                   S.setEvs(
                     S.evs.map((x) => (x.id === e.id ? { ...x, f: [] } : x)),
-                  )
-                }
+                  );
+                  if (e.tp === "Pelada") {
+                    peladaStore.resetNight();
+                  }
+                  S.say("Fila limpa com sucesso!");
+                }}
                 className="rounded-xl bg-[#F4F5F7] text-[#111317] text-xs font-bold py-3 px-2 transition active:scale-95"
               >
                 Limpar fila
@@ -5431,6 +5435,16 @@ function HeziSuperApp() {
     deleteUser: (id: number) => {
       const u = users.find((x) => x.id === id);
       delUserAction(id);
+      if (u) {
+        // Remove também do totem Court Master caso esteja em quadra ou fila
+        const status = getPlayerPeladaStatus(peladaStore, {
+          userId: String(u.id),
+          name: u.nome,
+        });
+        if (status.player) {
+          peladaStore.removePlayer(status.player.id);
+        }
+      }
       say(`Usuário ${u?.nome || ""} excluído com sucesso.`);
     },
     say,
