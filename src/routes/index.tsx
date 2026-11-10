@@ -4757,10 +4757,10 @@ function BancoDados({ S }: { S: AppContextProps }) {
             </div>
             <div>
               <p className="font-extrabold text-sm text-[#111317]">
-                Banco SQLite · Tanque de Guerra Ativo
+                Banco de Dados em Nuvem · Supabase Ativo
               </p>
               <p className="text-xs text-[#6E7381]">
-                {info?.engine || "SQLite WAL · Cache 64MB RAM · MMAP 256MB"}
+                PostgreSQL Cloud + Backups Diários + Criptografia SSL
               </p>
             </div>
           </div>
@@ -4781,18 +4781,19 @@ function BancoDados({ S }: { S: AppContextProps }) {
             <div className="grid grid-cols-3 gap-2 text-center">
               <div className="bg-[#F4F5F7] rounded-xl p-2.5">
                 <p className="n font-extrabold text-xl text-[#111317]">
-                  {info.counts.users}
+                  {S.users.length}
                 </p>
                 <p className="text-xs font-bold text-[#6E7381]">
-                  USUÁRIOS ({info.counts.alunos}A / {info.counts.jogadores}J)
+                  USUÁRIOS ({S.users.filter((u) => u.tipo === "aluno").length}A /{" "}
+                  {S.users.filter((u) => u.tipo === "jogador").length}J)
                 </p>
               </div>
               <div className="bg-[#F4F5F7] rounded-xl p-2.5">
                 <p className="n font-extrabold text-xl text-[#FF5400]">
-                  {info.counts.events}
+                  {S.evs.length}
                 </p>
                 <p className="text-xs font-bold text-[#6E7381]">
-                  EVENTOS ({info.counts.queueEntries} FILA)
+                  EVENTOS
                 </p>
               </div>
               <div className="bg-[#F4F5F7] rounded-xl p-2.5">
@@ -4805,36 +4806,27 @@ function BancoDados({ S }: { S: AppContextProps }) {
 
             <div className="text-xs bg-[#F4F5F7] rounded-xl p-2.5 text-[#6E7381] space-y-1 font-mono break-all">
               <div>
-                <strong className="text-[#111317]">Arquivo SQLite:</strong>{" "}
-                data/hezi.sqlite ({Math.round(info.fileSizeBytes / 1024)} KB)
+                <strong className="text-[#111317]">Cluster:</strong>{" "}
+                qoxlbvvyjdtpwnhngkyj.supabase.co
               </div>
               <div>
-                <strong className="text-[#111317]">Otimizações:</strong> WAL +
-                Índices B-Tree Compostos + Prepared Statement Cache
+                <strong className="text-[#111317]">Tabelas:</strong> hezi_users, hezi_events, court_master_state, hezi_platform_state
               </div>
               <div>
-                <strong className="text-[#111317]">Schema Cloud:</strong>{" "}
-                supabase/schema.sql (PostgreSQL + RLS pronto)
+                <strong className="text-[#111317]">Status:</strong> Conectado em Nuvem com sincronização contínua
               </div>
             </div>
           </>
         )}
 
-        <div className="grid grid-cols-2 gap-2 pt-1">
+        <div className="pt-1">
           <button
             type="button"
             onClick={exportBackup}
-            className="flex items-center justify-center gap-1.5 rounded-xl bg-[#111317] text-white text-xs font-bold py-3 px-3 active:scale-95 transition"
+            className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-[#111317] hover:bg-[#FF5400] text-white text-xs font-bold py-3 px-3 active:scale-95 transition"
           >
             <Download className="w-3.5 h-3.5" />
-            Exportar Backup
-          </button>
-          <button
-            type="button"
-            onClick={() => void resetDb()}
-            className="flex items-center justify-center gap-1.5 rounded-xl bg-[#FEF2F2] text-[#EF4444] text-xs font-bold py-3 px-3 active:scale-95 transition"
-          >
-            Restaurar Fábrica
+            Exportar Backup dos Dados
           </button>
         </div>
       </div>

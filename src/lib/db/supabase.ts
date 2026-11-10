@@ -1,60 +1,27 @@
-import { Client, type ClientConfig } from "pg";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { HeziUser, HeziEventItem, HeziNotification } from "../hezi/store";
 
 export const SUPABASE_CONFIG = {
   url: process.env.SUPABASE_URL || "https://qoxlbvvyjdtpwnhngkyj.supabase.co",
   anonKey: process.env.SUPABASE_ANON_KEY || "sb_publishable_bVB_-CGjjhvhnLSj5UQ5EA_yynyZ4T3",
   serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || "",
-  dbPassword: process.env.SUPABASE_DB_PASSWORD || process.env.PGPASSWORD || "",
-  dbHost: process.env.SUPABASE_DB_HOST || "db.qoxlbvvyjdtpwnhngkyj.supabase.co",
-  dbPort: Number(process.env.SUPABASE_DB_PORT || 5432),
-  dbUser: process.env.SUPABASE_DB_USER || "postgres",
-  dbName: process.env.SUPABASE_DB_NAME || "postgres",
 };
 
-function getPgConfig(): ClientConfig | null {
-  const password = SUPABASE_CONFIG.dbPassword;
-  if (!password) {
-    return null;
-  }
-  return {
-    host: SUPABASE_CONFIG.dbHost,
-    port: SUPABASE_CONFIG.dbPort,
-    user: SUPABASE_CONFIG.dbUser,
-    password,
-    database: SUPABASE_CONFIG.dbName,
-    ssl: { rejectUnauthorized: false },
-    connectionTimeoutMillis: 10000,
-  };
-}
+let supabaseClientInstance: SupabaseClient | null = null;
 
-/**
- * Executa uma operação no Supabase Postgres com retry automático.
- */
-async function withSupabaseClient<T>(fn: (client: Client) => Promise<T>): Promise<T | null> {
-  const conf = getPgConfig();
-  if (!conf) return null;
-
-  const client = new Client(conf);
-  try {
-    await client.connect();
-    const result = await fn(client);
-    return result;
-  } catch (err) {
-    console.warn("[Supabase] Operação em background indisponível:", (err as Error).message);
-    return null;
-  } finally {
-    try {
-      await client.end();
-    } catch {
-      /* ignore */
-    }
+function getSupabase(): SupabaseClient {
+  if (!supabaseClientInstance) {
+    const key = SUPABASE_CONFIG.serviceRoleKey || SUPABASE_CONFIG.anonKey;
+    supabaseClientInstance = createClient(SUPABASE_CONFIG.url, key, {
+      auth: { persistSession: false },
+    });
   }
+  return supabaseClientInstance;
 }
 
 /**
  * Salva o estado da plataforma HEZI no Supabase:
- * 1. Na tabela hezi_platform_state (snapshot de alta performance)
+ * 1. Na tabela hezi_platform_state (snapshot instantâneo de alta performance)
  * 2. Na tabela relacional hezi_users (linhas com campos estruturados)
  * 3. Na tabela relacional hezi_events (eventos oficiais)
  */
@@ -67,144 +34,89 @@ export async function saveHeziToSupabase(
   },
   updatedAt: number,
 ): Promise<boolean> {
-  const res = await withSupabaseClient(async (client) => {
-    // 1. Atualiza ou insere o snapshot na tabela hezi_platform_state
-    const payloadJson = JSON.stringify(hezi);
-    await client.query(
-      `
-      INSERT INTO public.hezi_platform_state (id, payload, updated_at)
-      VALUES (1, $1::jsonb, $2)
-      ON CONFLICT (id) DO UPDATE SET
-        payload = EXCLUDED.payload,
-        updated_at = EXCLUDED.updated_at
-      WHERE EXCLUDED.updated_at >= public.hezi_platform_state.updated_at;
-    `,
-      [payloadJson, updatedAt],
+  const sb = getSupabase();
+  try {
+    // 1. Snapshot na tabela hezi_platform_state
+    const { error: stateErr } = await sb.from("hezi_platform_state").upsert(
+      {
+        id: 1,
+        payload: hezi,
+        updated_at: updatedAt,
+      },
+      { onConflict: "id" },
     );
+    if (stateErr) {
+      console.warn("[Supabase] Erro ao gravar hezi_platform_state:", stateErr.message);
+    }
 
-    // 2. Salva os usuários na tabela relacional hezi_users
+    // 2. Salva usuários na tabela relacional hezi_users
     if (hezi.users && Array.isArray(hezi.users)) {
       const activeIds = hezi.users.map((u) => u.id);
       if (activeIds.length > 0) {
-        await client.query(
-          `DELETE FROM public.hezi_users WHERE id NOT IN (${activeIds.map((_, i) => `$${i + 1}`).join(", ")})`,
-          activeIds,
-        );
+        // Remove os excluídos
+        await sb.from("hezi_users").delete().not("id", "in", `(${activeIds.join(",")})`);
       } else {
-        await client.query(`DELETE FROM public.hezi_users`);
+        await sb.from("hezi_users").delete().neq("id", 0);
       }
 
       for (const u of hezi.users) {
-        const subJson = u.sub ? JSON.stringify(u.sub) : null;
-        const nanoJson = u.r ? JSON.stringify(u.r) : null;
-        const badgesJson = u.bd ? JSON.stringify(u.bd) : null;
+        const row = {
+          id: u.id,
+          tipo: u.tipo,
+          nome: u.nome,
+          username: u.username || null,
+          apelido: u.apelido || null,
+          email: u.email || null,
+          senha: u.senha || null,
+          data_nascimento: u.dataNascimento || null,
+          instagram: u.instagram || null,
+          pos: u.pos || "Armador",
+          status_mensalidade: u.st || "ativo",
+          hp: u.hp || 0,
+          ofensiva: u.of || 0,
+          foto: u.foto || null,
+          avatar_icon: u.avatarIcon || null,
+          whatsapp: u.wpp || null,
+          sub_overalls: u.sub || null,
+          nano_attempts: u.r || null,
+          badges: u.bd || null,
+          last_eval_date: u.ev?.d || null,
+          last_eval_cycle: u.ev?.c || null,
+          nota_tecnica: u.nota || "",
+          email_verified: Boolean(u.emailVerified ?? true),
+          verification_code: u.verificationCode || null,
+          reset_code: u.resetCode || null,
+        };
 
-        await client.query(
-          `
-          INSERT INTO public.hezi_users (
-            id, tipo, nome, username, apelido, email, senha, data_nascimento,
-            instagram, pos, status_mensalidade, hp, ofensiva, foto,
-            avatar_icon, whatsapp, sub_overalls, nano_attempts, badges,
-            last_eval_date, last_eval_cycle, nota_tecnica, email_verified,
-            verification_code, reset_code, updated_at
-          ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8,
-            $9, $10, $11, $12, $13, $14,
-            $15, $16, $17::jsonb, $18::jsonb, $19::jsonb,
-            $20, $21, $22, $23,
-            $24, $25, NOW()
-          )
-          ON CONFLICT (id) DO UPDATE SET
-            tipo = EXCLUDED.tipo,
-            nome = EXCLUDED.nome,
-            username = EXCLUDED.username,
-            apelido = EXCLUDED.apelido,
-            email = EXCLUDED.email,
-            senha = EXCLUDED.senha,
-            data_nascimento = EXCLUDED.data_nascimento,
-            instagram = EXCLUDED.instagram,
-            pos = EXCLUDED.pos,
-            status_mensalidade = EXCLUDED.status_mensalidade,
-            hp = EXCLUDED.hp,
-            ofensiva = EXCLUDED.ofensiva,
-            foto = EXCLUDED.foto,
-            avatar_icon = EXCLUDED.avatar_icon,
-            whatsapp = EXCLUDED.whatsapp,
-            sub_overalls = EXCLUDED.sub_overalls,
-            nano_attempts = EXCLUDED.nano_attempts,
-            badges = EXCLUDED.badges,
-            last_eval_date = EXCLUDED.last_eval_date,
-            last_eval_cycle = EXCLUDED.last_eval_cycle,
-            nota_tecnica = EXCLUDED.nota_tecnica,
-            email_verified = EXCLUDED.email_verified,
-            verification_code = EXCLUDED.verification_code,
-            reset_code = EXCLUDED.reset_code,
-            updated_at = NOW();
-        `,
-          [
-            u.id,
-            u.tipo,
-            u.nome,
-            u.username || null,
-            u.apelido || null,
-            u.email || null,
-            u.senha || null,
-            u.dataNascimento || null,
-            u.instagram || null,
-            u.pos || "Armador",
-            u.st || null,
-            u.hp || 0,
-            u.of || 0,
-            u.foto || null,
-            u.avatarIcon || null,
-            u.wpp || null,
-            subJson,
-            nanoJson,
-            badgesJson,
-            u.ev?.d || null,
-            u.ev?.c || null,
-            u.nota || "",
-            u.emailVerified ?? true,
-            u.verificationCode || null,
-            u.resetCode || null,
-          ],
-        );
+        const { error: uErr } = await sb.from("hezi_users").upsert(row, { onConflict: "id" });
+        if (uErr) {
+          console.warn("[Supabase] Erro ao gravar usuário:", u.nome, uErr.message);
+        }
       }
     }
 
-    // 3. Salva os eventos na tabela relacional hezi_events
+    // 3. Salva eventos na tabela hezi_events
     if (hezi.evs && Array.isArray(hezi.evs)) {
       for (const e of hezi.evs) {
-        await client.query(
-          `
-          INSERT INTO public.hezi_events (
-            id, titulo, tipo, quando, local, regras, ao_vivo_agora, ativo
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, true)
-          ON CONFLICT (id) DO UPDATE SET
-            titulo = EXCLUDED.titulo,
-            tipo = EXCLUDED.tipo,
-            quando = EXCLUDED.quando,
-            local = EXCLUDED.local,
-            regras = EXCLUDED.regras,
-            ao_vivo_agora = EXCLUDED.ao_vivo_agora;
-        `,
-          [
-            e.id,
-            e.t,
-            e.tp || "Pelada",
-            e.q,
-            e.l,
-            e.r,
-            Boolean(e.aoVivoAgora),
-          ],
-        );
+        const evRow = {
+          id: e.id,
+          titulo: e.t,
+          tipo: e.tp || "Pelada",
+          quando: e.q,
+          local: e.l,
+          regras: e.r,
+          ao_vivo_agora: Boolean(e.aoVivoAgora),
+          ativo: true,
+        };
+        await sb.from("hezi_events").upsert(evRow, { onConflict: "id" });
       }
     }
 
     return true;
-  });
-
-  return Boolean(res);
+  } catch (err) {
+    console.warn("[Supabase] saveHeziToSupabase falhou:", (err as Error).message);
+    return false;
+  }
 }
 
 /**
@@ -214,26 +126,25 @@ export async function savePeladaToSupabase(
   pelada: Record<string, unknown>,
   updatedAt: number,
 ): Promise<boolean> {
-  const res = await withSupabaseClient(async (client) => {
-    const payloadJson = JSON.stringify(pelada);
-    await client.query(
-      `
-      INSERT INTO public.court_master_state (id, payload, updated_at)
-      VALUES (1, $1::jsonb, NOW())
-      ON CONFLICT (id) DO UPDATE SET
-        payload = EXCLUDED.payload,
-        updated_at = NOW();
-    `,
-      [payloadJson],
+  const sb = getSupabase();
+  try {
+    await sb.from("court_master_state").upsert(
+      {
+        id: 1,
+        payload: pelada,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "id" },
     );
     return true;
-  });
-
-  return Boolean(res);
+  } catch (err) {
+    console.warn("[Supabase] savePeladaToSupabase falhou:", (err as Error).message);
+    return false;
+  }
 }
 
 /**
- * Lê o estado completo do Supabase caso precise carregar ou sincronizar na nuvem.
+ * Lê o estado completo do Supabase direto na nuvem.
  */
 export async function loadFullSyncStateFromSupabase(): Promise<{
   pelada: Record<string, unknown> | null;
@@ -246,16 +157,15 @@ export async function loadFullSyncStateFromSupabase(): Promise<{
   } | null;
   heziUpdatedAt: number;
 } | null> {
-  return await withSupabaseClient(async (client) => {
+  const sb = getSupabase();
+  try {
     // 1. Lê Court Master state
-    const cmRes = await client.query(
-      `SELECT payload, EXTRACT(EPOCH FROM updated_at) * 1000 AS ts FROM public.court_master_state WHERE id = 1`,
-    );
     let pelada: Record<string, unknown> | null = null;
     let peladaUpdatedAt = 0;
-    if (cmRes.rows.length > 0) {
-      pelada = cmRes.rows[0].payload as Record<string, unknown>;
-      peladaUpdatedAt = Number(cmRes.rows[0].ts || 0);
+    const { data: cmRows } = await sb.from("court_master_state").select("*").eq("id", 1);
+    if (cmRows && cmRows.length > 0) {
+      pelada = cmRows[0].payload as Record<string, unknown>;
+      peladaUpdatedAt = new Date(cmRows[0].updated_at).getTime() || 0;
     }
 
     // 2. Lê Hezi Platform state
@@ -267,20 +177,20 @@ export async function loadFullSyncStateFromSupabase(): Promise<{
     } | null = null;
     let heziUpdatedAt = 0;
 
-    const heziRes = await client.query(
-      `SELECT payload, updated_at FROM public.hezi_platform_state WHERE id = 1`,
-    );
-    if (heziRes.rows.length > 0 && heziRes.rows[0].payload) {
-      hezi = heziRes.rows[0].payload;
-      heziUpdatedAt = Number(heziRes.rows[0].updated_at || 0);
-    } else {
-      // Fallback: reconstrói a partir das tabelas relacionais do Supabase
-      const uRes = await client.query(`SELECT * FROM public.hezi_users ORDER BY id ASC`);
-      const eRes = await client.query(`SELECT * FROM public.hezi_events WHERE ativo = true ORDER BY id ASC`);
-      const nRes = await client.query(`SELECT * FROM public.hezi_notifications ORDER BY created_at DESC LIMIT 100`);
+    const { data: stateRows } = await sb.from("hezi_platform_state").select("*").eq("id", 1);
+    if (stateRows && stateRows.length > 0 && stateRows[0].payload) {
+      hezi = stateRows[0].payload;
+      heziUpdatedAt = Number(stateRows[0].updated_at || 0);
+    }
 
-      if (uRes.rows.length > 0 || eRes.rows.length > 0) {
-        const users: HeziUser[] = uRes.rows.map((r) => ({
+    // Se o state não continha usuários ou eventos, carrega das tabelas relacionais
+    if (!hezi || !hezi.users || hezi.users.length === 0) {
+      const { data: uRows } = await sb.from("hezi_users").select("*").order("id", { ascending: true });
+      const { data: eRows } = await sb.from("hezi_events").select("*").eq("ativo", true).order("id", { ascending: true });
+      const { data: nRows } = await sb.from("hezi_notifications").select("*").order("created_at", { ascending: false }).limit(100);
+
+      if ((uRows && uRows.length > 0) || (eRows && eRows.length > 0)) {
+        const users: HeziUser[] = (uRows || []).map((r: any) => ({
           id: Number(r.id),
           tipo: r.tipo,
           nome: r.nome,
@@ -308,7 +218,7 @@ export async function loadFullSyncStateFromSupabase(): Promise<{
           nota: r.nota_tecnica || "",
         }));
 
-        const evs: HeziEventItem[] = eRes.rows.map((r) => ({
+        const evs: HeziEventItem[] = (eRows || []).map((r: any) => ({
           id: Number(r.id),
           t: r.titulo,
           tp: r.tipo || "Pelada",
@@ -320,7 +230,7 @@ export async function loadFullSyncStateFromSupabase(): Promise<{
           aoVivoAgora: Boolean(r.ao_vivo_agora),
         }));
 
-        const notifications: HeziNotification[] = nRes.rows.map((r) => ({
+        const notifications: HeziNotification[] = (nRows || []).map((r: any) => ({
           id: r.id,
           type: r.type,
           fromUserId: Number(r.from_user_id),
@@ -334,9 +244,10 @@ export async function loadFullSyncStateFromSupabase(): Promise<{
           status: r.status,
         }));
 
-        heziUpdatedAt = Date.now();
+        const ts = Date.now();
+        heziUpdatedAt = ts;
         hezi = {
-          lastModified: heziUpdatedAt,
+          lastModified: ts,
           users,
           evs,
           notifications,
@@ -350,5 +261,8 @@ export async function loadFullSyncStateFromSupabase(): Promise<{
       hezi,
       heziUpdatedAt,
     };
-  });
+  } catch (err) {
+    console.warn("[Supabase] loadFullSyncStateFromSupabase falhou:", (err as Error).message);
+    return null;
+  }
 }

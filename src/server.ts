@@ -157,25 +157,25 @@ export default {
     try {
       const url = new URL(request.url);
 
-      // 1. Real-time Sync Endpoint backed by SQLite Database & Supabase
+      // 1. Real-time Sync Endpoint backed by Supabase Cloud (Primary) & SQLite Cache
       if (url.pathname === "/api/hezi-sync") {
         if (request.method === "GET") {
-          let current = loadFullSyncStateFromDb();
-          // Se o container serverless iniciou sem dados gravados localmente, tenta hidratar do Supabase
-          if (current.heziUpdatedAt === 0 || current.peladaUpdatedAt === 0) {
-            try {
-              const supaState = await loadFullSyncStateFromSupabase();
-              if (supaState) {
-                if (supaState.hezi && supaState.heziUpdatedAt > current.heziUpdatedAt) {
-                  saveHeziStateToDb(supaState.hezi, supaState.heziUpdatedAt);
-                }
-                if (supaState.pelada && supaState.peladaUpdatedAt > current.peladaUpdatedAt) {
-                  savePeladaStateToDb(supaState.pelada, supaState.peladaUpdatedAt);
-                }
-                current = loadFullSyncStateFromDb();
-              }
-            } catch {
-              /* ignore fallback error */
+          let current: any = null;
+          try {
+            current = await loadFullSyncStateFromSupabase();
+          } catch {
+            /* fallback to sqlite */
+          }
+
+          if (!current || !current.hezi) {
+            current = loadFullSyncStateFromDb();
+          } else {
+            // Mantem o SQLite/memoria aquecido com o estado oficial do Supabase
+            if (current.hezi && current.heziUpdatedAt > 0) {
+              saveHeziStateToDb(current.hezi, current.heziUpdatedAt);
+            }
+            if (current.pelada && current.peladaUpdatedAt > 0) {
+              savePeladaStateToDb(current.pelada, current.peladaUpdatedAt);
             }
           }
 
@@ -190,27 +190,27 @@ export default {
 
         if (request.method === "POST") {
           const body = (await request.json()) as SyncPayloadBody;
-          const current = loadFullSyncStateFromDb();
 
-          if (
-            body.pelada &&
-            typeof body.peladaUpdatedAt === "number" &&
-            body.peladaUpdatedAt >= current.peladaUpdatedAt
-          ) {
+          if (body.pelada && typeof body.peladaUpdatedAt === "number") {
             savePeladaStateToDb(body.pelada, body.peladaUpdatedAt);
-            void savePeladaToSupabase(body.pelada, body.peladaUpdatedAt);
+            await savePeladaToSupabase(body.pelada, body.peladaUpdatedAt);
           }
 
-          if (
-            body.hezi &&
-            typeof body.heziUpdatedAt === "number" &&
-            body.heziUpdatedAt >= current.heziUpdatedAt
-          ) {
+          if (body.hezi && typeof body.heziUpdatedAt === "number") {
             saveHeziStateToDb(body.hezi, body.heziUpdatedAt);
-            void saveHeziToSupabase(body.hezi, body.heziUpdatedAt);
+            await saveHeziToSupabase(body.hezi, body.heziUpdatedAt);
           }
 
-          const updated = loadFullSyncStateFromDb();
+          let updated: any = null;
+          try {
+            updated = await loadFullSyncStateFromSupabase();
+          } catch {
+            /* fallback */
+          }
+          if (!updated || !updated.hezi) {
+            updated = loadFullSyncStateFromDb();
+          }
+
           return new Response(JSON.stringify(updated), {
             status: 200,
             headers: {
@@ -235,18 +235,10 @@ export default {
         }
 
         if (request.method === "POST") {
-          const body = (await request.json()) as { action?: string };
-          if (body.action === "reset") {
-            const state = resetDbToFactorySeed();
-            const summary = getDbStatusSummary();
-            return new Response(JSON.stringify({ ok: true, state, summary }), {
-              status: 200,
-              headers: {
-                "content-type": "application/json",
-                "cache-control": "no-store",
-              },
-            });
-          }
+          return new Response(
+            JSON.stringify({ error: "Ação desativada por segurança em produção." }),
+            { status: 403, headers: { "content-type": "application/json" } },
+          );
         }
       }
 
