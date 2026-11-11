@@ -5385,23 +5385,23 @@ function HeziSuperApp() {
       email: f.email.trim().toLowerCase(),
       senha: f.senha,
       foto: f.foto,
-      emailVerified: true,
-      verificationCode: undefined,
+      emailVerified: false,
+      verificationCode: vCode,
       hp: 0,
     };
     addUser(u);
     setSid(u.id);
     setCad(false);
 
-    // Envia e-mail de boas-vindas em background (se o domínio estiver ativo no Resend)
-    if (u.email) {
-      void triggerAuthEmailApi({
-        action: "send_verification",
-        email: u.email,
-        nome: u.nome,
-        code: vCode,
-      });
-    }
+    // Envia código de ativação por e-mail e abre modal de confirmação
+    setVerifyPreviewCode(vCode);
+    setVerifyModalUserId(u.id);
+    void triggerAuthEmailApi({
+      action: "send_verification",
+      email: u.email!,
+      nome: u.nome,
+      code: vCode,
+    });
 
     if (pend) {
       sendQueueRequestForUser(u, pend);
@@ -5416,7 +5416,7 @@ function HeziSuperApp() {
       say("Cadastro criado! Confirme o código enviado para o seu e-mail.");
     } else {
       setTab("painel");
-      say("Conta criada com sucesso! Bem-vindo(a) à HEZI FAM!");
+      say("Conta criada! Confirme o código de 6 dígitos enviado ao seu e-mail.");
     }
   };
 
