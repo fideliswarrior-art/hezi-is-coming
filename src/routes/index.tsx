@@ -1527,38 +1527,9 @@ function LoginPage({
 }
 
 // ---------------------------------------------------------------------------
-// PÁGINA "QUERO SER ASSINANTE" (BLOQUEADA PARA VISITANTE SEM CONTA)
+// PÁGINA "QUERO SER ASSINANTE"
 // ---------------------------------------------------------------------------
 function AssinantePage({ S }: { S: AppContextProps }) {
-  if (S.role === "visitante" && !S.me) {
-    return (
-      <div className="p-4 space-y-4">
-        <div className={C + " p-6 text-center space-y-3"}>
-          <div className="w-14 h-14 rounded-full bg-[#FFF4EE] text-[#FF5400] flex items-center justify-center mx-auto">
-            <Lock className="w-7 h-7" />
-          </div>
-          <h2 className="font-extrabold text-xl text-[#111317]">
-            Área Exclusiva · Quero ser assinante
-          </h2>
-          <p className="text-sm text-[#6E7381]">
-            Para acessar as vantagens da assinatura Hezi Skills e solicitar sua
-            vaga, faça login na sua conta ou crie uma conta grátis agora.
-          </p>
-          <div className="space-y-2.5 pt-1">
-            <Btn onClick={S.openLoginForAssinante} c={OB}>
-              <LogIn className="w-4 h-4" />
-              Fazer Login
-            </Btn>
-            <Btn onClick={S.openRegisterForAssinante} c="bg-[#111317] text-white">
-              <UserPlus className="w-4 h-4 text-[#FF5400]" />
-              Criar uma Conta
-            </Btn>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   const userName = S.me ? S.me.nome : "";
   const wppUrl = wa(
     userName
@@ -1602,10 +1573,10 @@ function AssinantePage({ S }: { S: AppContextProps }) {
           Assinatura Oficial Hezi Skills
         </div>
         <h1 className="font-extrabold text-3xl leading-tight">
-          Evolua seu jogo como um atleta de verdade.
+          Evolua seu jogo, torne-se um atleta de elite.
         </h1>
         <p className="text-xs text-[#9CA3AF] leading-relaxed">
-          Confira todas as vantagens exclusivas para assinantes da comunidade HEZI FAM:
+          Confira todas as vantagens exclusivas para assinantes da comunidade HEZI:
         </p>
       </div>
 
@@ -1640,6 +1611,27 @@ function AssinantePage({ S }: { S: AppContextProps }) {
           <MessageCircle className="w-4 h-4" />
           Quero ser assinante
         </Btn>
+
+        {S.role === "visitante" && !S.me && (
+          <div className="pt-2 border-t border-[#FF5400]/20 flex items-center justify-center gap-3 text-xs text-[#6E7381]">
+            <span>Já tem conta?</span>
+            <button
+              type="button"
+              onClick={S.openLoginForAssinante}
+              className="font-extrabold text-[#FF5400] hover:underline"
+            >
+              Fazer Login
+            </button>
+            <span>•</span>
+            <button
+              type="button"
+              onClick={S.openRegisterForAssinante}
+              className="font-extrabold text-[#111317] hover:underline"
+            >
+              Criar Conta Grátis
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
