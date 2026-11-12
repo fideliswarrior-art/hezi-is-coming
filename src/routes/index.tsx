@@ -1569,28 +1569,28 @@ function AssinantePage({ S }: { S: AppContextProps }) {
   const vantagens = [
     {
       icon: <Dribbble className="w-5 h-5 text-[#FF5400]" />,
-      title: "Treinos Oficiais com a Hezi Skills",
-      desc: "Aulas práticas em quadra (Turma Terça-feira · 16:30 às 17:30) focadas em fundamentos reais de jogo, controle de bola, finalização e leitura coletiva.",
+      title: "Treinos de Elite com a Hezi Skills",
+      desc: "Aulas práticas em quadra, turma fechada apenas com alunos selecionados, treino fechado, focados em fundamentos reais de jogo, evolução expressiva, e leitura.",
     },
     {
       icon: <Award className="w-5 h-5 text-[#FF5400]" />,
-      title: "Boletim de Evolução & Overall (65 → 99)",
-      desc: "Avaliação técnica periódica no celular do professor (20 tentativas por fundamento), detecção de assimetria entre mão direita e esquerda, Badges (Bronze, Prata e Ouro) e recado técnico para os pais.",
+      title: "Avaliação de evolução Mensal com progresso digital",
+      desc: "Avaliação técnica periódica com nossos professores analíse de fundamento, detecção de assimetria, e  nota técnica. Overall (65 → 99)",
     },
     {
       icon: <Zap className="w-5 h-5 text-[#FF5400]" />,
-      title: "Multiplicador 2x Automático de Hezi Points",
-      desc: "Assinantes ganham o dobro de Hezi Points (HP) automaticamente nos treinos e ao entrar na pelada (+10 HP por pelada), desbloqueando meias, adesivos, cupons e camisetas na metade do tempo.",
+      title: "Multiplicador de Hezi Points",
+      desc: "Assinantes ganham mais Hezi Points (HP) que usuários convencionais, automaticamente nos treinos, ao entrar na pelada e eventos,  desbloqueando meias, adesivos, cupons e camisetas na metade do tempo.",
     },
     {
       icon: <Shirt className="w-5 h-5 text-[#FF5400]" />,
-      title: "Desconto Exclusivo nos Drops de Roupa",
-      desc: "Desconto especial garantido no Drop 001 : Basic Collection (Hezi Shirt 001) e prioridade de reserva nos próximos lançamentos streetwear.",
+      title: "Desconto Exclusivo nos Drops",
+      desc: "Desconto especial garantido em todas as coleções lançadas e prioridade de reserva nos próximos lançamentos",
     },
     {
       icon: <Star className="w-5 h-5 text-[#FF5400]" />,
-      title: "Selo ALUNO VIP & Prioridade em Eventos",
-      desc: "Identificação ALUNO VIP na fila da Pelada Oficial, acesso a treinos fechados e vantagens exclusivas em torneios 3x3 e 5x5 da comunidade.",
+      title: "Prioridade em Eventos",
+      desc: "Acesso a treinos fechados, jogos e torneios.",
     },
   ];
 
@@ -1599,15 +1599,13 @@ function AssinantePage({ S }: { S: AppContextProps }) {
       {/* Banner Topo */}
       <div className="bg-[#111317] text-white rounded-2xl p-6 space-y-3 shadow-sm">
         <div className="inline-flex items-center gap-1.5 bg-[#FF5400] text-white text-xs font-extrabold uppercase px-3 py-1 rounded-full">
-          ⚡ Assinatura Oficial Hezi Skills
+          Assinatura Oficial Hezi Skills
         </div>
         <h1 className="font-extrabold text-3xl leading-tight">
           Evolua seu jogo como um atleta de verdade.
         </h1>
         <p className="text-xs text-[#9CA3AF] leading-relaxed">
-          {S.me
-            ? `Olá, ${S.me.nome}! Veja tudo o que você desbloqueia ao ativar sua assinatura de Aluno Hezi Skills:`
-            : "Confira todas as vantagens exclusivas para assinantes da comunidade HEZI FAM:"}
+          Confira todas as vantagens exclusivas para assinantes da comunidade HEZI FAM:
         </p>
       </div>
 
@@ -1633,15 +1631,14 @@ function AssinantePage({ S }: { S: AppContextProps }) {
       {/* Card Final CTA */}
       <div className="bg-[#FFF4EE] border-2 border-[#FF5400] rounded-2xl p-5 text-center space-y-3">
         <p className="font-extrabold text-lg text-[#111317]">
-          Pronto para fazer parte da tropa?
+          Pronto para evoluir?
         </p>
         <p className="text-xs text-[#6E7381]">
-          Clique no botão abaixo para falar diretamente com a equipe da Hezi no
-          WhatsApp oficial e ativar sua assinatura.
+          Clique no botão abaixo para falar diretamente com a equipe da Hezi no WhatsApp e ativar sua assinatura.
         </p>
         <Btn href={wppUrl} c={OB}>
           <MessageCircle className="w-4 h-4" />
-          Quero ser assinante via WhatsApp
+          Quero ser assinante
         </Btn>
       </div>
     </div>
