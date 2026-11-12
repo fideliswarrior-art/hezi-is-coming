@@ -203,6 +203,8 @@ export interface HeziUser {
   bd?: BadgeState;
   ev?: { d: string; c: string } | null;
   nota?: string;
+  autorizacaoImagem?: boolean;
+  autorizacaoImagemData?: string;
 }
 
 export interface HeziEventItem {

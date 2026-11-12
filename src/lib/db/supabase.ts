@@ -86,6 +86,8 @@ export async function saveHeziToSupabase(
           email_verified: Boolean(u.emailVerified ?? true),
           verification_code: u.verificationCode || null,
           reset_code: u.resetCode || null,
+          autorizacao_imagem: Boolean(u.autorizacaoImagem ?? true),
+          autorizacao_imagem_data: u.autorizacaoImagemData || null,
         };
 
         const { error: uErr } = await sb.from("hezi_users").upsert(row, { onConflict: "id" });
@@ -216,6 +218,8 @@ export async function loadFullSyncStateFromSupabase(): Promise<{
           bd: r.badges || undefined,
           ev: r.last_eval_date ? { d: r.last_eval_date, c: r.last_eval_cycle || "Mensal" } : null,
           nota: r.nota_tecnica || "",
+          autorizacaoImagem: r.autorizacao_imagem !== null ? Boolean(r.autorizacao_imagem) : undefined,
+          autorizacaoImagemData: r.autorizacao_imagem_data || undefined,
         }));
 
         const evs: HeziEventItem[] = (eRows || []).map((r: any) => ({

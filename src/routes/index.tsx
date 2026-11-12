@@ -336,6 +336,8 @@ interface RegisterFormPayload {
   email: string;
   senha: string;
   foto?: string;
+  autorizacaoImagem?: boolean;
+  autorizacaoImagemData?: string;
 }
 
 interface AppContextProps {
@@ -428,6 +430,8 @@ function Cadastro({
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [showPwd, setShowPwd] = useState(false);
   const [showConfirmPwd, setShowConfirmPwd] = useState(false);
+  const [aceiteImagem, setAceiteImagem] = useState(false);
+  const [modalTermoOpen, setModalTermoOpen] = useState(false);
 
   useEffect(() => {
     try {
@@ -466,7 +470,8 @@ function Cadastro({
     isEmailValid &&
     !emailTaken &&
     pwdCheck.valid &&
-    passwordsMatch;
+    passwordsMatch &&
+    aceiteImagem;
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -710,6 +715,37 @@ function Cadastro({
           )}
         </div>
 
+        {/* Bloco de Autorização de Uso de Imagem e Voz */}
+        <div className="bg-[#F8F9FA] border border-[#EAEBEF] rounded-2xl p-3.5 space-y-2">
+          <h4 className="font-extrabold text-xs text-[#111317]">
+            Autorização de uso de imagem e voz
+          </h4>
+          <p className="text-[11px] leading-relaxed text-[#6E7381]">
+            Durante nossos torneios e treinos presenciais, poderão ser
+            realizadas fotografias, filmagens e gravações para divulgação dos
+            eventos em nossas redes sociais, site e canais oficiais.
+          </p>
+          <button
+            type="button"
+            onClick={() => setModalTermoOpen(true)}
+            className="text-[11px] font-extrabold text-[#1769e0] hover:underline flex items-center gap-1 cursor-pointer"
+          >
+            Ler termo completo →
+          </button>
+          <label className="flex items-start gap-2.5 pt-1 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={aceiteImagem}
+              onChange={(e) => setAceiteImagem(e.target.checked)}
+              className="mt-0.5 w-4 h-4 rounded text-[#FF5400] focus:ring-[#FF5400] cursor-pointer shrink-0"
+              required
+            />
+            <span className="text-[11px] font-semibold text-[#111317] leading-tight">
+              Li e concordo com o Termo de Autorização de Uso de Imagem, Voz e Gravação Audiovisual.
+            </span>
+          </label>
+        </div>
+
         <Btn
           dis={!ok}
           onClick={() =>
@@ -723,6 +759,8 @@ function Cadastro({
               email: emailTrim,
               senha: f.senha,
               foto: f.foto || undefined,
+              autorizacaoImagem: true,
+              autorizacaoImagemData: new Date().toISOString(),
             })
           }
           c={OB}
@@ -730,6 +768,128 @@ function Cadastro({
           <CheckCircle2 className="w-4 h-4" />
           Concluir Cadastro e Receber Código no E-mail
         </Btn>
+
+        {/* Modal do Termo Completo */}
+        {modalTermoOpen && (
+          <div
+            className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-3 sm:p-5"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setModalTermoOpen(false);
+            }}
+          >
+            <div className="bg-white w-full max-w-[640px] max-h-[85vh] overflow-y-auto rounded-2xl p-5 sm:p-6 space-y-3.5 shadow-2xl text-[#222]">
+              <div className="flex items-center justify-between pb-2 border-b border-[#EAEBEF]">
+                <h2 className="font-extrabold text-base sm:text-lg text-[#111317]">
+                  TERMO DE AUTORIZAÇÃO DE USO DE IMAGEM, VOZ E GRAVAÇÃO AUDIOVISUAL
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setModalTermoOpen(false)}
+                  className="text-[#6E7381] hover:text-[#111317] p-1"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-3 text-xs leading-relaxed text-[#444]">
+                <div>
+                  <h4 className="font-bold text-[#111317] uppercase tracking-wider text-[11px] mb-1">
+                    1. IDENTIFICAÇÃO E FINALIDADE
+                  </h4>
+                  <p>
+                    Ao realizar meu cadastro na plataforma HEZI FAM e participar de seus torneios, eventos e atividades esportivas presenciais, declaro estar ciente de que poderão ser realizadas fotografias, filmagens, transmissões e gravações de áudio durante as atividades.
+                  </p>
+                </div>
+
+                <div>
+                  <h4 className="font-bold text-[#111317] uppercase tracking-wider text-[11px] mb-1">
+                    2. AUTORIZAÇÃO DE USO DE IMAGEM E VOZ
+                  </h4>
+                  <p>
+                    Autorizo, de forma livre, informada e gratuita, a organização HEZI FAM, responsável pela plataforma, a captar, armazenar, editar, reproduzir e divulgar minha imagem, voz e participação nos eventos, exclusivamente para:
+                  </p>
+                  <p className="mt-1 pl-2 space-y-0.5">
+                    • Divulgação dos torneios e competições;<br />
+                    • Publicação de fotografias e vídeos nas redes sociais;<br />
+                    • Produção de vídeos de melhores momentos e entrevistas;<br />
+                    • Divulgação de resultados e premiações;<br />
+                    • Materiais institucionais e promocionais da plataforma.
+                  </p>
+                </div>
+
+                <div>
+                  <h4 className="font-bold text-[#111317] uppercase tracking-wider text-[11px] mb-1">
+                    3. ABRANGÊNCIA DA AUTORIZAÇÃO
+                  </h4>
+                  <p>
+                    A autorização contempla a utilização dos registros em meios digitais, incluindo Instagram, Facebook, YouTube, TikTok, sites e outras plataformas oficiais de divulgação.
+                  </p>
+                  <p className="mt-1">
+                    A autorização é gratuita, não gerando obrigação de pagamento ou remuneração pela utilização da imagem e voz nos contextos e finalidades descritos neste documento.
+                  </p>
+                </div>
+
+                <div>
+                  <h4 className="font-bold text-[#111317] uppercase tracking-wider text-[11px] mb-1">
+                    4. LIMITAÇÕES E RESPEITO À IMAGEM
+                  </h4>
+                  <p>
+                    A organização compromete-se a utilizar os registros de maneira ética e respeitosa, não realizando edições ou divulgações destinadas a prejudicar minha honra, reputação, dignidade ou imagem pessoal.
+                  </p>
+                  <p className="mt-1">
+                    Esta autorização não permite a utilização da imagem em contextos diferentes daqueles aqui especificados, especialmente em campanhas de terceiros sem autorização específica.
+                  </p>
+                </div>
+
+                <div>
+                  <h4 className="font-bold text-[#111317] uppercase tracking-wider text-[11px] mb-1">
+                    5. PROTEÇÃO DE DADOS PESSOAIS
+                  </h4>
+                  <p>
+                    Estou ciente de que meus dados pessoais e registros audiovisuais poderão ser tratados conforme a Lei Geral de Proteção de Dados Pessoais (Lei nº 13.709/2018), respeitando as finalidades informadas, a segurança e os direitos dos titulares.
+                  </p>
+                </div>
+
+                <div>
+                  <h4 className="font-bold text-[#111317] uppercase tracking-wider text-[11px] mb-1">
+                    6. PRAZO E REVOGAÇÃO
+                  </h4>
+                  <p>
+                    Esta autorização permanecerá válida enquanto não houver solicitação de revogação.
+                  </p>
+                  <p className="mt-1">
+                    Posso solicitar a revogação da autorização a qualquer momento, por meio dos canais oficiais de atendimento da organização. Após o recebimento da solicitação, a organização interromperá novas utilizações dos registros abrangidos pela autorização e avaliará as medidas cabíveis em relação aos materiais já publicados, observadas as obrigações legais e os direitos de terceiros.
+                  </p>
+                </div>
+
+                <div>
+                  <h4 className="font-bold text-[#111317] uppercase tracking-wider text-[11px] mb-1">
+                    7. DECLARAÇÃO FINAL
+                  </h4>
+                  <p>
+                    Declaro que li, compreendi e concordo com as condições estabelecidas neste termo, autorizando a utilização da minha imagem e voz nos limites aqui descritos.
+                  </p>
+                  <p className="mt-1">
+                    Ao marcar a opção de aceite no cadastro da plataforma, manifesto minha concordância expressa com esta autorização.
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-2 sticky bottom-0 bg-white">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAceiteImagem(true);
+                    setModalTermoOpen(false);
+                  }}
+                  className="w-full py-3 bg-[#111317] hover:bg-[#FF5400] text-white text-xs font-extrabold rounded-xl transition"
+                >
+                  Entendi e Aceito o Termo
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -5388,6 +5548,8 @@ function HeziSuperApp() {
       emailVerified: false,
       verificationCode: vCode,
       hp: 0,
+      autorizacaoImagem: f.autorizacaoImagem ?? true,
+      autorizacaoImagemData: f.autorizacaoImagemData || new Date().toISOString(),
     };
     addUser(u);
     setSid(u.id);
