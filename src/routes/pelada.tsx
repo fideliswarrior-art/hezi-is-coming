@@ -143,8 +143,8 @@ export function CourtMasterOrganizer({ embedded = false }: { embedded?: boolean 
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { delay: 150, tolerance: 8 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 8 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 6 } }),
   );
 
   function onDragEnd(e: DragEndEvent) {
@@ -270,30 +270,30 @@ function EmbeddedToolbar() {
   }
 
   return (
-    <div className="border border-brand-border bg-white p-4 flex flex-wrap items-center justify-between gap-3 shadow-sm">
-      <div className="flex items-center gap-3">
-        <div className="w-9 h-9 bg-brand-orange flex items-center justify-center font-black text-white font-condensed text-lg">
+    <div className="border border-brand-border bg-white p-3 sm:p-4 flex flex-col sm:flex-row sm:flex-wrap sm:items-center justify-between gap-3 shadow-sm">
+      <div className="flex items-center gap-2.5 sm:gap-3">
+        <div className="w-9 h-9 shrink-0 bg-brand-orange flex items-center justify-center font-black text-white font-condensed text-lg">
           {gameFormat.toUpperCase()}
         </div>
-        <div>
-          <span className="text-[10px] font-condensed font-black text-brand-orange uppercase tracking-widest block">
+        <div className="min-w-0">
+          <span className="text-[10px] font-condensed font-black text-brand-orange uppercase tracking-widest block truncate">
             MODALIDADE {gameFormat.toUpperCase()} · MÁX {maxTeamSize} JOGADORES POR TIME
           </span>
-          <h3 className="font-bebas text-2xl text-brand-dark leading-none">
-            ORGANIZADOR DE PELADA COURT MASTER ({playersCount} ATLETAS)
+          <h3 className="font-bebas text-xl sm:text-2xl text-brand-dark leading-none truncate">
+            COURT MASTER ({playersCount} ATLETAS)
           </h3>
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="inline-flex border border-brand-border-strong bg-brand-subtle">
+      <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full sm:w-auto">
+        <div className="col-span-2 sm:col-span-1 inline-flex border border-brand-border-strong bg-brand-subtle w-full sm:w-auto">
           {(["3x3", "5x5"] as const).map((fmt) => (
             <button
               key={fmt}
               type="button"
               onClick={() => setGameFormat(fmt)}
               className={cn(
-                "px-3 py-2 font-condensed font-black uppercase text-xs tracking-wider transition-colors",
+                "flex-1 sm:flex-initial px-3 py-2 font-condensed font-black uppercase text-xs tracking-wider transition-colors",
                 gameFormat === fmt
                   ? "bg-brand-orange text-white"
                   : "text-brand-dark hover:bg-brand-border",
@@ -307,25 +307,25 @@ function EmbeddedToolbar() {
         <button
           type="button"
           onClick={() => historyBus.open()}
-          className="bg-brand-subtle hover:bg-brand-border text-brand-dark border border-brand-border-strong font-condensed font-black uppercase text-xs tracking-wider px-3 py-2 transition-colors inline-flex items-center gap-1.5"
+          className="bg-brand-subtle hover:bg-brand-border text-brand-dark border border-brand-border-strong font-condensed font-black uppercase text-xs tracking-wider px-2.5 sm:px-3 py-2 transition-colors inline-flex items-center justify-center gap-1.5"
         >
-          <ClipboardList className="h-4 w-4 text-brand-orange" />
-          HISTÓRICO DA NOITE
+          <ClipboardList className="h-4 w-4 text-brand-orange shrink-0" />
+          <span className="truncate">HISTÓRICO</span>
         </button>
         <button
           type="button"
           onClick={() => setAdminOpen(true)}
-          className="bg-brand-subtle hover:bg-brand-border text-brand-dark border border-brand-border-strong font-condensed font-black uppercase text-xs tracking-wider px-3 py-2 transition-colors inline-flex items-center gap-1.5"
+          className="bg-brand-subtle hover:bg-brand-border text-brand-dark border border-brand-border-strong font-condensed font-black uppercase text-xs tracking-wider px-2.5 sm:px-3 py-2 transition-colors inline-flex items-center justify-center gap-1.5"
         >
-          <Settings className="h-4 w-4 text-brand-dark" />
-          REGRAS & TEMPOS
+          <Settings className="h-4 w-4 text-brand-dark shrink-0" />
+          <span className="truncate">REGRAS</span>
         </button>
         <button
           type="button"
           onClick={onLock}
-          className="bg-brand-orange hover:bg-brand-orange-hover text-white font-condensed font-black uppercase text-xs tracking-wider px-3.5 py-2 transition-colors shadow-sm inline-flex items-center gap-1.5"
+          className="col-span-2 sm:col-span-1 bg-brand-orange hover:bg-brand-orange-hover text-white font-condensed font-black uppercase text-xs tracking-wider px-3.5 py-2 transition-colors shadow-sm inline-flex items-center justify-center gap-1.5"
         >
-          <Lock className="h-4 w-4" />
+          <Lock className="h-4 w-4 shrink-0" />
           MODO TOTEM (BLOQUEAR)
         </button>
       </div>
@@ -546,13 +546,13 @@ function CourtBlock() {
   const canDeclare = !!teamA && !!teamB;
 
   return (
-    <section className="border border-brand-border bg-white p-5 md:p-6 shadow-sm space-y-5">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-brand-border pb-4">
+    <section className="border border-brand-border bg-white p-3.5 sm:p-6 shadow-sm space-y-4 sm:space-y-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-brand-border pb-3 sm:pb-4">
         <div>
-          <div className="inline-block bg-brand-orange/10 text-brand-orange border border-brand-orange/30 font-condensed font-black text-[11px] uppercase px-2.5 py-0.5 tracking-wider mb-1">
+          <div className="inline-block bg-brand-orange/10 text-brand-orange border border-brand-orange/30 font-condensed font-black text-[10px] sm:text-[11px] uppercase px-2.5 py-0.5 tracking-wider mb-1">
             STREET BASKETBALL MOVEMENT // QUADRA ATUAL
           </div>
-          <h1 className="font-bebas text-3xl sm:text-4xl text-brand-dark tracking-wide uppercase leading-none">
+          <h1 className="font-bebas text-2xl sm:text-4xl text-brand-dark tracking-wide uppercase leading-none">
             PAINEL DE QUADRA & CRONÔMETRO
           </h1>
         </div>
@@ -570,30 +570,30 @@ function CourtBlock() {
         </div>
       </div>
 
-      <div className="border border-brand-border bg-brand-subtle/60 p-4 sm:p-5 text-center space-y-3">
+      <div className="border border-brand-border bg-brand-subtle/60 p-3.5 sm:p-5 text-center space-y-3">
         <div
           className={cn(
-            "font-bebas text-7xl sm:text-8xl leading-none tabular-nums tracking-wider transition-colors text-brand-dark",
+            "font-bebas text-6xl sm:text-8xl leading-none tabular-nums tracking-wider transition-colors text-brand-dark",
             remaining < 30000 && "text-red-600",
           )}
         >
           {timeStr}
         </div>
 
-        <div className="w-full bg-white border border-brand-border h-4 overflow-hidden p-0.5">
+        <div className="w-full bg-white border border-brand-border h-3.5 sm:h-4 overflow-hidden p-0.5">
           <div
             className="h-full bg-brand-orange transition-[width] duration-200"
             style={{ width: `${100 - pct}%` }}
           />
         </div>
 
-        <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center justify-center gap-2 pt-1 sm:pt-2">
           {court.runningSince ? (
             <Button
               size="lg"
               variant="secondary"
               onClick={pauseTimer}
-              className="rounded-none border border-brand-border-strong bg-white hover:bg-brand-subtle text-brand-dark font-condensed font-black uppercase tracking-wider text-sm px-6"
+              className="w-full sm:w-auto rounded-none border border-brand-border-strong bg-white hover:bg-brand-subtle text-brand-dark font-condensed font-black uppercase tracking-wider text-sm px-6"
             >
               <Pause className="h-4 w-4" /> Pausar
             </Button>
@@ -602,37 +602,39 @@ function CourtBlock() {
               size="lg"
               onClick={startTimer}
               disabled={!canDeclare}
-              className="rounded-none bg-brand-orange hover:bg-brand-orange-hover text-white font-condensed font-black uppercase tracking-widest text-sm px-6 shadow-sm"
+              className="w-full sm:w-auto rounded-none bg-brand-orange hover:bg-brand-orange-hover text-white font-condensed font-black uppercase tracking-widest text-sm px-6 shadow-sm"
             >
               <Play className="h-4 w-4" /> Iniciar Partida
             </Button>
           )}
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={useSuddenDeath}
-            disabled={court.suddenDeathUsed || !canDeclare}
-            className="rounded-none border border-brand-border-strong bg-white hover:bg-brand-subtle text-brand-dark font-condensed font-black uppercase tracking-wider text-xs px-4 h-10"
-          >
-            <TimerIcon className="h-4 w-4 text-brand-orange" /> +1 min
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={declareDraw}
-            disabled={!canDeclare}
-            className="rounded-none border border-brand-border-strong bg-white hover:bg-brand-subtle text-brand-dark font-condensed font-black uppercase tracking-wider text-xs px-4 h-10"
-          >
-            <Shuffle className="h-4 w-4" /> Empate
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={resetTimer}
-            className="rounded-none text-brand-muted hover:text-brand-dark hover:bg-brand-subtle font-condensed font-bold uppercase tracking-wider text-xs px-3 h-10"
-          >
-            Zerar
-          </Button>
+          <div className="grid grid-cols-3 sm:flex items-center gap-2 w-full sm:w-auto">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={useSuddenDeath}
+              disabled={court.suddenDeathUsed || !canDeclare}
+              className="rounded-none border border-brand-border-strong bg-white hover:bg-brand-subtle text-brand-dark font-condensed font-black uppercase tracking-wider text-xs px-2 sm:px-4 h-10"
+            >
+              <TimerIcon className="h-4 w-4 text-brand-orange shrink-0" /> +1 min
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={declareDraw}
+              disabled={!canDeclare}
+              className="rounded-none border border-brand-border-strong bg-white hover:bg-brand-subtle text-brand-dark font-condensed font-black uppercase tracking-wider text-xs px-2 sm:px-4 h-10"
+            >
+              <Shuffle className="h-4 w-4 shrink-0" /> Empate
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={resetTimer}
+              className="rounded-none text-brand-muted hover:text-brand-dark hover:bg-brand-subtle font-condensed font-bold uppercase tracking-wider text-xs px-2 sm:px-3 h-10 border border-transparent hover:border-brand-border"
+            >
+              Zerar
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -1006,17 +1008,17 @@ function QueueBlock() {
   const selectedNames = selection.map((id) => players[id]?.name).filter(Boolean).join(", ");
 
   return (
-    <section className="border border-brand-border bg-white p-5 md:p-6 shadow-sm space-y-5">
+    <section className="border border-brand-border bg-white p-3.5 sm:p-6 shadow-sm space-y-4 sm:space-y-5">
       <div className="border-b border-brand-border pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div>
-          <span className="text-xs font-condensed font-black text-brand-orange uppercase tracking-widest block">
+          <span className="text-[10px] sm:text-xs font-condensed font-black text-brand-orange uppercase tracking-widest block">
             QUADRA & RACHAS
           </span>
-          <h2 className="font-bebas text-3xl md:text-4xl text-brand-dark tracking-wide leading-none">
+          <h2 className="font-bebas text-2xl sm:text-4xl text-brand-dark tracking-wide leading-none">
             FILA DE ESPERA DA QUADRA{" "}
             <span className="text-brand-orange">({queue.length})</span>
           </h2>
-          <p className="text-xs font-condensed text-brand-muted uppercase mt-0.5">
+          <p className="text-[11px] sm:text-xs font-condensed text-brand-muted uppercase mt-0.5">
             Jogadores que entram pelo celular aparecem automaticamente aqui na fila
           </p>
         </div>
@@ -1036,12 +1038,12 @@ function QueueBlock() {
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="NOME DO JOGADOR PARA ENTRAR NA FILA..."
-          className="h-12 rounded-none bg-brand-subtle border-brand-border-strong font-condensed font-bold uppercase text-sm text-brand-dark placeholder:text-brand-muted focus-visible:ring-0 focus-visible:border-brand-orange"
+          className="h-11 sm:h-12 rounded-none bg-brand-subtle border-brand-border-strong font-condensed font-bold uppercase text-xs sm:text-sm text-brand-dark placeholder:text-brand-muted focus-visible:ring-0 focus-visible:border-brand-orange"
         />
         <Button
           size="lg"
           type="submit"
-          className="shrink-0 h-12 rounded-none bg-brand-orange hover:bg-brand-orange-hover text-white font-condensed font-black uppercase text-xs tracking-wider px-6 shadow-sm"
+          className="shrink-0 h-11 sm:h-12 rounded-none bg-brand-orange hover:bg-brand-orange-hover text-white font-condensed font-black uppercase text-xs tracking-wider px-3.5 sm:px-6 shadow-sm"
         >
           <Plus className="h-4 w-4" /> ADICIONAR
         </Button>
