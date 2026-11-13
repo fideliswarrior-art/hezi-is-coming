@@ -339,18 +339,7 @@ export function isEventRollingNow(
 
 export const U0: HeziUser[] = [];
 
-export const E0: HeziEventItem[] = [
-  {
-    id: 1,
-    t: "Pelada Oficial Hezi",
-    tp: "Pelada",
-    q: "Sábado · 17:00",
-    l: "Quadra Central",
-    r: "Regras Fiba, 7 pontos ou 7 minutos",
-    f: [],
-    rewardedUids: [],
-  },
-];
+export const E0: HeziEventItem[] = [];
 
 function normalizeEvents(evs: HeziEventItem[]): HeziEventItem[] {
   return evs.map((e) => ({

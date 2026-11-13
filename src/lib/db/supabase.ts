@@ -31,16 +31,47 @@ export async function saveHeziToSupabase(
     users?: HeziUser[];
     evs?: HeziEventItem[];
     notifications?: HeziNotification[];
+    deletedUserIds?: number[];
   },
   updatedAt: number,
 ): Promise<boolean> {
   const sb = getSupabase();
   try {
-    // 1. Snapshot na tabela hezi_platform_state
+    // 1. Merge seguro de usuários: NUNCA apagar usuários existentes a menos que deletedUserIds seja informado
+    let mergedUsers: HeziUser[] = Array.isArray(hezi.users) ? [...hezi.users] : [];
+    const deletedSet = new Set<number>(Array.isArray(hezi.deletedUserIds) ? hezi.deletedUserIds : []);
+
+    try {
+      const { data: existingState } = await sb
+        .from("hezi_platform_state")
+        .select("payload")
+        .eq("id", 1)
+        .maybeSingle();
+
+      const existingUsers: HeziUser[] = Array.isArray(existingState?.payload?.users)
+        ? existingState.payload.users
+        : [];
+
+      const incomingIds = new Set(mergedUsers.map((u) => u.id));
+      for (const eu of existingUsers) {
+        if (!incomingIds.has(eu.id) && !deletedSet.has(eu.id)) {
+          mergedUsers.push(eu);
+        }
+      }
+    } catch {
+      /* segue com mergedUsers */
+    }
+
+    const safePayload = {
+      ...hezi,
+      users: mergedUsers,
+    };
+
+    // Snapshot na tabela hezi_platform_state
     const { error: stateErr } = await sb.from("hezi_platform_state").upsert(
       {
         id: 1,
-        payload: hezi,
+        payload: safePayload,
         updated_at: updatedAt,
       },
       { onConflict: "id" },
@@ -49,17 +80,13 @@ export async function saveHeziToSupabase(
       console.warn("[Supabase] Erro ao gravar hezi_platform_state:", stateErr.message);
     }
 
-    // 2. Salva usuários na tabela relacional hezi_users
-    if (hezi.users && Array.isArray(hezi.users)) {
-      const activeIds = hezi.users.map((u) => u.id);
-      if (activeIds.length > 0) {
-        // Remove os excluídos
-        await sb.from("hezi_users").delete().not("id", "in", `(${activeIds.join(",")})`);
-      } else {
-        await sb.from("hezi_users").delete().neq("id", 0);
-      }
+    // 2. Salva usuários na tabela relacional hezi_users (apenas deleta os explicitamente excluídos)
+    if (deletedSet.size > 0) {
+      await sb.from("hezi_users").delete().in("id", Array.from(deletedSet));
+    }
 
-      for (const u of hezi.users) {
+    if (mergedUsers.length > 0) {
+      for (const u of mergedUsers) {
         const row = {
           id: u.id,
           tipo: u.tipo,

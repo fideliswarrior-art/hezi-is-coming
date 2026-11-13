@@ -224,7 +224,22 @@ export default {
       // 2. Database Inspector & Admin Management Endpoint (/api/hezi-db)
       if (url.pathname === "/api/hezi-db") {
         if (request.method === "GET") {
-          const summary = getDbStatusSummary();
+          const summary: any = getDbStatusSummary();
+          try {
+            const remote = await loadFullSyncStateFromSupabase();
+            if (remote?.hezi) {
+              const u = Array.isArray(remote.hezi.users) ? remote.hezi.users : [];
+              const evs = Array.isArray(remote.hezi.evs) ? remote.hezi.evs : [];
+              const totalQueue = evs.reduce((acc: number, e: any) => acc + (Array.isArray(e.f) ? e.f.length : 0), 0);
+              summary.usersCount = u.length;
+              summary.alunosCount = u.filter((x: any) => x.tipo === "aluno").length;
+              summary.jogadoresCount = u.filter((x: any) => x.tipo !== "aluno").length;
+              summary.eventsCount = evs.length;
+              summary.queueCount = totalQueue;
+            }
+          } catch {
+            /* fallback para summary local */
+          }
           return new Response(JSON.stringify(summary), {
             status: 200,
             headers: {
