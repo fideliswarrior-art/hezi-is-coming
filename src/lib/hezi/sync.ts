@@ -33,6 +33,7 @@ function extractHeziData(s: HeziPlatformState) {
     users: s.users,
     evs: s.evs,
     notifications: s.notifications,
+    eventHistory: s.eventHistory,
   };
 }
 

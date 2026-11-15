@@ -4618,10 +4618,132 @@ function Eventos({ S }: { S: AppContextProps }) {
               >
                 Limpar fila
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (
+                    !window.confirm(
+                      `Encerrar o evento "${e.t}"? Todos os dados da pelada serão salvos no histórico e a fila/quadra será zerada para o próximo evento.`,
+                    )
+                  ) {
+                    return;
+                  }
+                  const peladaSnap = usePelada.getState();
+                  const participantSet = new Set<string>();
+                  if (e.tp === "Pelada") {
+                    Object.values(peladaSnap.players).forEach((p) => {
+                      if (p.name) participantSet.add(p.name);
+                    });
+                  }
+                  [...(e.f || []), ...(e.rewardedUids || [])].forEach((uid) => {
+                    const usr = S.users.find((u) => u.id === uid);
+                    if (usr) {
+                      participantSet.add((usr.apelido && usr.apelido.trim()) || usr.nome);
+                    }
+                  });
+                  const teamRanking =
+                    e.tp === "Pelada"
+                      ? Object.values(peladaSnap.teamStats || {})
+                          .map((ts) => ({
+                            teamName: ts.teamName,
+                            wins: ts.wins,
+                            games: ts.games,
+                          }))
+                          .sort((a, b) => b.wins - a.wins)
+                      : [];
+                  useHeziPlatform.getState().addEventHistory({
+                    id: `hist-${e.id}-${Date.now()}`,
+                    eventId: e.id,
+                    title: e.t,
+                    tp: e.tp,
+                    q: e.q,
+                    l: e.l,
+                    endedAt: new Date().toISOString(),
+                    participants: Array.from(participantSet),
+                    teamRanking,
+                    actionLog: e.tp === "Pelada" ? [...(peladaSnap.actionLog || [])] : [],
+                  });
+                  if (e.tp === "Pelada") {
+                    peladaStore.resetNight();
+                  }
+                  S.setEvs(S.evs.filter((x) => x.id !== e.id));
+                  S.say(`Evento "${e.t}" encerrado e salvo no histórico!`);
+                }}
+                className="col-span-2 rounded-xl bg-[#FF5400] hover:bg-[#E04800] text-white text-xs font-extrabold py-3 px-3 transition active:scale-95"
+              >
+                🏁 Encerrar Evento e Salvar Histórico
+              </button>
             </div>
           </div>
         );
       })}
+
+      {/* Histórico de Eventos & Peladas Encerradas */}
+      {(() => {
+        const eventHistory = useHeziPlatform.getState().eventHistory || [];
+        if (eventHistory.length === 0) return null;
+        return (
+          <div className="space-y-3 pt-2">
+            <h3 className="font-extrabold text-sm text-[#111317] uppercase tracking-wider px-1">
+              📜 Histórico de Eventos ({eventHistory.length})
+            </h3>
+            {eventHistory.map((h) => (
+              <div key={h.id} className={C + " p-4 space-y-2.5"}>
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-extrabold text-sm text-[#111317]">{h.title}</p>
+                    <p className="text-xs text-[#6E7381]">
+                      {h.tp} · {h.q} · {h.l}
+                    </p>
+                    <p className="text-[11px] text-[#9CA3AF]">
+                      Encerrado em {new Date(h.endedAt).toLocaleString("pt-BR")}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm(`Excluir "${h.title}" do histórico?`)) {
+                        useHeziPlatform.getState().deleteEventHistory(h.id);
+                        S.say("Registro removido do histórico.");
+                      }
+                    }}
+                    className="text-xs font-bold text-[#EF4444] hover:bg-[#FEF2F2] px-2.5 py-1 rounded-lg transition"
+                  >
+                    Excluir
+                  </button>
+                </div>
+
+                {h.teamRanking && h.teamRanking.length > 0 && (
+                  <div className="bg-[#FFF4EE] rounded-xl p-2.5 space-y-1">
+                    <p className="text-[11px] font-extrabold text-[#FF5400] uppercase">
+                      🏆 Times com Mais Vitórias
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {h.teamRanking.map((tr, idx) => (
+                        <span
+                          key={tr.teamName + idx}
+                          className="text-xs font-bold bg-white border border-[#FF5400]/20 text-[#111317] px-2 py-0.5 rounded-lg"
+                        >
+                          {idx + 1}º {tr.teamName}: {tr.wins}V ({tr.games}J)
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <p className="text-[11px] font-bold text-[#6E7381] mb-1">
+                    👥 Participantes ({h.participants.length}):
+                  </p>
+                  <p className="text-xs text-[#111317]">
+                    {h.participants.length > 0 ? h.participants.join(", ") : "Nenhum participante registrado."}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
     </div>
   );
 }

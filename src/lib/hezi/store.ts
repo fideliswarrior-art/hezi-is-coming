@@ -351,11 +351,25 @@ function normalizeEvents(evs: HeziEventItem[]): HeziEventItem[] {
   }));
 }
 
+export interface HeziEventHistoryEntry {
+  id: string;
+  eventId: number;
+  title: string;
+  tp: string;
+  q: string;
+  l: string;
+  endedAt: string;
+  participants: string[];
+  teamRanking: { teamName: string; wins: number; games: number }[];
+  actionLog: string[];
+}
+
 export interface HeziPlatformState {
   lastModified: number;
   users: HeziUser[];
   evs: HeziEventItem[];
   notifications: HeziNotification[];
+  eventHistory: HeziEventHistoryEntry[];
   updUser: (id: number, patch: Partial<HeziUser>) => void;
   addUser: (u: HeziUser) => void;
   deleteUser: (id: number) => void;
@@ -367,9 +381,11 @@ export interface HeziPlatformState {
   addNotification: (n: HeziNotification) => void;
   updateNotification: (id: string, patch: Partial<HeziNotification>) => void;
   setNotifications: (list: HeziNotification[]) => void;
+  addEventHistory: (entry: HeziEventHistoryEntry) => void;
+  deleteEventHistory: (id: string) => void;
   hydrateFromRemote: (
     remote: Partial<
-      Pick<HeziPlatformState, "lastModified" | "users" | "evs" | "notifications">
+      Pick<HeziPlatformState, "lastModified" | "users" | "evs" | "notifications" | "eventHistory">
     >,
   ) => void;
 }
@@ -381,6 +397,7 @@ export const useHeziPlatform = create<HeziPlatformState>()(
       users: U0,
       evs: E0,
       notifications: [],
+      eventHistory: [],
 
       updUser: (id, patch) =>
         set((s) => ({
@@ -475,12 +492,25 @@ export const useHeziPlatform = create<HeziPlatformState>()(
           notifications: list,
         })),
 
+      addEventHistory: (entry) =>
+        set((s) => ({
+          eventHistory: [entry, ...(s.eventHistory || [])],
+          lastModified: Date.now(),
+        })),
+
+      deleteEventHistory: (id) =>
+        set((s) => ({
+          eventHistory: (s.eventHistory || []).filter((h) => h.id !== id),
+          lastModified: Date.now(),
+        })),
+
       hydrateFromRemote: (remote) =>
         set((s) => ({
           ...s,
           ...remote,
           evs: remote.evs ? normalizeEvents(remote.evs) : s.evs,
           notifications: remote.notifications ?? s.notifications,
+          eventHistory: remote.eventHistory ?? s.eventHistory ?? [],
         })),
     }),
     {
@@ -490,6 +520,7 @@ export const useHeziPlatform = create<HeziPlatformState>()(
         users: s.users,
         evs: s.evs,
         notifications: s.notifications,
+        eventHistory: s.eventHistory,
       }),
     },
   ),
