@@ -572,7 +572,7 @@ function Cadastro({
           <div className="grid grid-cols-2 gap-2.5">
             <input
               value={f.apelido}
-              placeholder="Apelido"
+              placeholder="Apelido (Vulgo)"
               onChange={(e) => setF({ ...f, apelido: e.target.value })}
               className="w-full bg-[#F4F5F7] rounded-xl px-4 py-3 text-sm font-medium outline-none focus:ring-2 ring-[#FF5400]"
             />
@@ -4038,11 +4038,16 @@ function UsuariosGeral({ S }: { S: AppContextProps }) {
                 </p>
               </div>
 
-              {x.tipo === "professor" ? (
-                <Chip c="bg-[#ECFDF5] text-[#10B981]">🧑‍🏫 Professor</Chip>
-              ) : (
-                <Chip c="bg-[#F4F5F7] text-[#6E7381]">Usuário</Chip>
-              )}
+              <div className="flex items-center gap-1 shrink-0">
+                {x.isModerator && (
+                  <Chip c="bg-[#FFF4EE] text-[#FF5400]">🛡️ Moderador</Chip>
+                )}
+                {x.tipo === "professor" ? (
+                  <Chip c="bg-[#ECFDF5] text-[#10B981]">🧑‍🏫 Professor</Chip>
+                ) : (
+                  <Chip c="bg-[#F4F5F7] text-[#6E7381]">Usuário</Chip>
+                )}
+              </div>
             </div>
 
             {S.role === "admin" && (
@@ -4051,6 +4056,32 @@ function UsuariosGeral({ S }: { S: AppContextProps }) {
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="flex flex-wrap gap-1.5">
+                  {x.isModerator ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        S.upd(x.id, { isModerator: false });
+                        S.say(`${x.nome} não é mais Moderador.`);
+                      }}
+                      className="text-xs font-extrabold rounded-xl bg-[#FEF2F2] hover:bg-[#FEE2E2] text-[#EF4444] px-3 py-1.5 transition"
+                    >
+                      Remover Moderador
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        S.upd(x.id, { isModerator: true });
+                        S.say(
+                          `🛡️ ${x.nome} foi promovido a Moderador! Agora possui os mesmos poderes de Administrador.`,
+                        );
+                      }}
+                      className="text-xs font-extrabold rounded-xl bg-[#FF5400] hover:bg-[#E04800] text-white px-3 py-1.5 transition flex items-center gap-1.5"
+                    >
+                      🛡️ Promover a Moderador
+                    </button>
+                  )}
+
                   {x.tipo === "jogador" ? (
                     <button
                       type="button"
@@ -4136,12 +4167,72 @@ function UsuariosGeral({ S }: { S: AppContextProps }) {
       )}
 
       {u && (
-        <div className={C + " p-4 space-y-2.5"}>
-          <p className="font-extrabold text-sm text-[#111317]">
-            Lançar Hezi Points (Usuário Geral):{" "}
-            <span className="text-[#FF5400]">{u.nome}</span>
-          </p>
-          {generalActions.map(([label, pts]) => (
+        <>
+          <div className={C + " p-4 space-y-3"}>
+            <div className="flex items-center justify-between border-b border-[#EAEBEF] pb-2">
+              <p className="font-extrabold text-sm text-[#111317]">
+                Dados do Usuário Selecionado
+              </p>
+              <Chip c={u.isModerator ? "bg-[#FFF4EE] text-[#FF5400]" : "bg-[#F4F5F7] text-[#6E7381]"}>
+                {u.isModerator ? "🛡️ Moderador (Admin)" : u.tipo === "professor" ? "🧑‍🏫 Professor" : "🏀 Usuário"}
+              </Chip>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+              <div>
+                <span className="text-[#6E7381] block">Nome completo</span>
+                <span className="font-bold text-[#111317]">{u.nome}</span>
+              </div>
+              <div>
+                <span className="text-[#6E7381] block">Apelido (Vulgo)</span>
+                <span className="font-bold text-[#111317]">{u.apelido || "—"}</span>
+              </div>
+              <div>
+                <span className="text-[#6E7381] block">Nome de usuário</span>
+                <span className="font-bold text-[#111317]">@{u.username || "—"}</span>
+              </div>
+              <div>
+                <span className="text-[#6E7381] block">E-mail</span>
+                <span className="font-bold text-[#111317] break-all">{u.email || "—"}</span>
+              </div>
+              <div>
+                <span className="text-[#6E7381] block">WhatsApp</span>
+                <span className="font-bold text-[#111317]">{u.wpp || "—"}</span>
+              </div>
+              <div>
+                <span className="text-[#6E7381] block">Instagram</span>
+                <span className="font-bold text-[#111317]">{u.instagram || "—"}</span>
+              </div>
+              <div>
+                <span className="text-[#6E7381] block">Data de Nascimento</span>
+                <span className="font-bold text-[#111317]">{u.dataNascimento || "—"}</span>
+              </div>
+              <div>
+                <span className="text-[#6E7381] block">Posição em Quadra</span>
+                <span className="font-bold text-[#111317]">{u.pos || "—"}</span>
+              </div>
+              <div>
+                <span className="text-[#6E7381] block">Hezi Points / Ofensiva</span>
+                <span className="font-bold text-[#FF5400]">{u.hp} HP · {u.of || 0} ofensiva</span>
+              </div>
+              <div>
+                <span className="text-[#6E7381] block">Status do E-mail</span>
+                <span className="font-bold text-[#111317]">{u.emailVerified === false ? "Pendente" : "Verificado ✓"}</span>
+              </div>
+              <div className="sm:col-span-2">
+                <span className="text-[#6E7381] block">Autorização de Imagem e Voz</span>
+                <span className="font-bold text-[#111317]">
+                  {u.autorizacaoImagem ? `Aceito ✓${u.autorizacaoImagemData ? ` (${new Date(u.autorizacaoImagemData).toLocaleString("pt-BR")})` : ""}` : "Não informado"}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className={C + " p-4 space-y-2.5"}>
+            <p className="font-extrabold text-sm text-[#111317]">
+              Lançar Hezi Points (Usuário Geral):{" "}
+              <span className="text-[#FF5400]">{u.nome}</span>
+            </p>
+            {generalActions.map(([label, pts]) => (
             <Btn
               key={label}
               onClick={() => {
@@ -4154,6 +4245,7 @@ function UsuariosGeral({ S }: { S: AppContextProps }) {
             </Btn>
           ))}
         </div>
+        </>
       )}
     </div>
   );
@@ -5096,6 +5188,18 @@ function Staff({
         <Eventos S={S} />
       ) : t === "db" && adm ? (
         <BancoDados S={S} />
+      ) : !S.evs.some((e) => e.tp === "Pelada") ? (
+        <div className={C + " p-6 text-center space-y-3"}>
+          <div className="w-12 h-12 rounded-full bg-[#FFF4EE] text-[#FF5400] flex items-center justify-center mx-auto">
+            <Lock className="w-6 h-6" />
+          </div>
+          <h3 className="font-extrabold text-base text-[#111317]">
+            Court Master Exclusivo para Pelada
+          </h3>
+          <p className="text-xs text-[#6E7381] max-w-sm mx-auto">
+            O organizador de quadra Court Master só é liberado quando existe um evento do tipo <b>Pelada</b> criado. Crie um evento de Pelada na aba <b>Eventos</b> para liberar o acesso.
+          </p>
+        </div>
       ) : (
         <div className="space-y-3">
           <div className={C + " p-3 flex items-center justify-between"}>
@@ -5154,7 +5258,7 @@ function HeziSuperApp() {
   const me =
     typeof sid === "number" ? users.find((x) => x.id === sid) || null : null;
   const role: AppContextProps["role"] =
-    sid === "admin"
+    sid === "admin" || me?.isModerator
       ? "admin"
       : sid === "prof"
         ? "professor"
@@ -5168,12 +5272,13 @@ function HeziSuperApp() {
   };
 
   const syncUserToCourtMaster = (u: HeziUser) => {
+    const displayName = (u.apelido && u.apelido.trim()) || u.nome;
     const status = getPlayerPeladaStatus(peladaStore, {
       userId: String(u.id),
-      name: u.nome,
+      name: displayName,
     });
     if (status.status === "not-in-pelada") {
-      peladaStore.addPlayer(u.nome, {
+      peladaStore.addPlayer(displayName, {
         role: u.tipo === "aluno" ? "aluno" : "convencional",
         userId: String(u.id),
         position: u.pos,

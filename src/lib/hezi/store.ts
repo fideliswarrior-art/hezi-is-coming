@@ -205,6 +205,7 @@ export interface HeziUser {
   nota?: string;
   autorizacaoImagem?: boolean;
   autorizacaoImagemData?: string;
+  isModerator?: boolean;
 }
 
 export interface HeziEventItem {
