@@ -1541,7 +1541,7 @@ function AssinantePage({ S }: { S: AppContextProps }) {
     {
       icon: <Dribbble className="w-5 h-5 text-[#FF5400]" />,
       title: "Treinos de Elite com a Hezi Skills",
-      desc: "Aulas práticas em quadra, turma fechada apenas com alunos selecionados, treino fechado, focados em fundamentos reais de jogo, evolução expressiva, e leitura.",
+      desc: "Aulas práticas em quadra, turma fechada apenas com assinantes selecionados, treino fechado, focados em fundamentos reais de jogo, evolução expressiva, e leitura.",
     },
     {
       icon: <Award className="w-5 h-5 text-[#FF5400]" />,
@@ -2439,7 +2439,7 @@ function Pelada({ S }: { S: AppContextProps }) {
                         {(p.role === "aluno" ||
                           (heziUser?.tipo === "aluno" &&
                             heziUser.st === "ativo")) && (
-                          <Chip c="bg-[#FFF4EE] text-[#FF5400]">ALUNO VIP</Chip>
+                          <Chip c="bg-[#FFF4EE] text-[#FF5400]">ASSINANTE VIP</Chip>
                         )}
                         {!isMe && canInviteOthers && heziUser && (
                           <button
@@ -2571,7 +2571,7 @@ function Pelada({ S }: { S: AppContextProps }) {
                       </p>
                     </div>
                     {usr.tipo === "aluno" && usr.st === "ativo" && (
-                      <Chip c="bg-[#FFF4EE] text-[#FF5400]">ALUNO VIP</Chip>
+                      <Chip c="bg-[#FFF4EE] text-[#FF5400]">ASSINANTE VIP</Chip>
                     )}
                   </div>
                 );
@@ -3122,7 +3122,7 @@ function Painel({ S }: { S: AppContextProps }) {
     .map((x) => sanitizeUsername(x.username || ""))
     .filter(Boolean);
 
-  // Área do Usuário Comum OU Ex-Aluno (cujos dados de assinante continuam salvos no banco, mas exibe perfil comum)
+  // Área do Usuário Comum OU Ex-Assinante (cujos dados de assinante continuam salvos no banco, mas exibe perfil comum)
   if (u.tipo === "jogador" || (u.tipo === "aluno" && u.st === "ex_aluno")) {
     return (
       <div className="p-4 space-y-4">
@@ -3191,7 +3191,7 @@ function Painel({ S }: { S: AppContextProps }) {
     );
   }
 
-  // Aluno Hezi Skills (Assinante Regular ou com Mensalidade Pendente — sem bloqueio de acesso!)
+  // Assinante Hezi Skills (Assinante Regular ou com Mensalidade Pendente — sem bloqueio de acesso!)
   const sub = u.sub || baseSub;
   const isPaymentPending = u.st === "pendente" || u.st === "inativo";
 
@@ -3499,16 +3499,16 @@ function Avaliar({ S }: { S: AppContextProps }) {
 // ---------------------------------------------------------------------------
 // ABA "ALUNOS" (EXCLUSIVA PARA ALUNOS ASSINANTES HEZI SKILLS)
 // ---------------------------------------------------------------------------
-function Alunos({ S }: { S: AppContextProps }) {
-  const alunosList = S.users.filter((x) => x.tipo === "aluno");
-  const [sel, setSel] = useState<number>(alunosList[0]?.id ?? 1);
-  const u = alunosList.find((x) => x.id === sel) || alunosList[0];
+function Assinantes({ S }: { S: AppContextProps }) {
+  const assinantesList = S.users.filter((x) => x.tipo === "aluno");
+  const [sel, setSel] = useState<number>(assinantesList[0]?.id ?? 1);
+  const u = assinantesList.find((x) => x.id === sel) || assinantesList[0];
 
   const [hpAmount, setHpAmount] = useState<number>(5);
   const [hpReason, setHpReason] = useState<string>("MVP da semana");
 
   const getStatusLabel = (st?: HeziUser["st"]) => {
-    if (st === "ex_aluno") return "⚪ Ex-Aluno (Comum)";
+    if (st === "ex_aluno") return "⚪ Ex-Assinante (Comum)";
     if (st === "pendente" || st === "inativo") return "🔴 Mensalidade Pendente";
     return "🟢 Matrícula Regular";
   };
@@ -3524,28 +3524,28 @@ function Alunos({ S }: { S: AppContextProps }) {
       <div className={C + " p-3.5 flex items-center justify-between gap-2"}>
         <div>
           <p className="font-extrabold text-sm text-[#111317]">
-            ⚡ Gestão Exclusiva de Alunos Assinantes ({alunosList.length})
+            ⚡ Gestão Exclusiva de Assinantes Assinantes ({assinantesList.length})
           </p>
           <p className="text-xs text-[#6E7381]">
-            Apenas alunos Hezi Skills aparecem aqui. Usuários gerais ficam no
+            Apenas assinantes Hezi Skills aparecem aqui. Usuários gerais ficam no
             bloco &ldquo;Usuários&rdquo;.
           </p>
         </div>
         <Chip c="bg-[#FFF4EE] text-[#FF5400]">2x HP Automático</Chip>
       </div>
 
-      {alunosList.length === 0 ? (
+      {assinantesList.length === 0 ? (
         <div className={C + " p-5 text-center space-y-1"}>
           <p className="font-bold text-sm text-[#111317]">
             Nenhum aluno cadastrado no momento
           </p>
           <p className="text-xs text-[#6E7381]">
-            Você pode converter um usuário comum em Aluno Assinante na aba
+            Você pode converter um usuário comum em Assinante Assinante na aba
             &ldquo;Usuários&rdquo;.
           </p>
         </div>
       ) : (
-        alunosList.map((x) => (
+        assinantesList.map((x) => (
           <div
             key={x.id}
             onClick={() => setSel(x.id)}
@@ -3568,8 +3568,8 @@ function Alunos({ S }: { S: AppContextProps }) {
                 </p>
                 <p className="text-xs text-[#6E7381]">
                   {x.st === "ex_aluno"
-                    ? "Ex-Aluno (Exibido como Comum)"
-                    : "Aluno Hezi Skills (2x HP)"}{" "}
+                    ? "Ex-Assinante (Exibido como Comum)"
+                    : "Assinante Hezi Skills (2x HP)"}{" "}
                   · <span className="n font-bold text-[#FF5400]">{x.hp} HP</span>
                   {x.st !== "ex_aluno" ? ` · 🔥 ${x.of ?? 0} sem.` : ""}
                 </p>
@@ -3591,7 +3591,7 @@ function Alunos({ S }: { S: AppContextProps }) {
                     [
                       ["ativo", "🟢 Regular"],
                       ["pendente", "🔴 Pendente"],
-                      ["ex_aluno", "⚪ Ex-Aluno"],
+                      ["ex_aluno", "⚪ Ex-Assinante"],
                     ] as const
                   ).map(([stKey, label]) => {
                     const active =
@@ -3609,7 +3609,7 @@ function Alunos({ S }: { S: AppContextProps }) {
                                 ? "Matrícula Regular (2x HP ativo)"
                                 : stKey === "pendente"
                                   ? "Mensalidade Pendente (acesso liberado com aviso em vermelho)"
-                                  : "Ex-Aluno (dados preservados, exibido como usuário comum)"
+                                  : "Ex-Assinante (dados preservados, exibido como usuário comum)"
                             }`,
                           );
                         }}
@@ -3862,8 +3862,8 @@ function UsuariosGeral({ S }: { S: AppContextProps }) {
               👥 Gestão de Usuários no Geral ({generalUsers.length})
             </p>
             <p className="text-xs text-[#6E7381]">
-              Usuários comuns e professores separados da aba de Alunos. Promova
-              para Professor, ative assinatura de Aluno ou crie contas de teste.
+              Usuários comuns e professores separados da aba de Assinantes. Promova
+              para Professor, ative assinatura de Assinante ou crie contas de teste.
             </p>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
@@ -3918,7 +3918,7 @@ function UsuariosGeral({ S }: { S: AppContextProps }) {
                 >
                   <option value="jogador">🏀 Jogador / Usuário Comum</option>
                   <option value="professor">🧑‍🏫 Professor (Staff)</option>
-                  <option value="aluno">⚡ Aluno Assinante Hezi Skills</option>
+                  <option value="aluno">⚡ Assinante Assinante Hezi Skills</option>
                 </select>
               </div>
 
@@ -4019,7 +4019,7 @@ function UsuariosGeral({ S }: { S: AppContextProps }) {
                   >
                     <option value="ativo">🟢 Regular</option>
                     <option value="pendente">🔴 Pendente</option>
-                    <option value="ex_aluno">⚪ Ex-Aluno</option>
+                    <option value="ex_aluno">⚪ Ex-Assinante</option>
                   </select>
                 </div>
               ) : (
@@ -4198,12 +4198,12 @@ function UsuariosGeral({ S }: { S: AppContextProps }) {
                         bd: x.bd || B0(),
                       });
                       S.say(
-                        `⚡ ${x.nome} agora é Aluno Assinante Hezi Skills (movido para a aba Alunos com 2x HP)!`,
+                        `⚡ ${x.nome} agora é Assinante Assinante Hezi Skills (movido para a aba Assinantes com 2x HP)!`,
                       );
                     }}
                     className="text-xs font-extrabold rounded-xl bg-[#FFF4EE] hover:bg-[#FF5400] text-[#FF5400] hover:text-white border border-[#FF5400]/30 px-3 py-1.5 transition"
                   >
-                    ⚡ Tornar Aluno Assinante
+                    ⚡ Tornar Assinante Assinante
                   </button>
                 </div>
 
@@ -4493,6 +4493,9 @@ function Eventos({ S }: { S: AppContextProps }) {
           onClick={() => {
             const [yyyy, mm, dd] = f.dia.split("-");
             const formattedQ = `${dd}/${mm}/${yyyy} · ${f.hora}`;
+            if (f.tp === "Pelada" && !S.evs.some((ev) => ev.tp === "Pelada")) {
+              peladaStore.resetNight();
+            }
             S.setEvs([
               ...S.evs,
               {
@@ -5189,7 +5192,7 @@ interface DbStatusSummaryClient {
   fileSizeBytes: number;
   counts: {
     users: number;
-    alunos: number;
+    assinantes: number;
     jogadores: number;
     events: number;
     queueEntries: number;
@@ -5418,7 +5421,7 @@ function BancoDados({ S }: { S: AppContextProps }) {
   );
 }
 
-type StaffSubTabKey = "cm" | "nf" | "ev" | "av" | "al" | "us" | "db";
+type StaffSubTabKey = "cm" | "nf" | "ev" | "av" | "al" | "us" | "db" | "perfil";
 
 function Staff({
   S,
@@ -5444,9 +5447,10 @@ function Staff({
     ],
     ["ev", "Eventos"],
     ["av", "Avaliar"],
-    ["al", "Alunos"],
+    ["al", "Assinantes"],
     ["us", "Usuários"],
     ...(adm ? ([["db", "Banco SQL"]] as [StaffSubTabKey, string][]) : []),
+    ...(S.me ? ([["perfil", "🏀 Meu Perfil"]] as [StaffSubTabKey, string][]) : []),
   ];
   const [t, setT] = useState<StaffSubTabKey>(initialSubTab || "cm");
 
@@ -5484,13 +5488,15 @@ function Staff({
       ) : t === "av" ? (
         <Avaliar S={S} />
       ) : t === "al" ? (
-        <Alunos S={S} />
+        <Assinantes S={S} />
       ) : t === "us" ? (
         <UsuariosGeral S={S} />
       ) : t === "ev" ? (
         <Eventos S={S} />
       ) : t === "db" && adm ? (
         <BancoDados S={S} />
+      ) : t === "perfil" && S.me ? (
+        <Painel S={S} />
       ) : !S.evs.some((e) => e.tp === "Pelada") ? (
         <div className={C + " p-6 text-center space-y-3"}>
           <div className="w-12 h-12 rounded-full bg-[#FFF4EE] text-[#FF5400] flex items-center justify-center mx-auto">
@@ -5759,7 +5765,7 @@ function HeziSuperApp() {
       return;
     }
     if (targetEv?.tp === "Treino" && me.tipo !== "aluno") {
-      return say("Treino exclusivo para alunos assinantes Hezi Skills!");
+      return say("Treino exclusivo para assinantes assinantes Hezi Skills!");
     }
     sendQueueRequestForUser(me, eid);
   };
@@ -6188,7 +6194,9 @@ function HeziSuperApp() {
                 {role === "visitante"
                   ? "Visitante (Não autenticado)"
                   : role === "admin"
-                    ? "🔑 Administrador"
+                    ? me?.isModerator
+                      ? `🛡️ Moderador (${me.nome})`
+                      : "🔑 Administrador"
                     : role === "professor"
                       ? `🧑‍🏫 ${me ? me.nome : "Professor"}`
                       : `${me?.tipo === "aluno" && me?.st !== "ex_aluno" ? "⚡" : "🏀"} ${me?.nome}`}
@@ -6269,7 +6277,9 @@ function HeziSuperApp() {
             >
               <span>
                 {role === "admin"
-                  ? "🔑 MODO ADMINISTRADOR ATIVO"
+                  ? me?.isModerator
+                    ? "🛡️ MODO MODERADOR ATIVO"
+                    : "🔑 MODO ADMINISTRADOR ATIVO"
                   : "🧑‍🏫 MODO PROFESSOR ATIVO (ORGANIZADOR DE EVENTOS & AVALIAÇÃO)"}
               </span>
               <button
@@ -6336,7 +6346,7 @@ function HeziSuperApp() {
           )}
         </main>
 
-        {/* Modal de Notificações do Jogador/Aluno */}
+        {/* Modal de Notificações do Jogador/Assinante */}
         {notifModalOpen && (
           <NotificacoesPlayerModal
             S={S}
