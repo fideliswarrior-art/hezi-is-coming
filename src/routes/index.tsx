@@ -1766,12 +1766,12 @@ function Home({ S }: { S: AppContextProps }) {
               </p>
             </div>
             <p className="n font-extrabold text-[#FF5400] text-2xl">
-              R$ 120,00
+              R$ 70,00
             </p>
           </div>
 
           <Btn
-            href={wa("Quero reservar: Hezi Shirt 001 (R$ 120,00)")}
+            href={wa("Quero reservar: Hezi Shirt 001 (R$ 70,00)")}
             c={OB}
           >
             <MessageCircle className="w-4 h-4" />
