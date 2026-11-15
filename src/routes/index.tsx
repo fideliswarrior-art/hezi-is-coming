@@ -3504,12 +3504,8 @@ function Alunos({ S }: { S: AppContextProps }) {
   const [sel, setSel] = useState<number>(alunosList[0]?.id ?? 1);
   const u = alunosList.find((x) => x.id === sel) || alunosList[0];
 
-  const A: [string, number, number][] = [
-    ["+10 HP & +1 🔥 (Treino Pago de Terça-feira · 2x Assinante)", 10, 1],
-    ["+10 HP (Presença na Pelada Aberta · 2x Assinante)", 10, 0],
-    ["+20 HP & +1 🔥 (Combo Treino + Pelada na Semana)", 20, 1],
-    ["+100 HP (Evento Especial Aluno Hezi)", 100, 0],
-  ];
+  const [hpAmount, setHpAmount] = useState<number>(5);
+  const [hpReason, setHpReason] = useState<string>("MVP da semana");
 
   const getStatusLabel = (st?: HeziUser["st"]) => {
     if (st === "ex_aluno") return "⚪ Ex-Aluno (Comum)";
@@ -3628,20 +3624,32 @@ function Alunos({ S }: { S: AppContextProps }) {
                       </button>
                     );
                   })}
-                  {/* Botão de Excluir Aluno */}
+                  {/* Botão de Remover Assinatura */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      S.upd(x.id, { tipo: "jogador", st: undefined });
+                      S.say(`${x.nome} não é mais Assinante (movido para Usuários).`);
+                    }}
+                    className="text-[11px] font-extrabold rounded-lg px-2.5 py-1 bg-[#F4F5F7] text-[#6E7381] hover:bg-[#FEF2F2] hover:text-[#EF4444] transition"
+                    title="Remover assinatura e voltar para usuário comum"
+                  >
+                    Remover Assinatura
+                  </button>
+                  {/* Botão de Excluir Assinante */}
                   <button
                     type="button"
                     onClick={() => {
                       if (
                         window.confirm(
-                          `Tem certeza que deseja excluir o aluno "${x.nome}"? Esta ação removerá a conta do banco de dados.`,
+                          `Tem certeza que deseja excluir o assinante "${x.nome}"? Esta ação removerá a conta do banco de dados.`,
                         )
                       ) {
                         S.deleteUser(x.id);
                       }
                     }}
                     className="text-[11px] font-extrabold rounded-lg px-2.5 py-1 text-[#EF4444] hover:bg-[#FEF2F2] flex items-center gap-1 transition"
-                    title="Excluir aluno do banco de dados"
+                    title="Excluir assinante do banco de dados"
                   >
                     <Trash2 className="w-3 h-3" />
                     Excluir
@@ -3654,28 +3662,101 @@ function Alunos({ S }: { S: AppContextProps }) {
       )}
 
       {u && (
-        <div className={C + " p-4 space-y-2.5"}>
+        <div className={C + " p-4 space-y-3"}>
           <p className="font-extrabold text-sm text-[#111317]">
-            Ações Rápidas de Check-in (Aluno):{" "}
+            Lançar Hezi Points (Assinante):{" "}
             <span className="text-[#FF5400]">{u.nome}</span>
           </p>
-          {A.map(([t, h, o]) => (
-            <Btn
-              key={t}
-              onClick={() => {
-                S.upd(u.id, { hp: u.hp + h, of: (u.of || 0) + o });
-                S.say(`${u.nome}: ${t} ✓`);
-              }}
-              c="bg-[#FFF4EE] text-[#FF5400] text-xs py-3"
-            >
-              {t}
-            </Btn>
-          ))}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <label className="text-[11px] font-bold text-[#6E7381] block mb-1">
+                Quantidade de HP
+              </label>
+              <input
+                type="number"
+                min={1}
+                value={hpAmount}
+                onChange={(e) => setHpAmount(Math.max(1, Number(e.target.value) || 0))}
+                className="w-full bg-[#F4F5F7] rounded-xl px-3 py-2.5 text-sm font-bold outline-none"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-bold text-[#6E7381] block mb-1">
+                Motivo dos ganhos
+              </label>
+              <select
+                value={hpReason}
+                onChange={(e) => setHpReason(e.target.value)}
+                className="w-full bg-[#F4F5F7] rounded-xl px-3 py-2.5 text-sm font-semibold outline-none"
+              >
+                <option value="MVP da semana">MVP da semana</option>
+                <option value="Hezi Points por mérito">Hezi Points por mérito</option>
+                <option value="Presença em Evento">Presença em Evento</option>
+              </select>
+            </div>
+          </div>
+          <Btn
+            onClick={() => {
+              const isSub = u.tipo === "aluno" && u.st !== "ex_aluno";
+              const finalPts = isSub ? hpAmount * 2 : hpAmount;
+              const entry = {
+                id: `hp-${Date.now()}`,
+                amount: finalPts,
+                baseAmount: hpAmount,
+                reason: hpReason,
+                date: new Date().toISOString(),
+                doubled: isSub,
+              };
+              S.upd(u.id, {
+                hp: u.hp + finalPts,
+                hpHistory: [entry, ...(u.hpHistory || [])],
+              });
+              S.say(
+                `${u.nome}: +${finalPts} HP (${hpReason}${isSub ? " · 2x Assinante" : ""}) ✓`,
+              );
+            }}
+            c={OB}
+          >
+            Adicionar +{u.tipo === "aluno" && u.st !== "ex_aluno" ? hpAmount * 2 : hpAmount} HP
+          </Btn>
+
+          {/* Histórico de ganhos de HP */}
+          <div className="pt-2 border-t border-[#EAEBEF] space-y-1.5">
+            <p className="text-[11px] font-extrabold text-[#6E7381] uppercase">
+              📜 Histórico de Ganhos de Hezi Points ({(u.hpHistory || []).length})
+            </p>
+            {(!u.hpHistory || u.hpHistory.length === 0) ? (
+              <p className="text-xs text-[#9CA3AF]">Nenhum ganho registrado ainda.</p>
+            ) : (
+              <div className="space-y-1 max-h-40 overflow-y-auto">
+                {u.hpHistory.map((h) => (
+                  <div
+                    key={h.id}
+                    className="flex items-center justify-between text-xs bg-[#F4F5F7] rounded-lg px-2.5 py-1.5"
+                  >
+                    <div>
+                      <span className="font-bold text-[#111317]">{h.reason}</span>
+                      {h.doubled && (
+                        <span className="ml-1.5 text-[10px] font-extrabold text-[#FF5400]">
+                          (2x Assinante)
+                        </span>
+                      )}
+                      <span className="block text-[10px] text-[#6E7381]">
+                        {new Date(h.date).toLocaleString("pt-BR")}
+                      </span>
+                    </div>
+                    <span className="font-extrabold text-[#10B981]">+{h.amount} HP</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {S.role !== "admin" && (
             <p className="text-xs text-[#6E7381] pt-1 flex items-center gap-1">
               <Lock className="w-3.5 h-3.5" />
               Modo Professor: apenas o Administrador pode alterar situação de
-              matrícula.
+              assinatura.
             </p>
           )}
         </div>
@@ -3720,10 +3801,8 @@ function UsuariosGeral({ S }: { S: AppContextProps }) {
     filtered[0] ||
     null;
 
-  const generalActions: [string, number][] = [
-    ["+5 HP (Presença na Pelada · Usuário Comum)", 5],
-    ["+50 HP (Evento Especial · Usuário Comum)", 50],
-  ];
+  const [hpAmount, setHpAmount] = useState<number>(5);
+  const [hpReason, setHpReason] = useState<string>("MVP da semana");
 
   const handleCreateMockUser = (e: React.FormEvent) => {
     e.preventDefault();
@@ -4227,24 +4306,96 @@ function UsuariosGeral({ S }: { S: AppContextProps }) {
             </div>
           </div>
 
-          <div className={C + " p-4 space-y-2.5"}>
+          <div className={C + " p-4 space-y-3"}>
             <p className="font-extrabold text-sm text-[#111317]">
-              Lançar Hezi Points (Usuário Geral):{" "}
+              Lançar Hezi Points:{" "}
               <span className="text-[#FF5400]">{u.nome}</span>
             </p>
-            {generalActions.map(([label, pts]) => (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div>
+                <label className="text-[11px] font-bold text-[#6E7381] block mb-1">
+                  Quantidade de HP
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={hpAmount}
+                  onChange={(e) => setHpAmount(Math.max(1, Number(e.target.value) || 0))}
+                  className="w-full bg-[#F4F5F7] rounded-xl px-3 py-2.5 text-sm font-bold outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-[#6E7381] block mb-1">
+                  Motivo dos ganhos
+                </label>
+                <select
+                  value={hpReason}
+                  onChange={(e) => setHpReason(e.target.value)}
+                  className="w-full bg-[#F4F5F7] rounded-xl px-3 py-2.5 text-sm font-semibold outline-none"
+                >
+                  <option value="MVP da semana">MVP da semana</option>
+                  <option value="Hezi Points por mérito">Hezi Points por mérito</option>
+                  <option value="Presença em Evento">Presença em Evento</option>
+                </select>
+              </div>
+            </div>
             <Btn
-              key={label}
               onClick={() => {
-                S.upd(u.id, { hp: u.hp + pts });
-                S.say(`${u.nome}: ${label} ✓`);
+                const isSub = u.tipo === "aluno" && u.st !== "ex_aluno";
+                const finalPts = isSub ? hpAmount * 2 : hpAmount;
+                const entry = {
+                  id: `hp-${Date.now()}`,
+                  amount: finalPts,
+                  baseAmount: hpAmount,
+                  reason: hpReason,
+                  date: new Date().toISOString(),
+                  doubled: isSub,
+                };
+                S.upd(u.id, {
+                  hp: u.hp + finalPts,
+                  hpHistory: [entry, ...(u.hpHistory || [])],
+                });
+                S.say(
+                  `${u.nome}: +${finalPts} HP (${hpReason}${isSub ? " · 2x Assinante" : ""}) ✓`,
+                );
               }}
-              c="bg-[#FFF4EE] text-[#FF5400] text-xs py-3"
+              c={OB}
             >
-              {label}
+              Adicionar +{u.tipo === "aluno" && u.st !== "ex_aluno" ? hpAmount * 2 : hpAmount} HP
             </Btn>
-          ))}
-        </div>
+
+            {/* Histórico de ganhos de HP */}
+            <div className="pt-2 border-t border-[#EAEBEF] space-y-1.5">
+              <p className="text-[11px] font-extrabold text-[#6E7381] uppercase">
+                📜 Histórico de Ganhos de Hezi Points ({(u.hpHistory || []).length})
+              </p>
+              {(!u.hpHistory || u.hpHistory.length === 0) ? (
+                <p className="text-xs text-[#9CA3AF]">Nenhum ganho registrado ainda.</p>
+              ) : (
+                <div className="space-y-1 max-h-40 overflow-y-auto">
+                  {u.hpHistory.map((h) => (
+                    <div
+                      key={h.id}
+                      className="flex items-center justify-between text-xs bg-[#F4F5F7] rounded-lg px-2.5 py-1.5"
+                    >
+                      <div>
+                        <span className="font-bold text-[#111317]">{h.reason}</span>
+                        {h.doubled && (
+                          <span className="ml-1.5 text-[10px] font-extrabold text-[#FF5400]">
+                            (2x Assinante)
+                          </span>
+                        )}
+                        <span className="block text-[10px] text-[#6E7381]">
+                          {new Date(h.date).toLocaleString("pt-BR")}
+                        </span>
+                      </div>
+                      <span className="font-extrabold text-[#10B981]">+{h.amount} HP</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </>
       )}
     </div>
@@ -4255,7 +4406,8 @@ function Eventos({ S }: { S: AppContextProps }) {
   const [f, setF] = useState({
     t: "",
     tp: "Pelada",
-    q: "",
+    dia: "",
+    hora: "",
     l: "",
     r: "",
   });
@@ -4295,12 +4447,30 @@ function Eventos({ S }: { S: AppContextProps }) {
             </option>
           ))}
         </select>
-        <input
-          value={f.q}
-          placeholder="Dia e horário (ex: Terça · 19:00 ou Sábado · 17:00)"
-          onChange={(e) => setF({ ...f, q: e.target.value })}
-          className="w-full bg-[#F4F5F7] rounded-xl px-4 py-3 text-sm outline-none"
-        />
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-[11px] font-bold text-[#6E7381] block mb-1">
+              Dia do Evento
+            </label>
+            <input
+              type="date"
+              value={f.dia}
+              onChange={(e) => setF({ ...f, dia: e.target.value })}
+              className="w-full bg-[#F4F5F7] rounded-xl px-3 py-2.5 text-sm outline-none"
+            />
+          </div>
+          <div>
+            <label className="text-[11px] font-bold text-[#6E7381] block mb-1">
+              Horário
+            </label>
+            <input
+              type="time"
+              value={f.hora}
+              onChange={(e) => setF({ ...f, hora: e.target.value })}
+              className="w-full bg-[#F4F5F7] rounded-xl px-3 py-2.5 text-sm outline-none"
+            />
+          </div>
+        </div>
         <p className="text-[11px] text-[#6E7381]">
           💡 Eventos aparecem automaticamente na Página Inicial com o destaque{" "}
           <strong>&ldquo;Está rolando&rdquo;</strong> a partir de{" "}
@@ -4319,13 +4489,24 @@ function Eventos({ S }: { S: AppContextProps }) {
           className="w-full bg-[#F4F5F7] rounded-xl px-4 py-3 text-sm outline-none"
         />
         <Btn
-          dis={!f.t.trim() || !f.q.trim()}
+          dis={!f.t.trim() || !f.dia || !f.hora}
           onClick={() => {
+            const [yyyy, mm, dd] = f.dia.split("-");
+            const formattedQ = `${dd}/${mm}/${yyyy} · ${f.hora}`;
             S.setEvs([
               ...S.evs,
-              { ...f, id: Date.now(), f: [], rewardedUids: [] },
+              {
+                id: Date.now(),
+                t: f.t,
+                tp: f.tp,
+                q: formattedQ,
+                l: f.l,
+                r: f.r,
+                f: [],
+                rewardedUids: [],
+              },
             ]);
-            setF({ t: "", tp: "Pelada", q: "", l: "", r: "" });
+            setF({ t: "", tp: "Pelada", dia: "", hora: "", l: "", r: "" });
             S.say("Evento criado e publicado!");
           }}
           c={OB}
@@ -5324,7 +5505,7 @@ function Staff({
         </div>
       ) : (
         <div className="space-y-3">
-          <div className={C + " p-3 flex items-center justify-between"}>
+          <div className={C + " p-3 flex flex-wrap items-center justify-between gap-2"}>
             <div>
               <p className="font-extrabold text-sm text-[#111317]">
                 Court Master · Organizador de Pelada (3x3 / 5x5)
@@ -5333,7 +5514,60 @@ function Staff({
                 Sincronizado com a fila de celulares da Pelada Oficial
               </p>
             </div>
-            <Users className="w-5 h-5 text-[#FF5400]" />
+            <div className="flex items-center gap-2">
+              {adm && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (
+                      !window.confirm(
+                        "Encerrar a pelada atual no Court Master, salvar no histórico e limpar todos os jogadores/fila?",
+                      )
+                    ) {
+                      return;
+                    }
+                    const peladaSnap = usePelada.getState();
+                    const activePelada = S.evs.find((ev) => ev.tp === "Pelada");
+                    const participantSet = new Set<string>();
+                    Object.values(peladaSnap.players).forEach((p) => {
+                      if (p.name) participantSet.add(p.name);
+                    });
+                    if (activePelada) {
+                      [...(activePelada.f || []), ...(activePelada.rewardedUids || [])].forEach((uid) => {
+                        const usr = S.users.find((u) => u.id === uid);
+                        if (usr) participantSet.add((usr.apelido && usr.apelido.trim()) || usr.nome);
+                      });
+                    }
+                    const teamRanking = Object.values(peladaSnap.teamStats || {})
+                      .map((ts) => ({ teamName: ts.teamName, wins: ts.wins, games: ts.games }))
+                      .sort((a, b) => b.wins - a.wins);
+                    if (participantSet.size > 0 || teamRanking.length > 0) {
+                      useHeziPlatform.getState().addEventHistory({
+                        id: `hist-cm-${Date.now()}`,
+                        eventId: activePelada?.id ?? Date.now(),
+                        title: activePelada?.t || "Pelada Court Master",
+                        tp: "Pelada",
+                        q: activePelada?.q || new Date().toLocaleDateString("pt-BR"),
+                        l: activePelada?.l || "Quadra",
+                        endedAt: new Date().toISOString(),
+                        participants: Array.from(participantSet),
+                        teamRanking,
+                        actionLog: [...(peladaSnap.actionLog || [])],
+                      });
+                    }
+                    peladaSnap.resetNight();
+                    if (activePelada) {
+                      S.setEvs(S.evs.filter((ev) => ev.id !== activePelada.id));
+                    }
+                    S.say("Pelada encerrada, salva no histórico e Court Master limpo!");
+                  }}
+                  className="rounded-xl bg-[#FF5400] hover:bg-[#E04800] text-white text-xs font-extrabold px-3 py-2 transition active:scale-95"
+                >
+                  🏁 Encerrar e Limpar
+                </button>
+              )}
+              <Users className="w-5 h-5 text-[#FF5400]" />
+            </div>
           </div>
           <CourtMasterOrganizer embedded />
         </div>

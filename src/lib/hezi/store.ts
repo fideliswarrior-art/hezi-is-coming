@@ -206,6 +206,14 @@ export interface HeziUser {
   autorizacaoImagem?: boolean;
   autorizacaoImagemData?: string;
   isModerator?: boolean;
+  hpHistory?: {
+    id: string;
+    amount: number;
+    baseAmount: number;
+    reason: string;
+    date: string;
+    doubled?: boolean;
+  }[];
 }
 
 export interface HeziEventItem {
