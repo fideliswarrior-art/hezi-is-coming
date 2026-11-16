@@ -859,7 +859,27 @@ export function LoginPage({
       return;
     }
 
-    // Check registered users by Email OR Username OR Apelido
+    // 1. Autenticação segura no servidor (sem expor senha no cliente)
+    try {
+      const authRes = await fetch("/api/hezi/auth/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ identifier: rawInput, senha }),
+      });
+      if (authRes.ok) {
+        const authData = (await authRes.json()) as { ok?: boolean; userId?: number };
+        if (authData.ok && typeof authData.userId === "number") {
+          setFailedAttempts(0);
+          setErrorMsg("");
+          onLoginSuccess(authData.userId);
+          return;
+        }
+      }
+    } catch {
+      /* fallback local caso offline */
+    }
+
+    // 2. Fallback local (caso usuário recém-criado em cache antes do sync)
     const candidateUser = S.users.find((u) => {
       const uEmail = (u.email || "").trim().toLowerCase();
       const uUserRaw = (u.username || "").trim().toLowerCase().replace(/^@+/, "");

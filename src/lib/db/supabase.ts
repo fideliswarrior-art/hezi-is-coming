@@ -52,6 +52,18 @@ export async function saveHeziToSupabase(
         ? existingState.payload.users
         : [];
 
+      const existingMap = new Map(existingUsers.map((u) => [u.id, u]));
+      mergedUsers = mergedUsers.map((u) => {
+        const prev = existingMap.get(u.id);
+        if (!prev) return u;
+        return {
+          ...u,
+          senha: u.senha ?? prev.senha,
+          verificationCode: u.verificationCode ?? prev.verificationCode,
+          resetCode: u.resetCode ?? prev.resetCode,
+        };
+      });
+
       const incomingIds = new Set(mergedUsers.map((u) => u.id));
       for (const eu of existingUsers) {
         if (!incomingIds.has(eu.id) && !deletedSet.has(eu.id)) {

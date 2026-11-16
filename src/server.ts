@@ -17,6 +17,21 @@ import {
   deleteSingleUserInSupabase,
   mutateEventQueueInSupabase,
 } from "./lib/db/supabase";
+import { hashPassword, isPasswordHashed, verifyPassword } from "./lib/hezi/security";
+
+function sanitizeSyncPayload(payload: any) {
+  if (!payload || !payload.hezi || !Array.isArray(payload.hezi.users)) return payload;
+  return {
+    ...payload,
+    hezi: {
+      ...payload.hezi,
+      users: payload.hezi.users.map((u: any) => {
+        const { senha: _s, verificationCode: _v, resetCode: _r, ...safeUser } = u;
+        return safeUser;
+      }),
+    },
+  };
+}
 import type {
   HeziUser,
   HeziEventItem,
@@ -182,7 +197,7 @@ export default {
             }
           }
 
-          return new Response(JSON.stringify(current), {
+          return new Response(JSON.stringify(sanitizeSyncPayload(current)), {
             status: 200,
             headers: {
               "content-type": "application/json",
@@ -214,7 +229,7 @@ export default {
             updated = loadFullSyncStateFromDb();
           }
 
-          return new Response(JSON.stringify(updated), {
+          return new Response(JSON.stringify(sanitizeSyncPayload(updated)), {
             status: 200,
             headers: {
               "content-type": "application/json",
@@ -308,12 +323,47 @@ export default {
         });
       }
 
-      // 5. Server-side Session Cookie Endpoints (/api/hezi/auth/login & logout)
+      // 5. Server-side Session Cookie & Credential Verification (/api/hezi/auth/login & logout)
       if (url.pathname === "/api/hezi/auth/login" && request.method === "POST") {
-        const { sid, role } = (await request.json()) as { sid: string | number; role?: string };
+        const body = (await request.json()) as {
+          sid?: string | number;
+          role?: string;
+          identifier?: string;
+          senha?: string;
+        };
+
+        let resolvedSid = body.sid;
+        let resolvedRole = body.role || "user";
+
+        if (body.identifier && body.senha) {
+          const clean = body.identifier.trim().toLowerCase().replace(/^@+/, "");
+          const remote = await loadFullSyncStateFromSupabase();
+          const usersList: any[] = Array.isArray(remote?.hezi?.users) ? remote.hezi.users : [];
+          const found = usersList.find((u) => {
+            const em = (u.email || "").trim().toLowerCase();
+            const un = (u.username || "").trim().toLowerCase().replace(/^@+/, "");
+            const ap = (u.apelido || "").trim().toLowerCase();
+            return (em && em === clean) || (un && un === clean) || (ap && ap === clean);
+          });
+          if (!found || !(await verifyPassword(body.senha, found.senha ?? "Hezi@2026"))) {
+            return new Response(JSON.stringify({ ok: false }), {
+              status: 401,
+              headers: { "content-type": "application/json", "cache-control": "no-store" },
+            });
+          }
+          if (!isPasswordHashed(found.senha)) {
+            const hashed = await hashPassword(body.senha);
+            await upsertSingleUserInSupabase({ ...found, senha: hashed });
+          }
+          resolvedSid = found.id;
+          resolvedRole = found.isModerator ? "admin" : found.tipo;
+        }
+
         const exp = Date.now() + 7 * 24 * 60 * 60 * 1000;
-        const payload = Buffer.from(JSON.stringify({ sid, role: role || "user", exp })).toString("base64url");
-        return new Response(JSON.stringify({ ok: true }), {
+        const payload = Buffer.from(
+          JSON.stringify({ sid: resolvedSid, role: resolvedRole, exp }),
+        ).toString("base64url");
+        return new Response(JSON.stringify({ ok: true, userId: resolvedSid }), {
           status: 200,
           headers: {
             "content-type": "application/json",
