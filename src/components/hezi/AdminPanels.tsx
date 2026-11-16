@@ -2177,6 +2177,8 @@ export function BancoDados({ S }: { S: AppContextProps }) {
             Exportar Backup dos Dados
           </button>
         </div>
+        </>
+      )}
       </div>
 
       {/* Histórico de Avaliações gravado na tabela evaluations_history */}
