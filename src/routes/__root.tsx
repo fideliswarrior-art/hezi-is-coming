@@ -137,6 +137,36 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
+  useEffect(() => {
+    const reportError = (payload: Record<string, unknown>) => {
+      try {
+        void fetch("/api/hezi/telemetry/error", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          keepalive: true,
+          body: JSON.stringify({
+            ...payload,
+            url: window.location.href,
+            userAgent: navigator.userAgent,
+            timestamp: new Date().toISOString(),
+          }),
+        });
+      } catch {
+        /* ignore */
+      }
+    };
+    const onErr = (e: ErrorEvent) =>
+      reportError({ type: "error", message: e.message, stack: e.error?.stack });
+    const onRej = (e: PromiseRejectionEvent) =>
+      reportError({ type: "unhandledrejection", message: String(e.reason) });
+    window.addEventListener("error", onErr);
+    window.addEventListener("unhandledrejection", onRej);
+    return () => {
+      window.removeEventListener("error", onErr);
+      window.removeEventListener("unhandledrejection", onRej);
+    };
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}

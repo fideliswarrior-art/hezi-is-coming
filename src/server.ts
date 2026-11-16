@@ -384,6 +384,20 @@ export default {
         });
       }
 
+      // 6. Production Error Telemetry Endpoint (/api/hezi/telemetry/error)
+      if (url.pathname === "/api/hezi/telemetry/error" && request.method === "POST") {
+        try {
+          const errBody = await request.json();
+          console.error("[HEZI_CLIENT_ERROR]", JSON.stringify(errBody));
+        } catch {
+          /* ignore malformed telemetry */
+        }
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { "content-type": "application/json", "cache-control": "no-store" },
+        });
+      }
+
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
       return await normalizeCatastrophicSsrResponse(response);
