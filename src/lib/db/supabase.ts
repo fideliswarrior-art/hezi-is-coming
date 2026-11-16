@@ -297,3 +297,77 @@ export async function loadFullSyncStateFromSupabase(): Promise<{
     return null;
   }
 }
+
+export async function upsertSingleUserInSupabase(user: HeziUser): Promise<boolean> {
+  const state = await loadFullSyncStateFromSupabase();
+  const existingUsers: HeziUser[] = Array.isArray(state?.hezi?.users)
+    ? state.hezi.users
+    : [];
+  const idx = existingUsers.findIndex((u) => u.id === user.id);
+  const nextUsers =
+    idx >= 0
+      ? existingUsers.map((u) => (u.id === user.id ? user : u))
+      : [...existingUsers, user];
+  const ts = Date.now();
+  return saveHeziToSupabase(
+    {
+      ...(state?.hezi || {}),
+      lastModified: ts,
+      users: nextUsers,
+    },
+    ts,
+  );
+}
+
+export async function deleteSingleUserInSupabase(userId: number): Promise<boolean> {
+  const state = await loadFullSyncStateFromSupabase();
+  const existingUsers: HeziUser[] = Array.isArray(state?.hezi?.users)
+    ? state.hezi.users
+    : [];
+  const nextUsers = existingUsers.filter((u) => u.id !== userId);
+  const ts = Date.now();
+  return saveHeziToSupabase(
+    {
+      ...(state?.hezi || {}),
+      lastModified: ts,
+      users: nextUsers,
+      deletedUserIds: [userId],
+    },
+    ts,
+  );
+}
+
+export async function mutateEventQueueInSupabase(
+  eventId: number,
+  userId: number,
+  action: "join" | "leave",
+): Promise<HeziEventItem | null> {
+  const state = await loadFullSyncStateFromSupabase();
+  const evs: HeziEventItem[] = Array.isArray(state?.hezi?.evs)
+    ? state.hezi.evs
+    : [];
+  let updatedEvent: HeziEventItem | null = null;
+  const nextEvs = evs.map((ev) => {
+    if (ev.id !== eventId) return ev;
+    const queue = Array.isArray(ev.f) ? [...ev.f] : [];
+    const nextQueue =
+      action === "join"
+        ? queue.includes(userId)
+          ? queue
+          : [...queue, userId]
+        : queue.filter((id) => id !== userId);
+    updatedEvent = { ...ev, f: nextQueue };
+    return updatedEvent;
+  });
+  if (!updatedEvent) return null;
+  const ts = Date.now();
+  await saveHeziToSupabase(
+    {
+      ...(state?.hezi || {}),
+      lastModified: ts,
+      evs: nextEvs,
+    },
+    ts,
+  );
+  return updatedEvent;
+}

@@ -13,6 +13,9 @@ import {
   saveHeziToSupabase,
   savePeladaToSupabase,
   loadFullSyncStateFromSupabase,
+  upsertSingleUserInSupabase,
+  deleteSingleUserInSupabase,
+  mutateEventQueueInSupabase,
 } from "./lib/db/supabase";
 import type {
   HeziUser,
@@ -267,6 +270,41 @@ export default {
             "content-type": "application/json",
             "cache-control": "no-store",
           },
+        });
+      }
+
+      // 4. Granular Entity Endpoints (/api/hezi/*)
+      if (url.pathname === "/api/hezi/users/upsert" && request.method === "POST") {
+        const { user } = (await request.json()) as { user: any };
+        const ok = user?.id ? await upsertSingleUserInSupabase(user) : false;
+        return new Response(JSON.stringify({ ok }), {
+          status: ok ? 200 : 400,
+          headers: { "content-type": "application/json", "cache-control": "no-store" },
+        });
+      }
+
+      if (url.pathname === "/api/hezi/users/delete" && request.method === "POST") {
+        const { userId } = (await request.json()) as { userId: number };
+        const ok = typeof userId === "number" ? await deleteSingleUserInSupabase(userId) : false;
+        return new Response(JSON.stringify({ ok }), {
+          status: ok ? 200 : 400,
+          headers: { "content-type": "application/json", "cache-control": "no-store" },
+        });
+      }
+
+      if (url.pathname === "/api/hezi/events/queue" && request.method === "POST") {
+        const { eventId, userId, action } = (await request.json()) as {
+          eventId: number;
+          userId: number;
+          action: "join" | "leave";
+        };
+        const event =
+          typeof eventId === "number" && typeof userId === "number"
+            ? await mutateEventQueueInSupabase(eventId, userId, action)
+            : null;
+        return new Response(JSON.stringify({ ok: Boolean(event), event }), {
+          status: event ? 200 : 404,
+          headers: { "content-type": "application/json", "cache-control": "no-store" },
         });
       }
 
