@@ -2011,8 +2011,6 @@ export function NotificacoesStaff({ S }: { S: AppContextProps }) {
           ))}
         </div>
       )}
-        </>
-      )}
     </div>
   );
 }
@@ -2168,8 +2166,6 @@ export function BancoDados({ S }: { S: AppContextProps }) {
                 <strong className="text-[#111317]">Status:</strong> Conectado em Nuvem com sincronização contínua
               </div>
             </div>
-          </>
-        )}
 
         <div className="pt-1">
           <button
@@ -2372,8 +2368,6 @@ export function Staff({
           </div>
           <CourtMasterOrganizer embedded />
         </div>
-      )}
-        </>
       )}
     </div>
   );
