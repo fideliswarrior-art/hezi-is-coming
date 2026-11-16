@@ -3352,22 +3352,35 @@ function Avaliar({ S }: { S: AppContextProps }) {
   const currentBd = u.bd || B0();
 
   const domHand = u.dominantHand || "destro";
+  const rawPreviewSub = {} as Record<CatKey, number>;
+  CATS.forEach((c) => {
+    const baseVal = currentSub[c.k] ?? 65;
+    rawPreviewSub[c.k] = Math.round(baseVal * 0.7 + sessao(c, r, domHand) * 0.3);
+  });
+  const prevOvr = ovr(currentSub);
+  const rawNextOvr = ovr(rawPreviewSub);
+  const rawDelta = rawNextOvr - prevOvr;
+  // Teto gradual: máximo +5 OVR por avaliação com curva equilibrada
+  const cappedDelta =
+    rawDelta > 0
+      ? Math.min(5, Math.max(1, Math.round((5 * rawDelta) / (rawDelta + 5))))
+      : rawDelta;
+  const scaleFactor = rawDelta > 0 ? cappedDelta / rawDelta : 1;
+
   const previewSub = {} as Record<CatKey, number>;
   CATS.forEach((c) => {
     const baseVal = currentSub[c.k] ?? 65;
-    previewSub[c.k] = Math.round(baseVal * 0.7 + sessao(c, r, domHand) * 0.3);
+    const diff = rawPreviewSub[c.k] - baseVal;
+    previewSub[c.k] = Math.min(99, Math.max(50, Math.round(baseVal + diff * scaleFactor)));
   });
-  const prevOvr = ovr(currentSub);
-  const nextOvr = ovr(previewSub);
+  const nextOvr = Math.min(99, prevOvr + cappedDelta);
 
   const go = () => {
     const nb = { ...currentBd };
-    const ns = {} as Record<CatKey, number>;
+    const ns = { ...previewSub };
     CATS.forEach((c) => {
-      const baseVal = currentSub[c.k] ?? 65;
-      const nv = Math.round(baseVal * 0.7 + sessao(c, r, domHand) * 0.3);
+      const nv = ns[c.k];
       const b = currentBd[c.k] || { l: 0, s: 0 };
-      ns[c.k] = nv;
       if (b.l < 3 && nv >= THR[b.l]) {
         const s = b.s + 1;
         nb[c.k] = s >= 2 ? { l: b.l + 1, s: 0 } : { l: b.l, s };
@@ -3376,14 +3389,26 @@ function Avaliar({ S }: { S: AppContextProps }) {
       }
     });
 
+    const evalDate = new Date().toLocaleDateString("pt-BR");
+    const newEvalEntry = {
+      id: `eval-${Date.now()}`,
+      date: evalDate,
+      cycle: ci,
+      prevOvr,
+      nextOvr,
+      sub: { ...ns },
+      nota: nt.trim() || u.nota,
+    };
+
     S.upd(id, {
       sub: ns,
       bd: nb,
       r: { ...r },
-      ev: { d: new Date().toLocaleDateString("pt-BR"), c: ci },
+      ev: { d: evalDate, c: ci },
       nota: nt.trim() || u.nota,
+      evalHistory: [newEvalEntry, ...(u.evalHistory || [])],
     });
-    S.say(`Avaliação salva! ${u.nome}: OVR ${prevOvr} → ${ovr(ns)}`);
+    S.say(`Avaliação salva! ${u.nome}: OVR ${prevOvr} → ${nextOvr}`);
     setNt("");
   };
 
@@ -3531,6 +3556,45 @@ function Avaliar({ S }: { S: AppContextProps }) {
         <CheckCircle2 className="w-4 h-4" />
         Processar Avaliação & Atualizar Boletim
       </Btn>
+
+      {/* Histórico de Avaliações & Comparativo */}
+      <div className={C + " p-4 space-y-2.5"}>
+        <p className="font-extrabold text-sm text-[#111317]">
+          📊 Histórico de Avaliações ({(u.evalHistory || []).length})
+        </p>
+        {!u.evalHistory || u.evalHistory.length === 0 ? (
+          <p className="text-xs text-[#6E7381]">
+            Nenhuma avaliação registrada no histórico ainda.
+          </p>
+        ) : (
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {u.evalHistory.map((ev) => {
+              const diff = ev.nextOvr - ev.prevOvr;
+              return (
+                <div
+                  key={ev.id}
+                  className="bg-[#F4F5F7] rounded-xl p-3 space-y-1 text-xs"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-extrabold text-[#111317]">
+                      {ev.date} · {ev.cycle}
+                    </span>
+                    <span className="n font-extrabold text-[#FF5400]">
+                      OVR {ev.prevOvr} → {ev.nextOvr}{" "}
+                      <span className={diff >= 0 ? "text-[#10B981]" : "text-[#EF4444]"}>
+                        ({diff >= 0 ? `+${diff}` : diff})
+                      </span>
+                    </span>
+                  </div>
+                  {ev.nota && (
+                    <p className="text-[#6E7381] italic">&ldquo;{ev.nota}&rdquo;</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

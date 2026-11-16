@@ -303,6 +303,15 @@ export interface HeziUser {
   autorizacaoImagemData?: string;
   isModerator?: boolean;
   dominantHand?: "destro" | "canhoto";
+  evalHistory?: {
+    id: string;
+    date: string;
+    cycle: string;
+    prevOvr: number;
+    nextOvr: number;
+    sub: Record<CatKey, number>;
+    nota?: string;
+  }[];
   hpHistory?: {
     id: string;
     amount: number;
