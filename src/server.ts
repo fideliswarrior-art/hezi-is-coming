@@ -308,6 +308,32 @@ export default {
         });
       }
 
+      // 5. Server-side Session Cookie Endpoints (/api/hezi/auth/login & logout)
+      if (url.pathname === "/api/hezi/auth/login" && request.method === "POST") {
+        const { sid, role } = (await request.json()) as { sid: string | number; role?: string };
+        const exp = Date.now() + 7 * 24 * 60 * 60 * 1000;
+        const payload = Buffer.from(JSON.stringify({ sid, role: role || "user", exp })).toString("base64url");
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json",
+            "cache-control": "no-store",
+            "set-cookie": `hezi_session=${payload}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${7 * 24 * 60 * 60}`,
+          },
+        });
+      }
+
+      if (url.pathname === "/api/hezi/auth/logout" && request.method === "POST") {
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json",
+            "cache-control": "no-store",
+            "set-cookie": "hezi_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0",
+          },
+        });
+      }
+
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
       return await normalizeCatastrophicSsrResponse(response);

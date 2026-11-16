@@ -1,4 +1,5 @@
 import { compressImageFileToDataUrl, triggerAuthEmailApi, type RegisterFormPayload } from "@/routes/index";
+import { hashPassword, isPasswordHashed, verifyPassword } from "@/lib/hezi/security";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import {
@@ -823,7 +824,7 @@ export function LoginPage({
     ? Math.ceil((lockoutUntil - nowTick) / 1000)
     : 0;
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isLockedOut) return;
 
@@ -859,7 +860,7 @@ export function LoginPage({
     }
 
     // Check registered users by Email OR Username OR Apelido
-    const matchedUser = S.users.find((u) => {
+    const candidateUser = S.users.find((u) => {
       const uEmail = (u.email || "").trim().toLowerCase();
       const uUserRaw = (u.username || "").trim().toLowerCase().replace(/^@+/, "");
       const uSanitized = sanitizeUsername(u.username || "");
@@ -876,15 +877,25 @@ export function LoginPage({
         uApelido.length > 0 &&
         (uApelido === cleanId || uApelido === cleanUsername);
 
-      const idMatches = emailMatches || usernameMatches || apelidoMatches;
-      const pwdMatches = (u.senha ?? "Hezi@2026") === senha;
-      return idMatches && pwdMatches;
+      return emailMatches || usernameMatches || apelidoMatches;
     });
 
-    if (matchedUser) {
+    if (candidateUser && (await verifyPassword(senha, candidateUser.senha ?? "Hezi@2026"))) {
+      if (!isPasswordHashed(candidateUser.senha)) {
+        const hashed = await hashPassword(senha);
+        S.upd(candidateUser.id, { senha: hashed });
+      }
+      void fetch("/api/hezi/auth/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          sid: candidateUser.id,
+          role: candidateUser.isModerator ? "admin" : candidateUser.tipo,
+        }),
+      }).catch(() => {});
       setFailedAttempts(0);
       setErrorMsg("");
-      onLoginSuccess(matchedUser.id);
+      onLoginSuccess(candidateUser.id);
       return;
     }
 
