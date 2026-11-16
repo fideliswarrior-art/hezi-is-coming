@@ -80,7 +80,7 @@ import {
   computeElapsed,
   getMaxTeamSize,
 } from "@/lib/pelada/store";
-import { useRealtimeSync } from "@/lib/hezi/sync";
+import { useRealtimeSync, useSyncStatus } from "@/lib/hezi/sync";
 import { CourtMasterOrganizer, useTick } from "./pelada";
 import { RadarHabilidades } from "@/components/hezi/RadarHabilidades";
 import { AssinantePage } from "@/components/hezi/AssinantePage";
@@ -308,6 +308,7 @@ export interface RegisterFormPayload {
 
 function HeziSuperApp() {
   useRealtimeSync();
+  const { isOnline, syncError } = useSyncStatus();
 
   const {
     users,
@@ -851,6 +852,11 @@ function HeziSuperApp() {
       >
         {/* BARRA SUPERIOR ESTILO OTE (PRETA COM LOGO HEZI + EVENTOS | MEU PERFIL | QUERO SER ASSINANTE) */}
         <header className="shrink-0 bg-black text-white">
+          {(!isOnline || syncError) && (
+            <div className="bg-[#EF4444] text-white text-[11px] font-extrabold text-center py-1 px-3">
+              📡 Sem conexão com o servidor — alterações salvas localmente, tentando reconectar...
+            </div>
+          )}
           <div className="flex items-center justify-between px-3.5 py-2.5 gap-2">
             <button
               type="button"

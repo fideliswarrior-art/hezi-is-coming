@@ -1,6 +1,19 @@
 import { useEffect, useRef } from "react";
+import { create } from "zustand";
 import { usePelada, type PeladaState } from "@/lib/pelada/store";
 import { useHeziPlatform, type HeziPlatformState } from "@/lib/hezi/store";
+
+export const useSyncStatus = create<{
+  isOnline: boolean;
+  syncError: boolean;
+  setOnline: (v: boolean) => void;
+  setSyncError: (v: boolean) => void;
+}>((set) => ({
+  isOnline: typeof navigator !== "undefined" ? navigator.onLine : true,
+  syncError: false,
+  setOnline: (isOnline) => set({ isOnline }),
+  setSyncError: (syncError) => set({ syncError }),
+}));
 
 function extractPeladaData(s: PeladaState) {
   return {
@@ -55,7 +68,7 @@ export function useRealtimeSync() {
       try {
         lastPushedPeladaRef.current = peladaState.lastModified;
         lastPushedHeziRef.current = heziState.lastModified;
-        await fetch("/api/hezi-sync", {
+        const res = await fetch("/api/hezi-sync", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
@@ -65,15 +78,20 @@ export function useRealtimeSync() {
             heziUpdatedAt: heziState.lastModified,
           }),
         });
+        useSyncStatus.getState().setSyncError(!res.ok);
       } catch {
-        /* ignore network errors */
+        useSyncStatus.getState().setSyncError(true);
       }
     }
 
     async function pullFromServer() {
       try {
         const res = await fetch("/api/hezi-sync", { cache: "no-store" });
-        if (!res.ok) return;
+        if (!res.ok) {
+          useSyncStatus.getState().setSyncError(true);
+          return;
+        }
+        useSyncStatus.getState().setSyncError(false);
         const data = (await res.json()) as {
           pelada: Partial<PeladaState> | null;
           peladaUpdatedAt: number;
@@ -146,6 +164,13 @@ export function useRealtimeSync() {
       }
     }
     window.addEventListener("storage", onStorage);
+    const onOnline = () => {
+      useSyncStatus.getState().setOnline(true);
+      void pullFromServer();
+    };
+    const onOffline = () => useSyncStatus.getState().setOnline(false);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
 
     void pullFromServer();
     const interval = window.setInterval(() => {
@@ -156,6 +181,8 @@ export function useRealtimeSync() {
       unsubPelada();
       unsubHezi();
       window.removeEventListener("storage", onStorage);
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
       window.clearInterval(interval);
     };
   }, []);
