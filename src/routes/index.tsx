@@ -91,25 +91,25 @@ export const Route = createFileRoute("/")({
 });
 
 const HEZI_LOGO_WHITE = "/assets/hezi-logo.png";
-const SHIRT_FRONT_IMG = "/assets/hezi-shirt-001-front.jpg";
-const SHIRT_BACK_IMG = "/assets/hezi-shirt-001-back.jpg";
+export const SHIRT_FRONT_IMG = "/assets/hezi-shirt-001-front.jpg";
+export const SHIRT_BACK_IMG = "/assets/hezi-shirt-001-back.jpg";
 
 const C = "bg-white border border-[#EAEBEF] rounded-2xl shadow-sm";
 const OB = "bg-[#FF5400] text-white";
-const GRN = "bg-[#ECFDF5] text-[#10B981]";
-const RED = "bg-[#FEF2F2] text-[#EF4444]";
+export const GRN = "bg-[#ECFDF5] text-[#10B981]";
+export const RED = "bg-[#FEF2F2] text-[#EF4444]";
 const btBase =
   "flex items-center justify-center gap-2 w-full text-center rounded-xl py-3.5 px-4 font-extrabold text-sm transition active:scale-95 ";
 
 export type AppTab = "home" | "pelada" | "painel" | "login" | "assinante";
 
-import { Cadastro, EmailVerificationModal, LoginPage, generateSixDigitCode } from "@/components/hezi/AuthComponents";
+import { Cadastro, EmailVerificationModal, LoginPage, generateSixDigitCode, sanitizeUsername } from "@/components/hezi/AuthComponents";
 import { Home, Pelada } from "@/components/hezi/HomeAndEvents";
 import { Painel, NotificacoesPlayerModal } from "@/components/hezi/PlayerProfile";
 import { Staff } from "@/components/hezi/AdminPanels";
 
 
-async function compressImageFileToDataUrl(
+export async function compressImageFileToDataUrl(
   file: File,
   maxSize = 256,
 ): Promise<string> {
@@ -148,7 +148,7 @@ async function compressImageFileToDataUrl(
   });
 }
 
-async function triggerAuthEmailApi(payload: {
+export async function triggerAuthEmailApi(payload: {
   action: "send_verification" | "send_password_reset";
   email: string;
   nome: string;
@@ -225,7 +225,7 @@ function Chip({
   );
 }
 
-const AVATAR_ICONS = ["🏀", "⚡", "🔥", "👑", "🎯", "🦁", "🦅", "🛡️", "🚀", "💎"];
+export const AVATAR_ICONS = ["🏀", "⚡", "🔥", "👑", "🎯", "🦁", "🦅", "🛡️", "🚀", "💎"];
 
 export function Av({
   u,
@@ -291,7 +291,7 @@ function Hd({ children }: { children: React.ReactNode }) {
   );
 }
 
-interface RegisterFormPayload {
+export interface RegisterFormPayload {
   nome: string;
   username: string;
   apelido: string;

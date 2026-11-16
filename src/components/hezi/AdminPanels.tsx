@@ -86,7 +86,7 @@ import { RadarHabilidades } from "@/components/hezi/RadarHabilidades";
 import { AssinantePage } from "@/components/hezi/AssinantePage";
 import type { AppContextProps, AppTab, StaffSubTabKey } from "@/components/hezi/types";
 import { C, OB, btBase, Btn, Chip, Hd } from "@/components/hezi/shared";
-import { Av } from "@/routes/index";
+import { Av, GRN, RED, type DbStatusSummaryClient } from "@/routes/index";
 import { sanitizeUsername } from "./AuthComponents";
 import { Painel } from "./PlayerProfile";
 
@@ -1385,7 +1385,7 @@ export function Eventos({ S }: { S: AppContextProps }) {
           onClick={() => {
             const [yyyy, mm, dd] = f.dia.split("-");
             const formattedQ = `${dd}/${mm}/${yyyy} · ${f.hora}`;
-            if (f.tp === "Pelada" && !S.evs.some((ev) => ev.tp === "Pelada")) {
+            if (f.tp === "Pelada" && !S.evs.some((ev: any) => ev.tp === "Pelada")) {
               peladaStore.resetNight();
             }
             S.setEvs([
@@ -1721,9 +1721,9 @@ export function Eventos({ S }: { S: AppContextProps }) {
                     e.tp === "Pelada"
                       ? Object.values(peladaSnap.teamStats || {})
                           .map((ts) => ({
-                            teamName: ts.teamName,
+                            teamName: (ts as any).name || (ts as any).teamName || "Time",
                             wins: ts.wins,
-                            games: ts.games,
+                            games: ((ts as any).wins || 0) + ((ts as any).losses || 0),
                           }))
                           .sort((a, b) => b.wins - a.wins)
                       : [];
@@ -1737,7 +1737,7 @@ export function Eventos({ S }: { S: AppContextProps }) {
                     endedAt: new Date().toISOString(),
                     participants: Array.from(participantSet),
                     teamRanking,
-                    actionLog: e.tp === "Pelada" ? [...(peladaSnap.actionLog || [])] : [],
+                    actionLog: e.tp === "Pelada" ? (peladaSnap.actionLog || []).map((a: any) => typeof a === "string" ? a : a.text || JSON.stringify(a)) : [],
                   });
                   if (e.tp === "Pelada") {
                     peladaStore.resetNight();
@@ -2295,7 +2295,7 @@ export function Staff({
                       return;
                     }
                     const peladaSnap = usePelada.getState();
-                    const activePelada = S.evs.find((ev) => ev.tp === "Pelada");
+                    const activePelada = S.evs.find((ev: any) => ev.tp === "Pelada");
                     const participantSet = new Set<string>();
                     Object.values(peladaSnap.players).forEach((p) => {
                       if (p.name) participantSet.add(p.name);
@@ -2307,7 +2307,7 @@ export function Staff({
                       });
                     }
                     const teamRanking = Object.values(peladaSnap.teamStats || {})
-                      .map((ts) => ({ teamName: ts.teamName, wins: ts.wins, games: ts.games }))
+                      .map((ts) => ({ teamName: (ts as any).name || (ts as any).teamName || "Time", wins: ts.wins, games: ((ts as any).wins || 0) + ((ts as any).losses || 0) }))
                       .sort((a, b) => b.wins - a.wins);
                     if (participantSet.size > 0 || teamRanking.length > 0) {
                       useHeziPlatform.getState().addEventHistory({
@@ -2320,7 +2320,7 @@ export function Staff({
                         endedAt: new Date().toISOString(),
                         participants: Array.from(participantSet),
                         teamRanking,
-                        actionLog: [...(peladaSnap.actionLog || [])],
+                        actionLog: (peladaSnap.actionLog || []).map((a: any) => typeof a === "string" ? a : a.text || JSON.stringify(a)),
                       });
                     }
                     peladaSnap.resetNight();

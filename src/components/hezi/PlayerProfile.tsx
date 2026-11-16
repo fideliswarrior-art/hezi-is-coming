@@ -86,7 +86,8 @@ import { RadarHabilidades } from "@/components/hezi/RadarHabilidades";
 import { AssinantePage } from "@/components/hezi/AssinantePage";
 import type { AppContextProps, AppTab, StaffSubTabKey } from "@/components/hezi/types";
 import { C, OB, btBase, Btn, Chip, Hd } from "@/components/hezi/shared";
-import { Av } from "@/routes/index";
+import { Av, GRN, RED, AVATAR_ICONS, compressImageFileToDataUrl } from "@/routes/index";
+import { sanitizeUsername, validatePasswordRules, formatDateInput } from "./AuthComponents";
 
 export function Pass({ u }: { u: HeziUser }) {
   const nx = PASS.find((p) => u.hp < p[0]);

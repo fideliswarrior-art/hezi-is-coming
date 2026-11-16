@@ -86,7 +86,7 @@ import { RadarHabilidades } from "@/components/hezi/RadarHabilidades";
 import { AssinantePage } from "@/components/hezi/AssinantePage";
 import type { AppContextProps, AppTab, StaffSubTabKey } from "@/components/hezi/types";
 import { C, OB, btBase, Btn, Chip, Hd } from "@/components/hezi/shared";
-import { Av } from "@/routes/index";
+import { Av, SHIRT_FRONT_IMG, SHIRT_BACK_IMG } from "@/routes/index";
 
 export function Home({ S }: { S: AppContextProps }) {
   useTick(15000);
