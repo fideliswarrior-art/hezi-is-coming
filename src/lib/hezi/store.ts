@@ -104,9 +104,9 @@ export const BE = ["🔒", "🥉", "🥈", "🥇"];
 export const THR = [70, 80, 90];
 
 export const PASS: [number, string][] = [
-  [150, "Kit Adesivos + Par de Meias HEZI FAM"],
-  [400, "Cupom de 20% OFF na linha de roupas"],
-  [750, "Camiseta Oficial de Treino Exclusiva"],
+  [150, "Par de Meias da HEZI"],
+  [400, "???"],
+  [750, "???"],
 ];
 
 export const nano = (n: number) => Math.round(50 + n * 2.45);
