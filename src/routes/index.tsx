@@ -341,6 +341,7 @@ function HeziSuperApp() {
   );
   const [verifyPreviewCode, setVerifyPreviewCode] = useState<string>("");
   const [toast, setToast] = useState("");
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
 
   const me =
     typeof sid === "number" ? users.find((x) => x.id === sid) || null : null;
@@ -871,10 +872,11 @@ function HeziSuperApp() {
               />
             </button>
 
-            <nav className="flex items-center gap-2 sm:gap-3 text-xs font-extrabold uppercase tracking-wider">
+            <nav className="flex items-center gap-3 text-xs font-extrabold uppercase tracking-wider">
               <button
                 type="button"
                 onClick={() => {
+                  setAccountMenuOpen(false);
                   setSelectedEventId(null);
                   setTab("pelada");
                 }}
@@ -885,115 +887,192 @@ function HeziSuperApp() {
               >
                 EVENTOS
               </button>
-              <span className="text-white/50 select-none">|</span>
               <button
                 type="button"
-                onClick={goMeuPerfil}
+                onClick={() => {
+                  setAccountMenuOpen(false);
+                  goQueroSerAssinante();
+                }}
                 className={
                   "ote-nav-link transition hover:text-[#FF5400] " +
-                  (tab === "painel" ||
-                  (tab === "login" && loginRedirect === "painel")
-                    ? "text-[#FF5400]"
-                    : "text-white")
-                }
-              >
-                MEU PERFIL
-              </button>
-              <span className="text-white/50 select-none">|</span>
-              <button
-                type="button"
-                onClick={goQueroSerAssinante}
-                className={
-                  "ote-nav-link transition hover:text-[#FF5400] text-right leading-tight " +
                   (tab === "assinante" ||
                   (tab === "login" && loginRedirect === "assinante")
                     ? "text-[#FF5400]"
                     : "text-white")
                 }
               >
-                QUERO SER ASSINANTE
+                ASSINANTE
               </button>
-            </nav>
-          </div>
 
-          {/* Barra Oficial de Sessão e Notificações (Simulador de login desativado) */}
-          <div className="bg-[#111317] border-t border-white/10 px-3.5 py-1.5 flex items-center justify-between text-xs">
-            <div className="flex items-center gap-1.5 truncate">
-              <span className="text-[#9CA3AF]">Conta:</span>
-              <span className="font-extrabold text-white truncate">
-                {role === "visitante"
-                  ? "Visitante (Não autenticado)"
-                  : role === "admin"
-                    ? me?.isModerator
-                      ? `🛡️ Moderador (${me.nome})`
-                      : "🔑 Administrador"
-                    : role === "professor"
-                      ? `🧑‍🏫 ${me ? me.nome : "Professor"}`
-                      : `${me?.tipo === "aluno" && me?.st !== "ex_aluno" ? "⚡" : "🏀"} ${me?.nome}`}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-1.5 shrink-0">
-              {role !== "visitante" && (
+              {/* Ícone Circular da Conta (estilo Google) */}
+              <div className="relative">
                 <button
                   type="button"
-                  onClick={() => {
-                    if (staff) {
-                      setStaffSubTab("nf");
-                      setTab("painel");
-                    } else {
-                      setNotifModalOpen(true);
-                    }
-                  }}
-                  className="relative flex items-center gap-1 rounded-lg bg-white/10 hover:bg-white/20 text-white px-2.5 py-1 text-xs font-extrabold transition"
-                  title="Abrir Notificações"
+                  onClick={() => setAccountMenuOpen((o) => !o)}
+                  className="relative w-9 h-9 rounded-full bg-[#1C1F26] border-2 border-[#FF5400] flex items-center justify-center overflow-hidden hover:scale-105 transition"
+                  title="Menu da Conta"
                 >
-                  <Bell className="w-3.5 h-3.5 text-[#FF5400]" />
-                  <span className="hidden sm:inline">Notificações</span>
-                  {pendingNotifCount > 0 && (
-                    <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-[#FF5400] text-white text-[10px] font-black">
-                      {pendingNotifCount}
+                  {me?.foto ? (
+                    <img
+                      src={me.foto}
+                      alt={me.nome}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-xs font-black text-white">
+                      {role === "visitante"
+                        ? "?"
+                        : role === "admin" && !me
+                          ? "AD"
+                          : role === "professor" && !me
+                            ? "PR"
+                            : (me?.nome || "U").slice(0, 2).toUpperCase()}
                     </span>
                   )}
+                  {pendingNotifCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-[#FF5400] border-2 border-black" />
+                  )}
                 </button>
-              )}
 
-              {role === "visitante" ? (
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLoginRedirect("painel");
-                      setTab("login");
-                    }}
-                    className="rounded-lg bg-[#FF5400] text-white px-2.5 py-1 text-xs font-extrabold hover:bg-[#E04800] transition"
-                  >
-                    Entrar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCad(true)}
-                    className="rounded-lg bg-white/10 text-white px-2.5 py-1 text-xs font-extrabold hover:bg-white/20 transition"
-                  >
-                    Criar Conta
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSid("visitante");
-                    setTab("home");
-                    say("Você saiu da conta.");
-                  }}
-                  className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/10 text-white hover:bg-[#EF4444] transition text-xs font-bold"
-                  title="Sair da conta"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  <span>Sair</span>
-                </button>
-              )}
-            </div>
+                {accountMenuOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setAccountMenuOpen(false)}
+                    />
+                    <div className="absolute right-0 mt-2 w-72 bg-[#1B1D22] text-white rounded-3xl shadow-2xl border border-white/10 p-3.5 z-50 space-y-3 normal-case tracking-normal">
+                      <div className="flex items-center gap-3 bg-[#111317] rounded-2xl p-3">
+                        <div className="w-11 h-11 rounded-full bg-[#FF5400] flex items-center justify-center font-black text-white shrink-0 overflow-hidden">
+                          {me?.foto ? (
+                            <img
+                              src={me.foto}
+                              alt={me.nome}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <span>
+                              {role === "visitante"
+                                ? "?"
+                                : (me?.nome || (role === "admin" ? "AD" : "PR"))
+                                    .slice(0, 2)
+                                    .toUpperCase()}
+                            </span>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-extrabold text-sm text-white truncate">
+                            {role === "visitante"
+                              ? "Visitante"
+                              : me?.nome ||
+                                (role === "admin" ? "Administrador" : "Professor")}
+                          </p>
+                          <p className="text-[11px] text-[#9CA3AF] truncate">
+                            {me?.email ||
+                              (role === "visitante"
+                                ? "Entre ou crie sua conta"
+                                : "Conta oficial HEZI FAM")}
+                          </p>
+                          <span className="inline-block mt-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-[#FF5400]/20 text-[#FF5400]">
+                            {role === "visitante"
+                              ? "Não autenticado"
+                              : me?.isModerator
+                                ? "🛡️ Moderador"
+                                : role === "admin"
+                                  ? "🔑 Administrador"
+                                  : role === "professor"
+                                    ? "🧑‍🏫 Professor"
+                                    : me?.tipo === "aluno" && me?.st !== "ex_aluno"
+                                      ? "⚡ Assinante VIP"
+                                      : "🏀 Usuário"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        {role !== "visitante" ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAccountMenuOpen(false);
+                                goMeuPerfil();
+                              }}
+                              className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold hover:bg-white/10 transition text-left"
+                            >
+                              <UserCheck className="w-4 h-4 text-[#FF5400]" />
+                              {staff ? "Painel de Gestão / Meu Perfil" : "Meu Perfil"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAccountMenuOpen(false);
+                                if (staff) {
+                                  setStaffSubTab("nf");
+                                  setTab("painel");
+                                } else {
+                                  setNotifModalOpen(true);
+                                }
+                              }}
+                              className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold hover:bg-white/10 transition text-left"
+                            >
+                              <span className="flex items-center gap-2.5">
+                                <Bell className="w-4 h-4 text-[#FF5400]" />
+                                Notificações
+                              </span>
+                              {pendingNotifCount > 0 && (
+                                <span className="px-2 py-0.5 rounded-full bg-[#FF5400] text-white text-[10px] font-black">
+                                  {pendingNotifCount}
+                                </span>
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAccountMenuOpen(false);
+                                void fetch("/api/hezi/auth/logout", { method: "POST" }).catch(() => {});
+                                setSid("visitante");
+                                setTab("home");
+                                say("Você saiu da conta.");
+                              }}
+                              className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-[#EF4444] hover:bg-[#EF4444]/10 transition text-left"
+                            >
+                              <LogOut className="w-4 h-4" />
+                              Sair da conta
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAccountMenuOpen(false);
+                                setLoginRedirect("painel");
+                                setTab("login");
+                              }}
+                              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#FF5400] text-white text-xs font-extrabold hover:bg-[#E04800] transition"
+                            >
+                              <LogIn className="w-4 h-4" />
+                              Entrar na Conta
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAccountMenuOpen(false);
+                                setCad(true);
+                              }}
+                              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white/10 text-white text-xs font-extrabold hover:bg-white/20 transition"
+                            >
+                              <UserPlus className="w-4 h-4 text-[#FF5400]" />
+                              Criar Conta Grátis
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </nav>
           </div>
 
           {staff && (
