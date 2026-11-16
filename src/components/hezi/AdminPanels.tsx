@@ -86,7 +86,11 @@ import { RadarHabilidades } from "@/components/hezi/RadarHabilidades";
 import { AssinantePage } from "@/components/hezi/AssinantePage";
 import type { AppContextProps, AppTab, StaffSubTabKey } from "@/components/hezi/types";
 import { C, OB, btBase, Btn, Chip, Hd } from "@/components/hezi/shared";
-import { Av, GRN, RED, type DbStatusSummaryClient } from "@/routes/index";
+import { Av, GRN, RED } from "@/routes/index";
+
+interface DbStatusSummaryClient {
+  [key: string]: any;
+}
 import { sanitizeUsername } from "./AuthComponents";
 import { Painel } from "./PlayerProfile";
 
