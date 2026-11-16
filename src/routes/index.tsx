@@ -57,6 +57,7 @@ import {
   nano,
   ovr,
   sessao,
+  calcMiniOvr,
   baseSub,
   mkR,
   B0,
@@ -3401,6 +3402,27 @@ function Avaliar({ S }: { S: AppContextProps }) {
           ))}
         </select>
 
+        <div className="grid grid-cols-2 gap-2">
+          {(["destro", "canhoto"] as const).map((hand) => (
+            <button
+              key={hand}
+              type="button"
+              onClick={() => {
+                S.upd(u.id, { dominantHand: hand });
+                S.say(`Mão dominante definida como ${hand === "destro" ? "Destro" : "Canhoto"}`);
+              }}
+              className={
+                "rounded-xl py-2 px-3 text-xs font-extrabold border transition " +
+                ((u.dominantHand || "destro") === hand
+                  ? "bg-[#111317] text-white border-[#111317]"
+                  : "bg-[#F4F5F7] text-[#6E7381] border-[#EAEBEF]")
+              }
+            >
+              ✋ {hand === "destro" ? "Destro (Mão Dir.)" : "Canhoto (Mão Esq.)"}
+            </button>
+          ))}
+        </div>
+
         <div className="rounded-xl py-2.5 px-3 text-center text-xs font-extrabold bg-[#FF5400] text-white">
           Ciclo Mensal
         </div>
@@ -3433,11 +3455,12 @@ function Avaliar({ S }: { S: AppContextProps }) {
       </p>
 
       {CATS.map((c) => {
-        const subSessao = sessao(c, r);
-        const subNovo = previewSub[c.k];
+        const domHand = u.dominantHand || "destro";
+        const subSessao = sessao(c, r, domHand);
+        const subNovo = previewSub[c.k] ?? subSessao;
         return (
-          <div key={c.k} className={C + " p-4"}>
-            <div className="flex items-center justify-between mb-2">
+          <div key={c.k} className={C + " p-4 space-y-2"}>
+            <div className="flex items-center justify-between mb-1">
               <p className="font-extrabold text-sm text-[#111317]">
                 {c.e} {c.t}{" "}
                 <span className="text-[#6E7381] font-medium text-xs">
@@ -3445,35 +3468,48 @@ function Avaliar({ S }: { S: AppContextProps }) {
                 </span>
               </p>
               <span className="n text-xs font-bold bg-[#F4F5F7] px-2.5 py-1 rounded-lg">
-                {currentSub[c.k]} →{" "}
+                Sub-OVR: {currentSub[c.k] ?? 65} →{" "}
                 <strong className="text-[#FF5400]">{subNovo}</strong>{" "}
                 <span className="text-[#6E7381]">(hoje: {subSessao})</span>
               </span>
             </div>
 
-            {c.n.map(([k, nm]) => (
-              <div
-                key={k}
-                className="flex items-center justify-between py-2.5 border-t border-[#EAEBEF]"
-              >
-                <div className="pr-2">
-                  <p className="text-sm font-semibold text-[#111317]">{nm}</p>
-                  <p className="n text-xs text-[#6E7381]">
-                    Nano-OVR: {nano(r[k] ?? 0)} pts
-                  </p>
+            {c.mini.map((m) => {
+              const miniScore = calcMiniOvr(m, r);
+              return (
+                <div key={m.k} className="bg-[#FBFBFC] border border-[#EAEBEF] rounded-xl p-3 space-y-1">
+                  <div className="flex items-center justify-between pb-1.5">
+                    <p className="text-xs font-extrabold uppercase tracking-wider text-[#111317]">
+                      {m.t}
+                    </p>
+                    <span className="n text-[11px] font-extrabold bg-[#FFF4EE] text-[#FF5400] px-2 py-0.5 rounded-md">
+                      Mini-OVR: {miniScore}
+                    </span>
+                  </div>
+                  {m.n.map(([k, nm]) => (
+                    <div
+                      key={k}
+                      className="flex items-center justify-between py-2 border-t border-[#EAEBEF]"
+                    >
+                      <div className="pr-2">
+                        <p className="text-sm font-semibold text-[#111317]">{nm}</p>
+                        <p className="n text-xs text-[#6E7381]">
+                          Nano-OVR: {nano(r[k] ?? 0)} pts
+                        </p>
+                      </div>
+                      <Step
+                        v={r[k] ?? 0}
+                        set={(v) => setR({ ...r, [k]: v })}
+                      />
+                    </div>
+                  ))}
                 </div>
-                <Step
-                  v={r[k] ?? 0}
-                  set={(v) => setR({ ...r, [k]: v })}
-                />
-              </div>
-            ))}
+              );
+            })}
 
-            {c.k === "ban" && Math.abs((r.dir ?? 0) - (r.esq ?? 0)) > 4 && (
+            {c.k === "ban" && Math.abs(((r.bd ?? 0) + (r.brd ?? 0)) / 2 - ((r.be ?? 0) + (r.bre ?? 0)) / 2) > 4 && (
               <p className="text-xs font-bold text-[#EF4444] bg-[#FEF2F2] rounded-lg p-2.5 mt-2">
-                ⚠️ Assimetria ({Math.abs((r.dir ?? 0) - (r.esq ?? 0))} acertos
-                de diferença): penalidade técnica aplicada no Sub-Overall de
-                bandeja.
+                ⚠️ Assimetria entre mão dominante ({domHand === "destro" ? "Direita" : "Esquerda"}) e não dominante: penalidade técnica aplicada no Sub-OVR de finalização.
               </p>
             )}
           </div>

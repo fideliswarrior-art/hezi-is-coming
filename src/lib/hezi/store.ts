@@ -7,96 +7,152 @@ export const HEZI_WHATSAPP_DISPLAY = "(21) 99311-8041";
 export const WA = "https://wa.me/5521993118041?text=";
 export const wa = (t: string) => WA + encodeURIComponent(t);
 
-export type CatKey = "ban" | "arr" | "pla" | "def" | "fis" | "qi";
-export type NanoKey =
-  | "dir"
-  | "esq"
-  | "mid"
-  | "tres"
-  | "lt"
-  | "pas"
-  | "ctr"
-  | "lat"
-  | "con"
-  | "vel"
-  | "res"
-  | "imp"
-  | "dec"
-  | "rea";
+export type CatKey = "ban" | "arr" | "cb" | "pla" | "def" | "fis" | "qi";
+export type NanoKey = string;
+
+export interface MiniCategoryDef {
+  k: string;
+  t: string;
+  n: [NanoKey, string][];
+}
 
 export interface CategoryDef {
   k: CatKey;
   t: string;
   e: string;
+  mini: MiniCategoryDef[];
   n: [NanoKey, string][];
 }
 
-export const CATS: CategoryDef[] = [
+function flattenMini(mini: MiniCategoryDef[]): [NanoKey, string][] {
+  return mini.flatMap((m) => m.n);
+}
+
+const BAN_MINI: MiniCategoryDef[] = [
   {
-    k: "ban",
-    t: "Finalização na Bandeja",
-    e: "🏀",
+    k: "fin",
+    t: "Finalização próximo a cesta",
     n: [
-      ["dir", "Mão Direita"],
-      ["esq", "Mão Esquerda"],
+      ["flo", "Flooter"],
+      ["be", "Bandeja esquerda"],
+      ["bd", "Bandeja direita"],
+      ["bre", "Bandeja reversa esquerda"],
+      ["brd", "Bandeja reversa direita"],
+    ],
+  },
+];
+
+const ARR_MINI: MiniCategoryDef[] = [
+  {
+    k: "md",
+    t: "Meia distância",
+    n: [
+      ["md_mov", "Em movimento"],
+      ["md_con", "Contestado"],
+      ["md_mc", "Em movimento e contestado"],
+      ["md_liv", "Livre"],
     ],
   },
   {
-    k: "arr",
-    t: "Arremesso",
-    e: "🎯",
+    k: "3p",
+    t: "Bola de 3 Pontos",
     n: [
-      ["mid", "Meia Distância"],
-      ["tres", "Bola de 3 Pontos"],
-      ["lt", "Lance Livre"],
+      ["3p_mov", "Em movimento"],
+      ["3p_con", "Contestado"],
+      ["3p_mc", "Em movimento e contestado"],
+      ["3p_liv", "Livre"],
     ],
   },
   {
-    k: "pla",
-    t: "Playmaking & Controle",
-    e: "🧠",
+    k: "ll",
+    t: "Lance Livre",
+    n: [["ll", "Lance Livre"]],
+  },
+];
+
+const CB_MINI: MiniCategoryDef[] = [
+  {
+    k: "cb_sub",
+    t: "Controle de bola",
     n: [
-      ["pas", "Passe Alvo em Movimento"],
-      ["ctr", "Controle sob Pressão"],
+      ["cb_pre", "Controle sobre pressão"],
+      ["cb_par", "Controle bola parado"],
+      ["cb_mov", "Controle em movimento"],
+      ["cb_vel", "Controle em velocidade"],
+      ["cb_tro", "Controle com troca de direção"],
     ],
   },
+];
+
+const PLA_MINI: MiniCategoryDef[] = [
   {
-    k: "def",
-    t: "Defesa Individual",
-    e: "🛡️",
+    k: "pas_sub",
+    t: "Criação de jogadas (Passes)",
     n: [
-      ["lat", "Deslocamento Lateral"],
-      ["con", "Contestação de Arremesso"],
+      ["pe", "Passe com a mão esquerda"],
+      ["pd", "Passe com a mão direita"],
+      ["ppe", "Passe picado com a mão esquerda"],
+      ["ppd", "Passe picado com a mão direita"],
+      ["pp", "Passe de peito"],
+      ["pcc", "Passe por cima da cabeça"],
     ],
   },
+];
+
+const DEF_MINI: MiniCategoryDef[] = [
   {
-    k: "fis",
+    k: "def_sub",
+    t: "Defesa",
+    n: [
+      ["d1x1", "Defesa 1 contra 1"],
+      ["dco", "Close-out"],
+      ["lat", "Deslocamento lateral"],
+      ["con", "Contestação"],
+    ],
+  },
+];
+
+const FIS_MINI: MiniCategoryDef[] = [
+  {
+    k: "fis_sub",
     t: "Físico & Atleticismo",
-    e: "⚡",
     n: [
       ["vel", "Velocidade / Sprint"],
       ["res", "Resistência / Suicídio"],
       ["imp", "Impulsão / Salto"],
     ],
   },
+];
+
+const QI_MINI: MiniCategoryDef[] = [
   {
-    k: "qi",
+    k: "qi_sub",
     t: "QI de Jogo & Reação",
-    e: "👁️",
     n: [
-      ["dec", "Decisão em Vantagem Numérica"],
-      ["rea", "Reação a Estímulo"],
+      ["dec", "Tomada de decisão"],
+      ["rea", "Reação sob pressão (reação sob tempo)"],
     ],
   },
 ];
 
+export const CATS: CategoryDef[] = [
+  { k: "ban", t: "Finalização próximo a cesta", e: "🏀", mini: BAN_MINI, n: flattenMini(BAN_MINI) },
+  { k: "arr", t: "Arremesso", e: "🎯", mini: ARR_MINI, n: flattenMini(ARR_MINI) },
+  { k: "cb", t: "Controle de bola", e: "⚡", mini: CB_MINI, n: flattenMini(CB_MINI) },
+  { k: "pla", t: "Criação de jogadas (Passes)", e: "🧠", mini: PLA_MINI, n: flattenMini(PLA_MINI) },
+  { k: "def", t: "Defesa", e: "🛡️", mini: DEF_MINI, n: flattenMini(DEF_MINI) },
+  { k: "fis", t: "Físico & Atleticismo", e: "💪", mini: FIS_MINI, n: flattenMini(FIS_MINI) },
+  { k: "qi", t: "QI de Jogo & Reação", e: "👁️", mini: QI_MINI, n: flattenMini(QI_MINI) },
+];
+
 export const W: Record<CatKey, number> = {
-  ban: 0.2,
+  ban: 0.15,
   arr: 0.25,
+  cb: 0.15,
   pla: 0.15,
   def: 0.15,
-  fis: 0.15,
-  qi: 0.1,
+  fis: 0.1,
+  qi: 0.05,
 };
 
 export const BN = ["Bloqueado", "Bronze", "Prata", "Ouro"];
@@ -112,24 +168,61 @@ export const PASS: [number, string][] = [
 export const nano = (n: number) => Math.round(50 + n * 2.45);
 
 export const ovr = (s: Record<CatKey, number>) =>
-  Math.round(CATS.reduce((a, c) => a + s[c.k] * W[c.k], 0));
+  Math.round(CATS.reduce((a, c) => a + (s[c.k] ?? 65) * W[c.k], 0));
 
-export const sessao = (c: CategoryDef, r: Record<NanoKey, number>) => {
-  const v = c.n.map(([k]) => r[k] ?? 0);
+export const calcMiniOvr = (mini: MiniCategoryDef, r: Record<NanoKey, number>) => {
+  const vals = mini.n.map(([k]) => nano(r[k] ?? 0));
+  return Math.round(vals.reduce((a, b) => a + b, 0) / Math.max(1, vals.length));
+};
+
+export const sessao = (
+  c: CategoryDef,
+  r: Record<NanoKey, number>,
+  dominantHand: "destro" | "canhoto" = "destro",
+) => {
+  // Calcula cada Mini-OVR da categoria
+  const miniOvrs = c.mini.map((m) => calcMiniOvr(m, r));
+
+  // Balanço Destro vs Canhoto em Finalização (ban) e Passes (pla)
   if (c.k === "ban") {
-    const [a, b] = v.map(nano);
-    const f = Math.max(a, b);
-    const w = Math.min(a, b);
-    const d = Math.abs(v[0] - v[1]);
-    return Math.max(
+    const flo = nano(r["flo"] ?? 0);
+    const be = r["be"] ?? 0;
+    const bd = r["bd"] ?? 0;
+    const bre = r["bre"] ?? 0;
+    const brd = r["brd"] ?? 0;
+    const domB = dominantHand === "canhoto" ? (be + bre) / 2 : (bd + brd) / 2;
+    const nonDomB = dominantHand === "canhoto" ? (bd + brd) / 2 : (be + bre) / 2;
+    const d = Math.abs(domB - nonDomB);
+    const banBalanced = Math.max(
       50,
-      Math.round(f * 0.6 + w * 0.4 - (d > 4 ? (d - 4) * 1.2 : 0)),
+      Math.round(nano(domB) * 0.6 + nano(nonDomB) * 0.4 - (d > 4 ? (d - 4) * 1.2 : 0)),
     );
+    return Math.round(flo * 0.2 + banBalanced * 0.8);
   }
+
   if (c.k === "arr") {
-    return Math.round(nano(v[0]) * 0.4 + nano(v[1]) * 0.35 + nano(v[2]) * 0.25);
+    // Meia distância (40%), Bola de 3 Pontos (35%), Lance Livre (25%)
+    return Math.round(miniOvrs[0] * 0.4 + miniOvrs[1] * 0.35 + miniOvrs[2] * 0.25);
   }
-  return Math.round(v.map(nano).reduce((a, b) => a + b, 0) / v.length);
+
+  if (c.k === "pla") {
+    const pe = r["pe"] ?? 0;
+    const pd = r["pd"] ?? 0;
+    const ppe = r["ppe"] ?? 0;
+    const ppd = r["ppd"] ?? 0;
+    const pp = nano(r["pp"] ?? 0);
+    const pcc = nano(r["pcc"] ?? 0);
+    const domP = dominantHand === "canhoto" ? (pe + ppe) / 2 : (pd + ppd) / 2;
+    const nonDomP = dominantHand === "canhoto" ? (pd + ppd) / 2 : (pe + ppe) / 2;
+    const d = Math.abs(domP - nonDomP);
+    const handBalanced = Math.max(
+      50,
+      Math.round(nano(domP) * 0.6 + nano(nonDomP) * 0.4 - (d > 4 ? (d - 4) * 1.0 : 0)),
+    );
+    return Math.round(handBalanced * 0.7 + ((pp + pcc) / 2) * 0.3);
+  }
+
+  return Math.round(miniOvrs.reduce((a, b) => a + b, 0) / Math.max(1, miniOvrs.length));
 };
 
 export type BadgeState = Record<CatKey, { l: number; s: number }>;
@@ -140,6 +233,7 @@ export const B0 = (): BadgeState =>
 export const baseSub: Record<CatKey, number> = {
   ban: 65,
   arr: 65,
+  cb: 65,
   pla: 65,
   def: 65,
   fis: 65,
@@ -149,6 +243,7 @@ export const baseSub: Record<CatKey, number> = {
 const sL: Record<CatKey, number> = {
   ban: 72,
   arr: 70,
+  cb: 71,
   pla: 71,
   def: 70,
   fis: 74,
@@ -158,6 +253,7 @@ const sL: Record<CatKey, number> = {
 const sM: Record<CatKey, number> = {
   ban: 68,
   arr: 66,
+  cb: 68,
   pla: 67,
   def: 67,
   fis: 68,
@@ -206,6 +302,7 @@ export interface HeziUser {
   autorizacaoImagem?: boolean;
   autorizacaoImagemData?: string;
   isModerator?: boolean;
+  dominantHand?: "destro" | "canhoto";
   hpHistory?: {
     id: string;
     amount: number;
