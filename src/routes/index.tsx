@@ -342,6 +342,7 @@ function HeziSuperApp() {
   const [verifyPreviewCode, setVerifyPreviewCode] = useState<string>("");
   const [toast, setToast] = useState("");
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [modMenuOpen, setModMenuOpen] = useState(false);
 
   const me =
     typeof sid === "number" ? users.find((x) => x.id === sid) || null : null;
@@ -995,13 +996,64 @@ function HeziSuperApp() {
                               type="button"
                               onClick={() => {
                                 setAccountMenuOpen(false);
-                                goMeuPerfil();
+                                if (staff && me) {
+                                  setStaffSubTab("perfil");
+                                  setTab("painel");
+                                } else {
+                                  goMeuPerfil();
+                                }
                               }}
                               className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold hover:bg-white/10 transition text-left"
                             >
                               <UserCheck className="w-4 h-4 text-[#FF5400]" />
-                              {staff ? "Painel de Gestão / Meu Perfil" : "Meu Perfil"}
+                              Meu Perfil
                             </button>
+
+                            {staff && (
+                              <div className="space-y-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setModMenuOpen((v) => !v)}
+                                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-extrabold bg-white/5 hover:bg-white/10 transition text-left"
+                                >
+                                  <span className="flex items-center gap-2.5">
+                                    <ShieldAlert className="w-4 h-4 text-[#FF5400]" />
+                                    {me?.isModerator ? "Moderador" : role === "admin" ? "Administrador" : "Professor"}
+                                  </span>
+                                  {modMenuOpen ? (
+                                    <ChevronUp className="w-3.5 h-3.5 text-[#9CA3AF]" />
+                                  ) : (
+                                    <ChevronDown className="w-3.5 h-3.5 text-[#9CA3AF]" />
+                                  )}
+                                </button>
+                                {modMenuOpen && (
+                                  <div className="pl-3 space-y-1">
+                                    {(
+                                      [
+                                        ["al", "⚡ Assinantes"],
+                                        ["us", "🏀 Usuários"],
+                                        ["ev", "📅 Eventos"],
+                                        ...(role === "admin" ? [["db", "🗄️ Banco de Dados"]] : []),
+                                        ["cm", "🏟️ Court Master"],
+                                      ] as [StaffSubTabKey, string][]
+                                    ).map(([key, label]) => (
+                                      <button
+                                        key={key}
+                                        type="button"
+                                        onClick={() => {
+                                          setAccountMenuOpen(false);
+                                          setStaffSubTab(key);
+                                          setTab("painel");
+                                        }}
+                                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold text-[#E5E7EB] hover:bg-[#FF5400] hover:text-white transition text-left"
+                                      >
+                                        {label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
                             <button
                               type="button"
                               onClick={() => {

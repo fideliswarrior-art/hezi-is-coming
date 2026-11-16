@@ -402,6 +402,7 @@ export function Assinantes({ S }: { S: AppContextProps }) {
 
   const [hpAmount, setHpAmount] = useState<number>(5);
   const [hpReason, setHpReason] = useState<string>("MVP da semana");
+  const [subMode, setSubMode] = useState<"lista" | "avaliar">("lista");
 
   const getStatusLabel = (st?: HeziUser["st"]) => {
     if (st === "ex_aluno") return "⚪ Ex-Assinante (Comum)";
@@ -417,6 +418,37 @@ export function Assinantes({ S }: { S: AppContextProps }) {
 
   return (
     <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={() => setSubMode("lista")}
+          className={
+            "rounded-xl py-2.5 px-3 text-xs font-extrabold transition " +
+            (subMode === "lista"
+              ? "bg-[#111317] text-white"
+              : "bg-white border border-[#EAEBEF] text-[#6E7381]")
+          }
+        >
+          📋 Lista &amp; Pontos
+        </button>
+        <button
+          type="button"
+          onClick={() => setSubMode("avaliar")}
+          className={
+            "rounded-xl py-2.5 px-3 text-xs font-extrabold transition " +
+            (subMode === "avaliar"
+              ? "bg-[#FF5400] text-white"
+              : "bg-white border border-[#EAEBEF] text-[#6E7381]")
+          }
+        >
+          📊 Avaliar Assinante
+        </button>
+      </div>
+
+      {subMode === "avaliar" ? (
+        <Avaliar S={S} />
+      ) : (
+        <>
       <div className={C + " p-3.5 flex items-center justify-between gap-2"}>
         <div>
           <p className="font-extrabold text-sm text-[#111317]">
@@ -657,6 +689,8 @@ export function Assinantes({ S }: { S: AppContextProps }) {
           )}
         </div>
       )}
+        </>
+      )}
     </div>
   );
 }
@@ -699,6 +733,7 @@ export function UsuariosGeral({ S }: { S: AppContextProps }) {
 
   const [hpAmount, setHpAmount] = useState<number>(5);
   const [hpReason, setHpReason] = useState<string>("MVP da semana");
+  const [subMode, setSubMode] = useState<"lista" | "avaliar">("lista");
 
   const handleCreateMockUser = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1976,6 +2011,8 @@ export function NotificacoesStaff({ S }: { S: AppContextProps }) {
           ))}
         </div>
       )}
+        </>
+      )}
     </div>
   );
 }
@@ -2205,18 +2242,10 @@ export function Staff({
 
   const T: [StaffSubTabKey, string][] = [
     ["cm", "Court Master"],
-    [
-      "nf",
-      pendingStaffCount > 0
-        ? `Notificações (${pendingStaffCount})`
-        : "Notificações",
-    ],
     ["ev", "Eventos"],
-    ["av", "Avaliar"],
     ["al", "Assinantes"],
     ["us", "Usuários"],
     ...(adm ? ([["db", "Banco SQL"]] as [StaffSubTabKey, string][]) : []),
-    ...(S.me ? ([["perfil", "🏀 Meu Perfil"]] as [StaffSubTabKey, string][]) : []),
   ];
   const [t, setT] = useState<StaffSubTabKey>(initialSubTab || "cm");
 
@@ -2343,6 +2372,8 @@ export function Staff({
           </div>
           <CourtMasterOrganizer embedded />
         </div>
+      )}
+        </>
       )}
     </div>
   );
