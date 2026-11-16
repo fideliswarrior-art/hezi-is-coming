@@ -3351,9 +3351,11 @@ function Avaliar({ S }: { S: AppContextProps }) {
   const currentSub = u.sub || baseSub;
   const currentBd = u.bd || B0();
 
+  const domHand = u.dominantHand || "destro";
   const previewSub = {} as Record<CatKey, number>;
   CATS.forEach((c) => {
-    previewSub[c.k] = Math.round(currentSub[c.k] * 0.7 + sessao(c, r) * 0.3);
+    const baseVal = currentSub[c.k] ?? 65;
+    previewSub[c.k] = Math.round(baseVal * 0.7 + sessao(c, r, domHand) * 0.3);
   });
   const prevOvr = ovr(currentSub);
   const nextOvr = ovr(previewSub);
@@ -3362,7 +3364,8 @@ function Avaliar({ S }: { S: AppContextProps }) {
     const nb = { ...currentBd };
     const ns = {} as Record<CatKey, number>;
     CATS.forEach((c) => {
-      const nv = Math.round(currentSub[c.k] * 0.7 + sessao(c, r) * 0.3);
+      const baseVal = currentSub[c.k] ?? 65;
+      const nv = Math.round(baseVal * 0.7 + sessao(c, r, domHand) * 0.3);
       const b = currentBd[c.k] || { l: 0, s: 0 };
       ns[c.k] = nv;
       if (b.l < 3 && nv >= THR[b.l]) {
