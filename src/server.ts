@@ -16,6 +16,7 @@ import {
   upsertSingleUserInSupabase,
   deleteSingleUserInSupabase,
   mutateEventQueueInSupabase,
+  resetPeladaInSupabase,
 } from "./lib/db/supabase";
 import { hashPassword, isPasswordHashed, verifyPassword } from "./lib/hezi/security";
 
@@ -319,6 +320,14 @@ export default {
             : null;
         return new Response(JSON.stringify({ ok: Boolean(event), event }), {
           status: event ? 200 : 404,
+          headers: { "content-type": "application/json", "cache-control": "no-store" },
+        });
+      }
+
+      if (url.pathname === "/api/hezi/pelada/reset" && request.method === "POST") {
+        const ok = await resetPeladaInSupabase();
+        return new Response(JSON.stringify({ ok }), {
+          status: ok ? 200 : 500,
           headers: { "content-type": "application/json", "cache-control": "no-store" },
         });
       }

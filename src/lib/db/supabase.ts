@@ -383,3 +383,29 @@ export async function mutateEventQueueInSupabase(
   );
   return updatedEvent;
 }
+
+export async function resetPeladaInSupabase(): Promise<boolean> {
+  const ts = Date.now();
+  return savePeladaToSupabase(
+    {
+      players: {},
+      teams: {},
+      queue: [],
+      waitingChampion: null,
+      court: {
+        teamAId: null,
+        teamBId: null,
+        scoreA: 0,
+        scoreB: 0,
+        runningSince: null,
+        elapsedBeforePauseMs: 0,
+        inSuddenDeath: false,
+        suddenDeathUsed: false,
+      },
+      teamStats: {},
+      actionLog: [],
+      lastModified: ts,
+    },
+    ts,
+  );
+}

@@ -1746,6 +1746,7 @@ export function Eventos({ S }: { S: AppContextProps }) {
                   );
                   if (e.tp === "Pelada") {
                     peladaStore.resetNight();
+                  void fetch("/api/hezi/pelada/reset", { method: "POST" }).catch(() => {});
                   }
                   S.say("Fila limpa com sucesso!");
                 }}
@@ -1800,6 +1801,7 @@ export function Eventos({ S }: { S: AppContextProps }) {
                   });
                   if (e.tp === "Pelada") {
                     peladaStore.resetNight();
+                  void fetch("/api/hezi/pelada/reset", { method: "POST" }).catch(() => {});
                   }
                   S.setEvs(S.evs.filter((x) => x.id !== e.id));
                   S.say(`Evento "${e.t}" encerrado e salvo no histórico!`);
