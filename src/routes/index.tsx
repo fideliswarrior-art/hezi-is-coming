@@ -1176,35 +1176,6 @@ function HeziSuperApp() {
               </div>
             </nav>
           </div>
-
-          {staff && (
-            <div
-              className={
-                "text-center text-xs font-extrabold py-1 tracking-wide flex items-center justify-center gap-2 px-3 " +
-                (role === "admin"
-                  ? "bg-[#FF5400] text-white"
-                  : "bg-[#10B981] text-white")
-              }
-            >
-              <span>
-                {role === "admin"
-                  ? me?.isModerator
-                    ? "🛡️ MODO MODERADOR ATIVO"
-                    : "🔑 MODO ADMINISTRADOR ATIVO"
-                  : "🧑‍🏫 MODO PROFESSOR ATIVO (ORGANIZADOR DE EVENTOS & AVALIAÇÃO)"}
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setStaffSubTab("nf");
-                  setTab("painel");
-                }}
-                className="underline font-black text-white/95 hover:text-white"
-              >
-                Ver Notificações ({pendingNotifCount})
-              </button>
-            </div>
-          )}
         </header>
 
         {/* Main Scrollable Area */}
