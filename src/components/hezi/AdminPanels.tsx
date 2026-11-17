@@ -2297,24 +2297,6 @@ export function Staff({
 
   return (
     <div className="p-4 space-y-4">
-      <div className="grid grid-cols-3 sm:grid-cols-7 gap-1.5">
-        {T.map(([k, n]) => (
-          <button
-            type="button"
-            key={k}
-            onClick={() => handleSelect(k)}
-            className={
-              "rounded-xl py-2.5 px-1 text-xs font-extrabold truncate transition " +
-              (t === k
-                ? "bg-[#111317] text-white shadow-sm"
-                : "bg-white border border-[#EAEBEF] text-[#6E7381]")
-            }
-          >
-            {n}
-          </button>
-        ))}
-      </div>
-
       {t === "nf" ? (
         <NotificacoesStaff S={S} />
       ) : t === "av" ? (
