@@ -2247,10 +2247,12 @@ export function Staff({
   S,
   initialSubTab,
   onSubTabChange,
+  profileSubTab = "perfil",
 }: {
   S: AppContextProps;
   initialSubTab?: StaffSubTabKey;
   onSubTabChange?: (st: StaffSubTabKey) => void;
+  profileSubTab?: "perfil" | "pass";
 }) {
   const adm = S.role === "admin";
   const pendingStaffCount = S.notifications.filter(
@@ -2308,7 +2310,7 @@ export function Staff({
       ) : t === "db" && adm ? (
         <BancoDados S={S} />
       ) : t === "perfil" && S.me ? (
-        <Painel S={S} />
+        <Painel S={S} initialSubTab={profileSubTab} />
       ) : !S.evs.some((e) => e.tp === "Pelada") ? (
         <div className={C + " p-6 text-center space-y-3"}>
           <div className="w-12 h-12 rounded-full bg-[#FFF4EE] text-[#FF5400] flex items-center justify-center mx-auto">

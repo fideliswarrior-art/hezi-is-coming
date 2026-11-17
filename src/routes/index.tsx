@@ -1252,6 +1252,7 @@ function HeziSuperApp() {
               key={role}
               initialSubTab={staffSubTab}
               onSubTabChange={setStaffSubTab}
+              profileSubTab={profileSubTab}
             />
           ) : (
             <Painel S={S} initialSubTab={profileSubTab} />
