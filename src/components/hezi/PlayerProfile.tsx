@@ -747,8 +747,6 @@ export function Painel({
           </button>
         </div>
 
-        <Pass u={u} />
-
         {editOpen && (
           <ProfileEditModal
             u={u}
@@ -833,29 +831,28 @@ export function Painel({
       </div>
 
       {/* HUD de Estatísticas */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className={C + " p-4"}>
-          <p className="text-xs font-semibold text-[#6E7381] flex items-center gap-1">
+      <div className="grid grid-cols-2 gap-2.5">
+        <div className={C + " p-3.5"}>
+          <p className="text-[11px] font-semibold text-[#6E7381] flex items-center gap-1">
             <Flame className="w-3.5 h-3.5 text-[#FF5400]" />
             Ofensiva Semanal
           </p>
-          <p className="n font-bold text-3xl text-[#111317] mt-1">
+          <p className="n font-bold text-2xl sm:text-3xl text-[#111317] mt-1">
             {u.of ?? 0}{" "}
-            <span className="text-sm font-medium text-[#6E7381]">semanas</span>
+            <span className="text-xs sm:text-sm font-medium text-[#6E7381]">semanas</span>
           </p>
         </div>
-        <div className={C + " p-4"}>
-          <p className="text-xs font-semibold text-[#6E7381] flex items-center gap-1">
-            <Zap className="w-3.5 h-3.5 text-[#FF5400]" />
-            Hezi Points (2x)
+        <div className={C + " p-3.5"}>
+          <p className="text-[11px] font-semibold text-[#6E7381] flex items-center gap-1">
+            <Trophy className="w-3.5 h-3.5 text-[#FF5400]" />
+            Overall (OVR)
           </p>
-          <p className="n font-bold text-3xl text-[#FF5400] mt-1">
-            {u.hp} <span className="text-sm font-medium">HP</span>
+          <p className="n font-bold text-2xl sm:text-3xl text-[#FF5400] mt-1">
+            {ovr(u.sub || baseSub)} <span className="text-xs sm:text-sm font-medium">OVR</span>
           </p>
         </div>
       </div>
 
-      <Pass u={u} />
       <Boletim u={u} />
 
       {editOpen && (
