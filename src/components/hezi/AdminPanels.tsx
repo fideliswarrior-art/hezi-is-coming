@@ -368,16 +368,35 @@ export function Avaliar({ S }: { S: AppContextProps }) {
                   key={ev.id}
                   className="bg-[#F4F5F7] rounded-xl p-3 space-y-1 text-xs"
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <span className="font-extrabold text-[#111317]">
                       {ev.date} · {ev.cycle}
                     </span>
-                    <span className="n font-extrabold text-[#FF5400]">
-                      OVR {ev.prevOvr} → {ev.nextOvr}{" "}
-                      <span className={diff >= 0 ? "text-[#10B981]" : "text-[#EF4444]"}>
-                        ({diff >= 0 ? `+${diff}` : diff})
+                    <div className="flex items-center gap-2">
+                      <span className="n font-extrabold text-[#FF5400]">
+                        OVR {ev.prevOvr} → {ev.nextOvr}{" "}
+                        <span className={diff >= 0 ? "text-[#10B981]" : "text-[#EF4444]"}>
+                          ({diff >= 0 ? `+${diff}` : diff})
+                        </span>
                       </span>
-                    </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!window.confirm("Excluir esta avaliação do histórico? O Overall atual será recalculado.")) return;
+                          const nextHistory = (u.evalHistory || []).filter((h) => h.id !== ev.id);
+                          const latest = nextHistory[0];
+                          S.upd(u.id, {
+                            evalHistory: nextHistory,
+                            sub: latest ? { ...latest.sub } : { ...baseSub },
+                            ev: latest ? { d: latest.date, c: latest.cycle } : null,
+                          });
+                          S.say(`Avaliação removida! Overall atualizado para ${ovr(latest ? latest.sub : baseSub)}.`);
+                        }}
+                        className="text-[11px] font-bold text-[#EF4444] hover:underline"
+                      >
+                        Excluir
+                      </button>
+                    </div>
                   </div>
                   {ev.nota && (
                     <p className="text-[#6E7381] italic">&ldquo;{ev.nota}&rdquo;</p>

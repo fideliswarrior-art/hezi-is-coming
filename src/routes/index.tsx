@@ -343,6 +343,8 @@ function HeziSuperApp() {
   const [toast, setToast] = useState("");
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [modMenuOpen, setModMenuOpen] = useState(false);
+  const [perfilMenuOpen, setPerfilMenuOpen] = useState(false);
+  const [profileSubTab, setProfileSubTab] = useState<"perfil" | "pass">("perfil");
 
   const me =
     typeof sid === "number" ? users.find((x) => x.id === sid) || null : null;
@@ -873,7 +875,7 @@ function HeziSuperApp() {
               />
             </button>
 
-            <nav className="flex items-center gap-3 text-xs font-extrabold uppercase tracking-wider">
+            <nav className="flex items-center gap-1.5 sm:gap-2.5 text-[10px] sm:text-xs font-extrabold uppercase tracking-wider">
               <button
                 type="button"
                 onClick={() => {
@@ -888,6 +890,18 @@ function HeziSuperApp() {
               >
                 EVENTOS
               </button>
+              <span className="text-white/40 select-none">|</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setAccountMenuOpen(false);
+                  setCad(true);
+                }}
+                className="ote-nav-link transition hover:text-[#FF5400] text-white"
+              >
+                CRIAR CONTA
+              </button>
+              <span className="text-white/40 select-none">|</span>
               <button
                 type="button"
                 onClick={() => {
@@ -895,14 +909,14 @@ function HeziSuperApp() {
                   goQueroSerAssinante();
                 }}
                 className={
-                  "ote-nav-link transition hover:text-[#FF5400] " +
+                  "ote-nav-link transition hover:text-[#FF5400] text-right leading-tight " +
                   (tab === "assinante" ||
                   (tab === "login" && loginRedirect === "assinante")
                     ? "text-[#FF5400]"
                     : "text-white")
                 }
               >
-                ASSINANTE
+                QUERO SER ASSINANTE
               </button>
 
               {/* Ícone Circular da Conta (estilo Google) */}
@@ -992,22 +1006,59 @@ function HeziSuperApp() {
                       <div className="space-y-1">
                         {role !== "visitante" ? (
                           <>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setAccountMenuOpen(false);
-                                if (staff && me) {
-                                  setStaffSubTab("perfil");
-                                  setTab("painel");
-                                } else {
-                                  goMeuPerfil();
-                                }
-                              }}
-                              className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold hover:bg-white/10 transition text-left"
-                            >
-                              <UserCheck className="w-4 h-4 text-[#FF5400]" />
-                              Meu Perfil
-                            </button>
+                            <div className="space-y-1">
+                              <button
+                                type="button"
+                                onClick={() => setPerfilMenuOpen((v) => !v)}
+                                className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-extrabold bg-white/5 hover:bg-white/10 transition text-left"
+                              >
+                                <span className="flex items-center gap-2.5">
+                                  <UserCheck className="w-4 h-4 text-[#FF5400]" />
+                                  Meu Perfil
+                                </span>
+                                {perfilMenuOpen ? (
+                                  <ChevronUp className="w-3.5 h-3.5 text-[#9CA3AF]" />
+                                ) : (
+                                  <ChevronDown className="w-3.5 h-3.5 text-[#9CA3AF]" />
+                                )}
+                              </button>
+                              {perfilMenuOpen && (
+                                <div className="pl-3 space-y-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setAccountMenuOpen(false);
+                                      setProfileSubTab("perfil");
+                                      if (staff && me) {
+                                        setStaffSubTab("perfil");
+                                        setTab("painel");
+                                      } else {
+                                        goMeuPerfil();
+                                      }
+                                    }}
+                                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold text-[#E5E7EB] hover:bg-[#FF5400] hover:text-white transition text-left"
+                                  >
+                                    👤 Perfil
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setAccountMenuOpen(false);
+                                      setProfileSubTab("pass");
+                                      if (staff && me) {
+                                        setStaffSubTab("perfil");
+                                        setTab("painel");
+                                      } else {
+                                        goMeuPerfil();
+                                      }
+                                    }}
+                                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold text-[#E5E7EB] hover:bg-[#FF5400] hover:text-white transition text-left"
+                                  >
+                                    🏆 Hezi Pass
+                                  </button>
+                                </div>
+                              )}
+                            </div>
 
                             {staff && (
                               <div className="space-y-1">
@@ -1203,7 +1254,7 @@ function HeziSuperApp() {
               onSubTabChange={setStaffSubTab}
             />
           ) : (
-            <Painel S={S} />
+            <Painel S={S} initialSubTab={profileSubTab} />
           )}
         </main>
 

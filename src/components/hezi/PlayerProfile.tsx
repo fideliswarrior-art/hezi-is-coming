@@ -598,9 +598,20 @@ export function ProfileEditModal({
   );
 }
 
-export function Painel({ S }: { S: AppContextProps }) {
+export function Painel({
+  S,
+  initialSubTab = "perfil",
+}: {
+  S: AppContextProps;
+  initialSubTab?: "perfil" | "pass";
+}) {
   const u = S.me;
   const [editOpen, setEditOpen] = useState(false);
+  const [subTab, setSubTab] = useState<"perfil" | "pass">(initialSubTab);
+
+  useEffect(() => {
+    setSubTab(initialSubTab);
+  }, [initialSubTab]);
 
   if (!u) {
     return (
@@ -628,6 +639,54 @@ export function Painel({ S }: { S: AppContextProps }) {
             </Btn>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (subTab === "pass") {
+    return (
+      <div className="p-3 sm:p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="font-extrabold text-base text-[#111317]">
+            🏆 Hezi Pass · Progresso
+          </h2>
+          <button
+            type="button"
+            onClick={() => setSubTab("perfil")}
+            className="text-xs font-extrabold text-[#FF5400] hover:underline"
+          >
+            ← Voltar ao Perfil
+          </button>
+        </div>
+        <Pass u={u} />
+        {u.hpHistory && u.hpHistory.length > 0 && (
+          <div className={C + " p-3.5 space-y-2"}>
+            <p className="text-xs font-extrabold text-[#111317] uppercase">
+              Histórico de Hezi Points ({u.hpHistory.length})
+            </p>
+            <div className="space-y-1.5 max-h-60 overflow-y-auto">
+              {u.hpHistory.map((h) => (
+                <div
+                  key={h.id}
+                  className="flex items-center justify-between text-xs bg-[#F4F5F7] rounded-lg px-2.5 py-1.5"
+                >
+                  <div>
+                    <span className="font-bold text-[#111317]">{h.reason}</span>
+                    {h.doubled && (
+                      <span className="ml-1 text-[10px] font-extrabold text-[#FF5400]">
+                        (2x Assinante)
+                      </span>
+                    )}
+                    <span className="block text-[10px] text-[#6E7381]">
+                      {new Date(h.date).toLocaleString("pt-BR")}
+                    </span>
+                  </div>
+                  <span className="font-extrabold text-[#10B981]">+{h.amount} HP</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
