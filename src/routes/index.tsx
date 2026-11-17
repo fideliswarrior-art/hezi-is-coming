@@ -331,7 +331,7 @@ function HeziSuperApp() {
   const [loginRedirect, setLoginRedirect] = useState<"painel" | "assinante">(
     "painel",
   );
-  const [staffSubTab, setStaffSubTab] = useState<StaffSubTabKey>("cm");
+  const [staffSubTab, setStaffSubTab] = useState<StaffSubTabKey>("ev");
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
   const [notifModalOpen, setNotifModalOpen] = useState(false);
   const [cad, setCad] = useState(false);
@@ -1085,7 +1085,6 @@ function HeziSuperApp() {
                                         ["us", "🏀 Usuários"],
                                         ["ev", "📅 Eventos"],
                                         ...(role === "admin" ? [["db", "🗄️ Banco de Dados"]] : []),
-                                        ["cm", "🏟️ Court Master"],
                                       ] as [StaffSubTabKey, string][]
                                     ).map(([key, label]) => (
                                       <button

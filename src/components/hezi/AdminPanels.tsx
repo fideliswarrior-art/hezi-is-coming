@@ -1373,6 +1373,7 @@ export function Eventos({ S }: { S: AppContextProps }) {
 
   const peladaStore = usePelada();
   const maxTeamSize = getMaxTeamSize(peladaStore.gameFormat);
+  const [openCourtEventId, setOpenCourtEventId] = useState<number | null>(null);
 
   return (
     <div className="space-y-3">
@@ -1807,7 +1808,25 @@ export function Eventos({ S }: { S: AppContextProps }) {
               >
                 🏁 Encerrar Evento e Salvar Histórico
               </button>
+              {e.tp === "Pelada" && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setOpenCourtEventId(openCourtEventId === e.id ? null : e.id)
+                  }
+                  className="col-span-2 rounded-xl bg-[#111317] hover:bg-black text-white text-xs font-extrabold py-3 px-3 transition active:scale-95"
+                >
+                  {openCourtEventId === e.id
+                    ? "▲ Fechar Court Master desta Pelada"
+                    : "🏟️ Abrir Court Master desta Pelada"}
+                </button>
+              )}
             </div>
+            {e.tp === "Pelada" && openCourtEventId === e.id && (
+              <div className="pt-3 border-t border-[#EAEBEF]">
+                <CourtMasterOrganizer embedded />
+              </div>
+            )}
           </div>
         );
       })}
@@ -2260,13 +2279,12 @@ export function Staff({
   ).length;
 
   const T: [StaffSubTabKey, string][] = [
-    ["cm", "Court Master"],
     ["ev", "Eventos"],
     ["al", "Assinantes"],
     ["us", "Usuários"],
     ...(adm ? ([["db", "Banco SQL"]] as [StaffSubTabKey, string][]) : []),
   ];
-  const [t, setT] = useState<StaffSubTabKey>(initialSubTab || "cm");
+  const [t, setT] = useState<StaffSubTabKey>(initialSubTab && initialSubTab !== "cm" ? initialSubTab : "ev");
 
   useEffect(() => {
     if (initialSubTab) setT(initialSubTab);
