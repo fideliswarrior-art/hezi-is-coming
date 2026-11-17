@@ -808,25 +808,15 @@ export function Painel({
               <Chip c="bg-[#FFF4EE] text-[#FF5400]">⚡ 2x HP Ativo</Chip>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="text-center bg-[#FFF4EE] px-3.5 py-2 rounded-2xl border border-[#FF5400]/20">
-              <p className="n font-bold text-4xl text-[#FF5400] leading-none">
-                {ovr(sub)}
-              </p>
-              <p className="text-xs font-extrabold text-[#6E7381] mt-0.5">
-                OVR
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setEditOpen(true)}
-              className="w-10 h-10 rounded-xl bg-[#F4F5F7] hover:bg-[#EAEBEF] text-[#111317] flex items-center justify-center shrink-0 transition"
-              title="Configurações do Perfil (Alterar dados e foto)"
-              aria-label="Editar Perfil"
-            >
-              <Settings className="w-5 h-5 text-[#111317]" />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setEditOpen(true)}
+            className="w-10 h-10 rounded-xl bg-[#F4F5F7] hover:bg-[#EAEBEF] text-[#111317] flex items-center justify-center shrink-0 transition"
+            title="Configurações do Perfil (Alterar dados e foto)"
+            aria-label="Editar Perfil"
+          >
+            <Settings className="w-5 h-5 text-[#111317]" />
+          </button>
         </div>
       </div>
 
