@@ -311,6 +311,8 @@ export interface HeziUser {
     prevOvr: number;
     nextOvr: number;
     sub: Record<CatKey, number>;
+    r?: Record<string, number>;
+    bd?: BadgeState;
     nota?: string;
   }[];
   hpHistory?: {

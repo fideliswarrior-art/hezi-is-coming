@@ -124,6 +124,7 @@ export function Step({ v, set }: { v: number; set: (val: number) => void }) {
 export function Avaliar({ S }: { S: AppContextProps }) {
   const al = S.users.filter((x) => x.tipo === "aluno" && x.st !== "ex_aluno");
   const [id, setId] = useState<number>(al[0]?.id ?? 1);
+  const [expandedEvalId, setExpandedEvalId] = useState<string | null>(null);
   const ci = "Mensal";
   const u = al.find((x) => x.id === id) || al[0];
 
@@ -190,6 +191,8 @@ export function Avaliar({ S }: { S: AppContextProps }) {
       prevOvr,
       nextOvr,
       sub: { ...ns },
+      r: { ...r },
+      bd: { ...nb },
       nota: nt.trim() || u.nota,
     };
 
@@ -360,13 +363,14 @@ export function Avaliar({ S }: { S: AppContextProps }) {
             Nenhuma avaliação registrada no histórico ainda.
           </p>
         ) : (
-          <div className="space-y-2 max-h-64 overflow-y-auto">
+          <div className="space-y-2 max-h-[420px] overflow-y-auto">
             {u.evalHistory.map((ev) => {
               const diff = ev.nextOvr - ev.prevOvr;
+              const isExpanded = expandedEvalId === ev.id;
               return (
                 <div
                   key={ev.id}
-                  className="bg-[#F4F5F7] rounded-xl p-3 space-y-1 text-xs"
+                  className="bg-[#F4F5F7] rounded-xl p-3 space-y-2 text-xs"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-extrabold text-[#111317]">
@@ -379,6 +383,15 @@ export function Avaliar({ S }: { S: AppContextProps }) {
                           ({diff >= 0 ? `+${diff}` : diff})
                         </span>
                       </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedEvalId(isExpanded ? null : ev.id)
+                        }
+                        className="text-[11px] font-bold text-[#111317] bg-white border border-[#EAEBEF] px-2 py-0.5 rounded-lg hover:border-[#FF5400] transition"
+                      >
+                        {isExpanded ? "Ocultar" : "Ver completa"}
+                      </button>
                       <button
                         type="button"
                         onClick={() => {
@@ -398,8 +411,66 @@ export function Avaliar({ S }: { S: AppContextProps }) {
                       </button>
                     </div>
                   </div>
-                  {ev.nota && (
+                  {ev.nota && !isExpanded && (
                     <p className="text-[#6E7381] italic">&ldquo;{ev.nota}&rdquo;</p>
+                  )}
+                  {isExpanded && (
+                    <div className="pt-2 border-t border-[#E5E7EB] space-y-2.5">
+                      <div className="bg-white rounded-lg p-2.5 border border-[#EAEBEF]">
+                        <p className="text-[10px] font-extrabold uppercase tracking-wider text-[#6E7381] mb-1">
+                          Nota do Professor
+                        </p>
+                        <p className="text-xs text-[#111317] italic">
+                          {ev.nota ? `“${ev.nota}”` : "Sem observação registrada."}
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        {CATS.map((c) => {
+                          const catScore = ev.sub?.[c.k] ?? 65;
+                          const badgeLvl = ev.bd?.[c.k]?.l;
+                          return (
+                            <div
+                              key={c.k}
+                              className="bg-white rounded-lg p-2.5 border border-[#EAEBEF] space-y-1.5"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="font-extrabold text-[#111317]">
+                                  {c.t}
+                                </span>
+                                <span className="n font-extrabold text-[#FF5400]">
+                                  {catScore}
+                                  {badgeLvl !== undefined ? ` · ${BE[badgeLvl]} ${BN[badgeLvl]}` : ""}
+                                </span>
+                              </div>
+                              {ev.r ? (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 pt-1 border-t border-[#F4F5F7]">
+                                  {c.n.map(([k, nm]) => {
+                                    const val = ev.r?.[k] ?? 0;
+                                    return (
+                                      <div
+                                        key={k}
+                                        className="flex justify-between items-center text-[11px] bg-[#F4F5F7] rounded px-2 py-1"
+                                      >
+                                        <span className="text-[#6E7381] truncate pr-2">
+                                          {nm}
+                                        </span>
+                                        <span className="n font-bold text-[#111317] shrink-0">
+                                          {val}/20 → {nano(val)} pts
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <p className="text-[11px] text-[#94A3B8]">
+                                  Detalhamento por fundamento não disponível nesta avaliação antiga.
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                   )}
                 </div>
               );
