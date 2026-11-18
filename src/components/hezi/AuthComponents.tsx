@@ -236,20 +236,6 @@ export function Cadastro({
     passwordsMatch &&
     aceiteImagem;
 
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploadingPhoto(true);
-    try {
-      const dataUrl = await compressImageFileToDataUrl(file, 256);
-      setF((prev) => ({ ...prev, foto: dataUrl }));
-    } catch {
-      /* ignore */
-    } finally {
-      setUploadingPhoto(false);
-    }
-  };
-
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-[2px] flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="bg-white w-full max-w-[480px] max-h-[92dvh] overflow-y-auto rounded-t-3xl sm:rounded-3xl p-5 space-y-3 shadow-2xl border border-[#EAEBEF]">
@@ -270,38 +256,6 @@ export function Cadastro({
           Preencha seus dados para acessar seu perfil (com seu Nome de Usuário ou
           E-mail), entrar na fila dos eventos e participar do Hezi Pass.
         </p>
-
-        {/* Foto de perfil opcional já no cadastro */}
-        <div className="flex items-center gap-3 bg-[#F4F5F7] rounded-2xl p-3">
-          {f.foto ? (
-            <img
-              src={f.foto}
-              alt="Preview"
-              className="w-12 h-12 rounded-full object-cover border border-[#FF5400]"
-            />
-          ) : (
-            <div className="w-12 h-12 rounded-full bg-[#FFF4EE] text-[#FF5400] flex items-center justify-center shrink-0">
-              <Camera className="w-5 h-5" />
-            </div>
-          )}
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-extrabold text-[#111317]">
-              Foto de Perfil (opcional)
-            </p>
-            <p className="text-[11px] text-[#6E7381]">
-              Anexe uma imagem do seu celular ou computador
-            </p>
-          </div>
-          <label className="cursor-pointer shrink-0 rounded-xl bg-[#111317] hover:bg-[#FF5400] text-white text-xs font-extrabold px-3 py-2 transition">
-            {uploadingPhoto ? "..." : f.foto ? "Trocar" : "Anexar"}
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handlePhotoUpload}
-              className="hidden"
-            />
-          </label>
-        </div>
 
         <div className="space-y-2.5">
           <input

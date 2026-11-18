@@ -299,6 +299,11 @@ export function ProfileEditModal({
   });
   const [uploading, setUploading] = useState(false);
 
+  const canUploadCustomPhoto =
+    (u.tipo === "aluno" && u.st !== "ex_aluno") ||
+    u.tipo === "professor" ||
+    Boolean(u.isModerator);
+
   const cleanUsername = sanitizeUsername(f.username);
   const usernameTaken =
     cleanUsername.length > 0 &&
@@ -377,16 +382,18 @@ export function ProfileEditModal({
                     : "Iniciais automáticas"}
               </p>
             </div>
-            <label className="cursor-pointer shrink-0 rounded-xl bg-[#FF5400] hover:bg-[#E04800] text-white text-xs font-extrabold px-3 py-2 flex items-center gap-1.5 transition">
-              <Camera className="w-3.5 h-3.5" />
-              <span>{uploading ? "..." : "Anexar Imagem"}</span>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleFileChange}
-                className="hidden"
-              />
-            </label>
+            {canUploadCustomPhoto && (
+              <label className="cursor-pointer shrink-0 rounded-xl bg-[#FF5400] hover:bg-[#E04800] text-white text-xs font-extrabold px-3 py-2 flex items-center gap-1.5 transition">
+                <Camera className="w-3.5 h-3.5" />
+                <span>{uploading ? "..." : "Anexar Imagem"}</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+              </label>
+            )}
           </div>
 
           <div className="flex flex-wrap gap-2">
