@@ -355,9 +355,39 @@ export function Avaliar({ S }: { S: AppContextProps }) {
 
       {/* Histórico de Avaliações & Comparativo */}
       <div className={C + " p-4 space-y-2.5"}>
-        <p className="font-extrabold text-sm text-[#111317]">
-          📊 Histórico de Avaliações ({(u.evalHistory || []).length})
-        </p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="font-extrabold text-sm text-[#111317]">
+            📊 Histórico de Avaliações ({(u.evalHistory || []).length})
+          </p>
+          {(u.evalHistory || []).length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                if (
+                  !window.confirm(
+                    `Apagar TODO o histórico de avaliações de ${u.nome}? O Boletim de Habilidades, Badges e Overall voltarão para a base 65.`
+                  )
+                )
+                  return;
+                S.upd(u.id, {
+                  evalHistory: [],
+                  sub: { ...baseSub },
+                  bd: B0(),
+                  r: {},
+                  ev: null,
+                  nota: "",
+                });
+                setExpandedEvalId(null);
+                S.say(
+                  `Histórico completo apagado! ${u.nome} voltou para a base ${ovr(baseSub)} OVR.`
+                );
+              }}
+              className="text-[11px] font-extrabold text-[#EF4444] bg-[#FEF2F2] hover:bg-[#FEE2E2] px-2.5 py-1 rounded-lg transition"
+            >
+              Apagar histórico completo
+            </button>
+          )}
+        </div>
         {!u.evalHistory || u.evalHistory.length === 0 ? (
           <p className="text-xs text-[#6E7381]">
             Nenhuma avaliação registrada no histórico ainda.
@@ -401,7 +431,10 @@ export function Avaliar({ S }: { S: AppContextProps }) {
                           S.upd(u.id, {
                             evalHistory: nextHistory,
                             sub: latest ? { ...latest.sub } : { ...baseSub },
+                            bd: latest?.bd ? { ...latest.bd } : B0(),
+                            r: latest?.r ? { ...latest.r } : {},
                             ev: latest ? { d: latest.date, c: latest.cycle } : null,
+                            nota: latest?.nota || "",
                           });
                           S.say(`Avaliação removida! Overall atualizado para ${ovr(latest ? latest.sub : baseSub)}.`);
                         }}
