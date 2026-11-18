@@ -2041,12 +2041,34 @@ export function NotificacoesStaff({ S }: { S: AppContextProps }) {
                   {req.fromUserName} · {req.eventTitle || "Evento"}
                 </p>
                 <p className="text-[11px] text-[#6E7381]">
-                  Horário da notificação: <strong>{req.timeLabel}</strong>
+                  Data e hora:{" "}
+                  <strong>
+                    {req.createdAt
+                      ? new Date(req.createdAt).toLocaleString("pt-BR")
+                      : req.timeLabel}
+                  </strong>
                 </p>
               </div>
-              <Chip c={req.status === "accepted" ? GRN : RED}>
-                {req.status === "accepted" ? "✓ Aceito" : "✕ Recusado / Cancelado"}
-              </Chip>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Chip c={req.status === "accepted" ? GRN : RED}>
+                  {req.status === "accepted" ? "✓ Aceito" : "✕ Recusado / Cancelado"}
+                </Chip>
+                <button
+                  type="button"
+                  onClick={() => {
+                    useHeziPlatform
+                      .getState()
+                      .setNotifications(
+                        S.notifications.filter((x) => x.id !== req.id),
+                      );
+                    S.say("Notificação excluída.");
+                  }}
+                  className="p-1.5 rounded-lg text-[#EF4444] hover:bg-[#FEF2F2] transition"
+                  title="Excluir notificação"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           ))}
         </div>

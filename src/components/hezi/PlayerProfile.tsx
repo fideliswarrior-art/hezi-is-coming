@@ -916,9 +916,29 @@ export function NotificacoesPlayerModal({
                         ? "🏀 Solicitação de Fila"
                         : "⚡ Aviso Hezi"}
                   </span>
-                  <span className="n text-xs font-bold text-[#6E7381]">
-                    🕒 {n.timeLabel}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="n text-[11px] font-bold text-[#6E7381]">
+                      🕒{" "}
+                      {n.createdAt
+                        ? new Date(n.createdAt).toLocaleString("pt-BR")
+                        : n.timeLabel}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        useHeziPlatform
+                          .getState()
+                          .setNotifications(
+                            S.notifications.filter((x) => x.id !== n.id),
+                          );
+                        S.say("Notificação excluída.");
+                      }}
+                      className="p-1 rounded-lg text-[#EF4444] hover:bg-[#FEF2F2] transition"
+                      title="Excluir notificação"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
 
                 <p className="text-xs font-semibold text-[#111317]">
