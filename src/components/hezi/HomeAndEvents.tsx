@@ -115,7 +115,7 @@ export function Home({ S }: { S: AppContextProps }) {
             Jogar
           </Btn>
           <Btn onClick={S.goMeuPerfil} c="bg-[#111317] text-white">
-            Meu Perfil
+            Entrar
           </Btn>
         </div>
       </div>
