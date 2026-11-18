@@ -200,7 +200,23 @@ export function Boletim({ u }: { u: HeziUser }) {
                 onClick={() => setO(open ? "" : c.k)}
                 className="w-full flex items-center gap-3 p-3.5 text-left"
               >
-                <span className="text-2xl">{c.e}</span>
+                <div
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border transition ${
+                    b === 3
+                      ? "bg-[#FEF3C7] border-[#F59E0B] shadow-sm"
+                      : b === 2
+                        ? "bg-[#F1F5F9] border-[#94A3B8] shadow-sm"
+                        : b === 1
+                          ? "bg-[#FFEDD5] border-[#CD7F32] shadow-sm"
+                          : "bg-[#F4F5F7] border-[#E5E7EB] opacity-50 grayscale"
+                  }`}
+                >
+                  <img
+                    src={`/badges/${c.k}.png`}
+                    alt={c.t}
+                    className="w-7 h-7 object-contain"
+                  />
+                </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-bold text-[13px] leading-tight text-[#111317]">
                     {c.t}
