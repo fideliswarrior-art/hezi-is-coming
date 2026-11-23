@@ -95,28 +95,54 @@ import { sanitizeUsername } from "./AuthComponents";
 import { Painel } from "./PlayerProfile";
 
 export function Step({ v, set }: { v: number; set: (val: number) => void }) {
+  const [misses, setMisses] = useState(0);
+  const total = v + misses;
+
   return (
-    <div className="flex items-center gap-2">
-      <button
-        type="button"
-        onClick={() => set(Math.max(0, v - 1))}
-        className="w-11 h-11 rounded-xl bg-[#F4F5F7] text-[#111317] flex items-center justify-center font-bold active:scale-90 transition"
-        aria-label="Diminuir"
-      >
-        <Minus className="w-5 h-5" />
-      </button>
-      <span className="n font-bold text-xl w-14 text-center text-[#111317]">
-        {v}
-        <span className="text-xs text-[#6E7381]">/20</span>
-      </span>
-      <button
-        type="button"
-        onClick={() => set(Math.min(20, v + 1))}
-        className="w-11 h-11 rounded-xl bg-[#FF5400] text-white flex items-center justify-center font-bold active:scale-90 transition"
-        aria-label="Aumentar"
-      >
-        <Plus className="w-5 h-5" />
-      </button>
+    <div className="flex flex-col items-end gap-1.5">
+      <div className="flex items-center gap-2">
+        {(v > 0 || misses > 0) && (
+          <button
+            type="button"
+            onClick={() => {
+              set(0);
+              setMisses(0);
+            }}
+            className="text-[10px] font-bold text-[#6E7381] hover:text-[#111317] px-1.5 py-0.5 rounded bg-[#F4F5F7] transition"
+            title="Zerar contador"
+          >
+            Zerar
+          </button>
+        )}
+        <span className="n font-extrabold text-sm text-[#111317]">
+          {v}
+          <span className="text-xs text-[#6E7381]">/20</span>
+        </span>
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            if (total < 20) set(Math.min(20, v + 1));
+          }}
+          disabled={total >= 20}
+          className="min-w-[48px] h-11 px-3 rounded-xl bg-[#10B981] hover:bg-[#059669] disabled:opacity-50 text-white font-extrabold text-base flex items-center justify-center active:scale-90 transition shadow-xs"
+          aria-label="Acertou"
+        >
+          {v}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            if (total < 20) setMisses((m) => m + 1);
+          }}
+          disabled={total >= 20}
+          className="min-w-[48px] h-11 px-3 rounded-xl bg-[#EF4444] hover:bg-[#DC2626] disabled:opacity-50 text-white font-extrabold text-base flex items-center justify-center active:scale-90 transition shadow-xs"
+          aria-label="Errou"
+        >
+          {misses}
+        </button>
+      </div>
     </div>
   );
 }
