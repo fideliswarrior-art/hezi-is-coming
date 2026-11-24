@@ -1892,39 +1892,41 @@ export function Eventos({ S }: { S: AppContextProps }) {
                 </div>
               </div>
             )}
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => {
-                  const calledUsers = e.f
-                    .slice(0, maxTeamSize)
-                    .map((i) => S.users.find((u) => u.id === i))
-                    .filter(Boolean) as HeziUser[];
-                  calledUsers.forEach((u) => {
-                    peladaStore.addPlayer(u.nome, {
-                      role: u.tipo === "aluno" ? "aluno" : "convencional",
-                      userId: String(u.id),
-                      position: u.pos,
+            <div className={`grid ${e.tp === "Treino" ? "grid-cols-1" : "grid-cols-2"} gap-2 pt-1`}>
+              {e.tp !== "Treino" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const calledUsers = e.f
+                      .slice(0, maxTeamSize)
+                      .map((i) => S.users.find((u) => u.id === i))
+                      .filter(Boolean) as HeziUser[];
+                    calledUsers.forEach((u) => {
+                      peladaStore.addPlayer(u.nome, {
+                        role: u.tipo === "aluno" ? "aluno" : "convencional",
+                        userId: String(u.id),
+                        position: u.pos,
+                      });
                     });
-                  });
-                  const names = calledUsers.map((u) => u.nome);
-                  S.setEvs(
-                    S.evs.map((x) =>
-                      x.id === e.id
-                        ? { ...x, f: x.f.slice(maxTeamSize) }
-                        : x,
-                    ),
-                  );
-                  S.say(
-                    names.length
-                      ? "Em quadra: " + names.join(", ")
-                      : "Fila vazia",
-                  );
-                }}
-                className="rounded-xl bg-[#111317] text-white text-xs font-bold py-3 px-2 transition active:scale-95"
-              >
-                Chamar próximo time ({maxTeamSize})
-              </button>
+                    const names = calledUsers.map((u) => u.nome);
+                    S.setEvs(
+                      S.evs.map((x) =>
+                        x.id === e.id
+                          ? { ...x, f: x.f.slice(maxTeamSize) }
+                          : x,
+                      ),
+                    );
+                    S.say(
+                      names.length
+                        ? "Em quadra: " + names.join(", ")
+                        : "Fila vazia",
+                    );
+                  }}
+                  className="rounded-xl bg-[#111317] text-white text-xs font-bold py-3 px-2 transition active:scale-95"
+                >
+                  Chamar próximo time ({maxTeamSize})
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {
