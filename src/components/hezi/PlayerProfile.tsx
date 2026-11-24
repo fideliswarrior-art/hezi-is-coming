@@ -616,11 +616,11 @@ export function Painel({
   initialSubTab = "perfil",
 }: {
   S: AppContextProps;
-  initialSubTab?: "perfil" | "pass";
+  initialSubTab?: "perfil" | "pass" | "ranking";
 }) {
   const u = S.me;
   const [editOpen, setEditOpen] = useState(false);
-  const [subTab, setSubTab] = useState<"perfil" | "pass">(initialSubTab);
+  const [subTab, setSubTab] = useState<"perfil" | "pass" | "ranking">(initialSubTab);
 
   useEffect(() => {
     setSubTab(initialSubTab);
@@ -651,6 +651,83 @@ export function Painel({
               Já tenho conta · Fazer Login
             </Btn>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (subTab === "ranking") {
+    const rankedUsers = [...S.users].sort((a, b) => {
+      const diff = (b.hp ?? 0) - (a.hp ?? 0);
+      if (diff !== 0) return diff;
+      return a.nome.localeCompare(b.nome, "pt-BR");
+    });
+    const myRank = rankedUsers.findIndex((x) => x.id === u?.id) + 1;
+
+    return (
+      <div className="p-3 sm:p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="font-extrabold text-base text-[#111317]">
+              📊 Ranking Hezi Points
+            </h2>
+            <p className="text-[11px] text-[#6E7381]">
+              {rankedUsers.length} usuários · Atualizado em tempo real
+              {myRank > 0 ? ` · Sua posição: #${myRank}` : ""}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSubTab("perfil")}
+            className="text-xs font-extrabold text-[#FF5400] hover:underline shrink-0"
+          >
+            ← Voltar ao Perfil
+          </button>
+        </div>
+
+        <div className="space-y-2">
+          {rankedUsers.map((item, idx) => {
+            const pos = idx + 1;
+            const isMe = item.id === u?.id;
+            const medal =
+              pos === 1 ? "🥇" : pos === 2 ? "🥈" : pos === 3 ? "🥉" : `#${pos}`;
+            return (
+              <div
+                key={item.id}
+                className={`flex items-center gap-2.5 p-2.5 rounded-2xl border transition ${
+                  isMe
+                    ? "bg-[#FFF4EE] border-[#FF5400] shadow-xs"
+                    : "bg-white border-[#EAEBEF]"
+                }`}
+              >
+                <div className="w-8 text-center font-extrabold text-sm shrink-0 text-[#111317]">
+                  {medal}
+                </div>
+                <Av u={item} s="w-9 h-9 text-xs" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-extrabold text-xs text-[#111317] truncate">
+                    {item.nome}
+                    {isMe && (
+                      <span className="ml-1.5 text-[10px] text-[#FF5400]">
+                        (Você)
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-[11px] text-[#6E7381] truncate">
+                    {item.username ? `@${item.username}` : item.pos || "Atleta"}
+                  </p>
+                </div>
+                <div className="text-right shrink-0">
+                  <span className="n font-extrabold text-sm text-[#FF5400]">
+                    {item.hp ?? 0}
+                  </span>
+                  <span className="block text-[10px] font-bold text-[#6E7381]">
+                    HP
+                  </span>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     );

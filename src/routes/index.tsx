@@ -344,7 +344,7 @@ function HeziSuperApp() {
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [modMenuOpen, setModMenuOpen] = useState(false);
   const [perfilMenuOpen, setPerfilMenuOpen] = useState(false);
-  const [profileSubTab, setProfileSubTab] = useState<"perfil" | "pass">("perfil");
+  const [profileSubTab, setProfileSubTab] = useState<"perfil" | "pass" | "ranking">("perfil");
 
   const me =
     typeof sid === "number" ? users.find((x) => x.id === sid) || null : null;
@@ -1065,6 +1065,22 @@ function HeziSuperApp() {
                                     className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold text-[#E5E7EB] hover:bg-[#FF5400] hover:text-white transition text-left"
                                   >
                                     🏆 Hezi Pass
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setAccountMenuOpen(false);
+                                      setProfileSubTab("ranking");
+                                      if (staff && me) {
+                                        setStaffSubTab("perfil");
+                                        setTab("painel");
+                                      } else {
+                                        goMeuPerfil();
+                                      }
+                                    }}
+                                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold text-[#E5E7EB] hover:bg-[#FF5400] hover:text-white transition text-left"
+                                  >
+                                    📊 Ranking Hezi Points
                                   </button>
                                 </div>
                               )}
