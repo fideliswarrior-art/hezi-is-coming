@@ -798,13 +798,13 @@ export function Assinantes({ S }: { S: AppContextProps }) {
       {u && (
         <div className={C + " p-4 space-y-3"}>
           <p className="font-extrabold text-sm text-[#111317]">
-            Lançar Hezi Points (Assinante):{" "}
+            Lançar Grind Points (Assinante):{" "}
             <span className="text-[#FF5400]">{u.nome}</span>
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div>
               <label className="text-[11px] font-bold text-[#6E7381] block mb-1">
-                Quantidade de HP
+                Quantidade de GP
               </label>
               <input
                 type="number"
@@ -824,7 +824,7 @@ export function Assinantes({ S }: { S: AppContextProps }) {
                 className="w-full bg-[#F4F5F7] rounded-xl px-3 py-2.5 text-sm font-semibold outline-none"
               >
                 <option value="MVP da semana">MVP da semana</option>
-                <option value="Hezi Points por mérito">Hezi Points por mérito</option>
+                <option value="Grind Points por mérito">Grind Points por mérito</option>
                 <option value="Presença em Evento">Presença em Evento</option>
               </select>
             </div>
@@ -834,7 +834,7 @@ export function Assinantes({ S }: { S: AppContextProps }) {
               const isSub = u.tipo === "aluno" && u.st !== "ex_aluno";
               const finalPts = isSub ? hpAmount * 2 : hpAmount;
               const entry = {
-                id: `hp-${Date.now()}`,
+                id: `gp-${Date.now()}`,
                 amount: finalPts,
                 baseAmount: hpAmount,
                 reason: hpReason,
@@ -842,28 +842,28 @@ export function Assinantes({ S }: { S: AppContextProps }) {
                 doubled: isSub,
               };
               S.upd(u.id, {
-                hp: u.hp + finalPts,
-                hpHistory: [entry, ...(u.hpHistory || [])],
+                gp: (u.gp ?? 0) + finalPts,
+                gpHistory: [entry, ...(u.gpHistory || [])],
               });
               S.say(
-                `${u.nome}: +${finalPts} HP (${hpReason}${isSub ? " · 2x Assinante" : ""}) ✓`,
+                `${u.nome}: +${finalPts} GP (${hpReason}${isSub ? " · 2x Assinante" : ""}) ✓`,
               );
             }}
             c={OB}
           >
-            Adicionar +{u.tipo === "aluno" && u.st !== "ex_aluno" ? hpAmount * 2 : hpAmount} HP
+            Adicionar +{u.tipo === "aluno" && u.st !== "ex_aluno" ? hpAmount * 2 : hpAmount} GP
           </Btn>
 
-          {/* Histórico de ganhos de HP */}
+          {/* Histórico de ganhos de GP */}
           <div className="pt-2 border-t border-[#EAEBEF] space-y-1.5">
             <p className="text-[11px] font-extrabold text-[#6E7381] uppercase">
-              📜 Histórico de Ganhos de Hezi Points ({(u.hpHistory || []).length})
+              📜 Histórico de Ganhos de Grind Points ({(u.gpHistory || []).length})
             </p>
-            {(!u.hpHistory || u.hpHistory.length === 0) ? (
+            {(!u.gpHistory || u.gpHistory.length === 0) ? (
               <p className="text-xs text-[#9CA3AF]">Nenhum ganho registrado ainda.</p>
             ) : (
               <div className="space-y-1 max-h-40 overflow-y-auto">
-                {u.hpHistory.map((h) => (
+                {u.gpHistory.map((h) => (
                   <div
                     key={h.id}
                     className="flex items-center justify-between text-xs bg-[#F4F5F7] rounded-lg px-2.5 py-1.5"
@@ -879,7 +879,7 @@ export function Assinantes({ S }: { S: AppContextProps }) {
                         {new Date(h.date).toLocaleString("pt-BR")}
                       </span>
                     </div>
-                    <span className="font-extrabold text-[#10B981]">+{h.amount} HP</span>
+                    <span className="font-extrabold text-[#10B981]">+{h.amount} GP</span>
                   </div>
                 ))}
               </div>
@@ -1249,7 +1249,7 @@ export function UsuariosGeral({ S }: { S: AppContextProps }) {
                   {x.tipo === "professor"
                     ? "🧑‍🏫 Professor (Organizador)"
                     : "🏀 Usuário Comum"}{" "}
-                  · <span className="n font-bold text-[#FF5400]">{x.hp} HP</span>
+                  · <span className="n font-bold text-[#10B981]">{x.gp ?? 0} GP</span>
                   {x.email ? ` · ${x.email}` : ""}
                 </p>
               </div>
@@ -1340,7 +1340,7 @@ export function UsuariosGeral({ S }: { S: AppContextProps }) {
                     }}
                     className="text-xs font-extrabold rounded-xl bg-[#FFF4EE] hover:bg-[#FF5400] text-[#FF5400] hover:text-white border border-[#FF5400]/30 px-3 py-1.5 transition"
                   >
-                    ⚡ Tornar Assinante Assinante
+                    ⚡ Tornar Assinante
                   </button>
                 </div>
 
@@ -1427,8 +1427,8 @@ export function UsuariosGeral({ S }: { S: AppContextProps }) {
                 <span className="font-bold text-[#111317]">{u.pos || "—"}</span>
               </div>
               <div>
-                <span className="text-[#6E7381] block">Hezi Points / Ofensiva</span>
-                <span className="font-bold text-[#FF5400]">{u.hp} HP · {u.of || 0} ofensiva</span>
+                <span className="text-[#6E7381] block">Grind Points / Ofensiva</span>
+                <span className="font-bold text-[#10B981]">{u.gp ?? 0} GP · {u.of || 0} ofensiva</span>
               </div>
               <div>
                 <span className="text-[#6E7381] block">Status do E-mail</span>
@@ -1445,13 +1445,13 @@ export function UsuariosGeral({ S }: { S: AppContextProps }) {
 
           <div className={C + " p-4 space-y-3"}>
             <p className="font-extrabold text-sm text-[#111317]">
-              Lançar Hezi Points:{" "}
+              Lançar Grind Points:{" "}
               <span className="text-[#FF5400]">{u.nome}</span>
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div>
                 <label className="text-[11px] font-bold text-[#6E7381] block mb-1">
-                  Quantidade de HP
+                  Quantidade de GP
                 </label>
                 <input
                   type="number"
@@ -1471,7 +1471,7 @@ export function UsuariosGeral({ S }: { S: AppContextProps }) {
                   className="w-full bg-[#F4F5F7] rounded-xl px-3 py-2.5 text-sm font-semibold outline-none"
                 >
                   <option value="MVP da semana">MVP da semana</option>
-                  <option value="Hezi Points por mérito">Hezi Points por mérito</option>
+                  <option value="Grind Points por mérito">Grind Points por mérito</option>
                   <option value="Presença em Evento">Presença em Evento</option>
                 </select>
               </div>
@@ -1481,7 +1481,7 @@ export function UsuariosGeral({ S }: { S: AppContextProps }) {
                 const isSub = u.tipo === "aluno" && u.st !== "ex_aluno";
                 const finalPts = isSub ? hpAmount * 2 : hpAmount;
                 const entry = {
-                  id: `hp-${Date.now()}`,
+                  id: `gp-${Date.now()}`,
                   amount: finalPts,
                   baseAmount: hpAmount,
                   reason: hpReason,
@@ -1489,28 +1489,28 @@ export function UsuariosGeral({ S }: { S: AppContextProps }) {
                   doubled: isSub,
                 };
                 S.upd(u.id, {
-                  hp: u.hp + finalPts,
-                  hpHistory: [entry, ...(u.hpHistory || [])],
+                  gp: (u.gp ?? 0) + finalPts,
+                  gpHistory: [entry, ...(u.gpHistory || [])],
                 });
                 S.say(
-                  `${u.nome}: +${finalPts} HP (${hpReason}${isSub ? " · 2x Assinante" : ""}) ✓`,
+                  `${u.nome}: +${finalPts} GP (${hpReason}${isSub ? " · 2x Assinante" : ""}) ✓`,
                 );
               }}
               c={OB}
             >
-              Adicionar +{u.tipo === "aluno" && u.st !== "ex_aluno" ? hpAmount * 2 : hpAmount} HP
+              Adicionar +{u.tipo === "aluno" && u.st !== "ex_aluno" ? hpAmount * 2 : hpAmount} GP
             </Btn>
 
-            {/* Histórico de ganhos de HP */}
+            {/* Histórico de ganhos de GP */}
             <div className="pt-2 border-t border-[#EAEBEF] space-y-1.5">
               <p className="text-[11px] font-extrabold text-[#6E7381] uppercase">
-                📜 Histórico de Ganhos de Hezi Points ({(u.hpHistory || []).length})
+                📜 Histórico de Ganhos de Grind Points ({(u.gpHistory || []).length})
               </p>
-              {(!u.hpHistory || u.hpHistory.length === 0) ? (
+              {(!u.gpHistory || u.gpHistory.length === 0) ? (
                 <p className="text-xs text-[#9CA3AF]">Nenhum ganho registrado ainda.</p>
               ) : (
                 <div className="space-y-1 max-h-40 overflow-y-auto">
-                  {u.hpHistory.map((h) => (
+                  {u.gpHistory.map((h) => (
                     <div
                       key={h.id}
                       className="flex items-center justify-between text-xs bg-[#F4F5F7] rounded-lg px-2.5 py-1.5"
@@ -1526,7 +1526,7 @@ export function UsuariosGeral({ S }: { S: AppContextProps }) {
                           {new Date(h.date).toLocaleString("pt-BR")}
                         </span>
                       </div>
-                      <span className="font-extrabold text-[#10B981]">+{h.amount} HP</span>
+                      <span className="font-extrabold text-[#10B981]">+{h.amount} GP</span>
                     </div>
                   ))}
                 </div>
