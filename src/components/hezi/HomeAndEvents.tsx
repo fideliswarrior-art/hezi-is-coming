@@ -884,11 +884,6 @@ export function Pelada({ S }: { S: AppContextProps }) {
                             🚫 Jogou a última
                           </Chip>
                         )}
-                        {(p.role === "aluno" ||
-                          (heziUser?.tipo === "aluno" &&
-                            heziUser.st === "ativo")) && (
-                          <Chip c="bg-[#FFF4EE] text-[#FF5400]">ASSINANTE VIP</Chip>
-                        )}
                         {!isMe && canInviteOthers && heziUser && (
                           <button
                             type="button"
@@ -1018,9 +1013,6 @@ export function Pelada({ S }: { S: AppContextProps }) {
                         )}
                       </p>
                     </div>
-                    {usr.tipo === "aluno" && usr.st === "ativo" && (
-                      <Chip c="bg-[#FFF4EE] text-[#FF5400]">ASSINANTE VIP</Chip>
-                    )}
                   </div>
                 );
               })}
