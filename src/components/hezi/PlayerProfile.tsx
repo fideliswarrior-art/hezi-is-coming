@@ -830,7 +830,7 @@ export function Painel({
           const grindRanked = [...S.users].sort((a, b) => {
             const diff = (b.gp ?? 0) - (a.gp ?? 0);
             if (diff !== 0) return diff;
-            return a.nome.localeCompare(b.nome, "pt-BR");
+            return (a.nome || "").localeCompare(b.nome || "", "pt-BR");
           });
           const myGrindRank = grindRanked.findIndex((x) => x.id === u.id) + 1;
           return (
@@ -849,7 +849,7 @@ export function Painel({
                   const isMe = item.id === u.id;
                   const medal =
                     pos === 1 ? "🥇" : pos === 2 ? "🥈" : pos === 3 ? "🥉" : `#${pos}`;
-                  const nick = item.apelido?.trim() || item.nome.split(" ")[0];
+                  const nick = item.apelido?.trim() || (item.nome || "Atleta").split(" ")[0];
                   return (
                     <div
                       key={item.id}
@@ -881,13 +881,13 @@ export function Painel({
             </div>
           );
         })()}
-        {u.hpHistory && u.hpHistory.length > 0 && (
+        {u.gpHistory && u.gpHistory.length > 0 && (
           <div className={C + " p-3.5 space-y-2"}>
             <p className="text-xs font-extrabold text-[#111317] uppercase">
-              Histórico de Hezi Points ({u.hpHistory.length})
+              Histórico de Grind Points ({u.gpHistory.length})
             </p>
             <div className="space-y-1.5 max-h-60 overflow-y-auto">
-              {u.hpHistory.map((h) => (
+              {u.gpHistory.map((h) => (
                 <div
                   key={h.id}
                   className="flex items-center justify-between text-xs bg-[#F4F5F7] rounded-lg px-2.5 py-1.5"
