@@ -890,34 +890,44 @@ function HeziSuperApp() {
               >
                 EVENTOS
               </button>
-              <span className="text-white/40 select-none">|</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setAccountMenuOpen(false);
-                  setCad(true);
-                }}
-                className="ote-nav-link transition hover:text-[#FF5400] text-white"
-              >
-                CRIAR CONTA
-              </button>
-              <span className="text-white/40 select-none">|</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setAccountMenuOpen(false);
-                  goQueroSerAssinante();
-                }}
-                className={
-                  "ote-nav-link transition hover:text-[#FF5400] text-right leading-tight " +
-                  (tab === "assinante" ||
-                  (tab === "login" && loginRedirect === "assinante")
-                    ? "text-[#FF5400]"
-                    : "text-white")
-                }
-              >
-                QUERO SER ASSINANTE
-              </button>
+              {role === "visitante" && (
+                <>
+                  <span className="text-white/40 select-none">|</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAccountMenuOpen(false);
+                      setCad(true);
+                    }}
+                    className="ote-nav-link transition hover:text-[#FF5400] text-white"
+                  >
+                    CRIAR CONTA
+                  </button>
+                </>
+              )}
+              {!(me?.tipo === "aluno" && me?.st !== "ex_aluno") &&
+                role !== "admin" &&
+                role !== "professor" && (
+                  <>
+                    <span className="text-white/40 select-none">|</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAccountMenuOpen(false);
+                        goQueroSerAssinante();
+                      }}
+                      className={
+                        "ote-nav-link transition hover:text-[#FF5400] text-right leading-tight " +
+                        (tab === "assinante" ||
+                        (tab === "login" && loginRedirect === "assinante")
+                          ? "text-[#FF5400]"
+                          : "text-white")
+                      }
+                    >
+                      QUERO SER ASSINANTE
+                    </button>
+                  </>
+                )}
 
               {/* Ícone Circular da Conta (estilo Google) */}
               <div className="relative">
