@@ -668,17 +668,11 @@ export function Painel({
 
     if (viewingUser) {
       const targetSub = viewingUser.sub || baseSub;
-      const targetBd = viewingUser.bd || B0();
       const targetOvr = ovr(targetSub);
       const targetRank = rankedUsers.findIndex((x) => x.id === viewingUser.id) + 1;
-      const roleLabel =
-        viewingUser.tipo === "professor"
-          ? "Professor"
-          : viewingUser.isModerator
-            ? "Moderador"
-            : viewingUser.tipo === "aluno" && viewingUser.st !== "ex_aluno"
-              ? "Assinante Hezi"
-              : "Atleta";
+      const displayNick = viewingUser.username
+        ? `@${viewingUser.username}`
+        : viewingUser.nome.split(" ")[0];
 
       return (
         <div className="p-3 sm:p-4 space-y-3">
@@ -700,28 +694,13 @@ export function Painel({
               <Av u={viewingUser} s="w-16 h-16 text-xl" />
               <div className="flex-1 min-w-0">
                 <p className="font-extrabold text-base text-[#111317] truncate">
-                  {viewingUser.nome}
+                  {displayNick}
                 </p>
-                {viewingUser.username && (
-                  <p className="text-xs font-bold text-[#6E7381] truncate">
-                    @{viewingUser.username}
+                {viewingUser.instagram && (
+                  <p className="text-xs font-bold text-[#6E7381] truncate mt-0.5">
+                    📷 {viewingUser.instagram}
                   </p>
                 )}
-                <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-[#FFF4EE] text-[#FF5400]">
-                    {roleLabel}
-                  </span>
-                  {viewingUser.pos && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#F4F5F7] text-[#111317]">
-                      {viewingUser.pos}
-                    </span>
-                  )}
-                  {viewingUser.instagram && (
-                    <span className="text-[10px] font-bold text-[#6E7381]">
-                      📷 {viewingUser.instagram}
-                    </span>
-                  )}
-                </div>
               </div>
             </div>
 
@@ -750,42 +729,6 @@ export function Painel({
                   🔥 {viewingUser.st === "ex_aluno" ? 0 : (viewingUser.streak ?? 0)}
                 </p>
               </div>
-            </div>
-          </div>
-
-          <div className={C + " p-4 space-y-2"}>
-            <p className="font-extrabold text-xs uppercase tracking-wider text-[#6E7381]">
-              Habilidades & Badges
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {CATS.map((c) => {
-                const b = targetBd[c.k]?.l ?? 0;
-                return (
-                  <div
-                    key={c.k}
-                    className="flex items-center gap-2.5 bg-[#F4F5F7] rounded-xl p-2.5"
-                  >
-                    <img
-                      src={`/badges/${c.k}.png`}
-                      alt={c.t}
-                      className={`w-9 h-9 object-contain shrink-0 ${
-                        b === 0 ? "opacity-45 grayscale" : ""
-                      }`}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-xs text-[#111317] truncate">
-                        {c.t}
-                      </p>
-                      <p className="text-[10px] text-[#6E7381]">
-                        {BE[b]} {BN[b]}
-                      </p>
-                    </div>
-                    <span className="n font-extrabold text-sm text-[#111317]">
-                      {targetSub[c.k]}
-                    </span>
-                  </div>
-                );
-              })}
             </div>
           </div>
         </div>
@@ -866,17 +809,11 @@ export function Painel({
   if (subTab === "pass") {
     if (viewingUser) {
       const targetSub = viewingUser.sub || baseSub;
-      const targetBd = viewingUser.bd || B0();
       const targetOvr = ovr(targetSub);
       const targetRank = rankedUsers.findIndex((x) => x.id === viewingUser.id) + 1;
-      const roleLabel =
-        viewingUser.tipo === "professor"
-          ? "Professor"
-          : viewingUser.isModerator
-            ? "Moderador"
-            : viewingUser.tipo === "aluno" && viewingUser.st !== "ex_aluno"
-              ? "Assinante Hezi"
-              : "Atleta";
+      const displayNick = viewingUser.username
+        ? `@${viewingUser.username}`
+        : viewingUser.nome.split(" ")[0];
 
       return (
         <div className="p-3 sm:p-4 space-y-3">
@@ -898,28 +835,13 @@ export function Painel({
               <Av u={viewingUser} s="w-16 h-16 text-xl" />
               <div className="flex-1 min-w-0">
                 <p className="font-extrabold text-base text-[#111317] truncate">
-                  {viewingUser.nome}
+                  {displayNick}
                 </p>
-                {viewingUser.username && (
-                  <p className="text-xs font-bold text-[#6E7381] truncate">
-                    @{viewingUser.username}
+                {viewingUser.instagram && (
+                  <p className="text-xs font-bold text-[#6E7381] truncate mt-0.5">
+                    📷 {viewingUser.instagram}
                   </p>
                 )}
-                <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-[#FFF4EE] text-[#FF5400]">
-                    {roleLabel}
-                  </span>
-                  {viewingUser.pos && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#F4F5F7] text-[#111317]">
-                      {viewingUser.pos}
-                    </span>
-                  )}
-                  {viewingUser.instagram && (
-                    <span className="text-[10px] font-bold text-[#6E7381]">
-                      📷 {viewingUser.instagram}
-                    </span>
-                  )}
-                </div>
               </div>
             </div>
 
@@ -948,42 +870,6 @@ export function Painel({
                   🔥 {viewingUser.st === "ex_aluno" ? 0 : (viewingUser.streak ?? 0)}
                 </p>
               </div>
-            </div>
-          </div>
-
-          <div className={C + " p-4 space-y-2"}>
-            <p className="font-extrabold text-xs uppercase tracking-wider text-[#6E7381]">
-              Habilidades & Badges
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {CATS.map((c) => {
-                const b = targetBd[c.k]?.l ?? 0;
-                return (
-                  <div
-                    key={c.k}
-                    className="flex items-center gap-2.5 bg-[#F4F5F7] rounded-xl p-2.5"
-                  >
-                    <img
-                      src={`/badges/${c.k}.png`}
-                      alt={c.t}
-                      className={`w-9 h-9 object-contain shrink-0 ${
-                        b === 0 ? "opacity-45 grayscale" : ""
-                      }`}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-xs text-[#111317] truncate">
-                        {c.t}
-                      </p>
-                      <p className="text-[10px] text-[#6E7381]">
-                        {BE[b]} {BN[b]}
-                      </p>
-                    </div>
-                    <span className="n font-extrabold text-sm text-[#111317]">
-                      {targetSub[c.k]}
-                    </span>
-                  </div>
-                );
-              })}
             </div>
           </div>
         </div>
