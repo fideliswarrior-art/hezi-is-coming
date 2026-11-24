@@ -482,7 +482,7 @@ function HeziSuperApp() {
   };
 
   const join = (eid: number) => {
-    if (role === "professor" || role === "admin") {
+    if ((role === "professor" || role === "admin") && !me?.isModerator) {
       return say(
         "Acesse Notificações ou Court Master para gerenciar a fila dos jogadores",
       );
