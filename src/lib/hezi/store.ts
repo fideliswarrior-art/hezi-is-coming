@@ -328,6 +328,15 @@ export interface HeziUser {
     date: string;
     doubled?: boolean;
   }[];
+  gp?: number;
+  gpHistory?: {
+    id: string;
+    amount: number;
+    baseAmount: number;
+    reason: string;
+    date: string;
+    doubled?: boolean;
+  }[];
 }
 
 export interface HeziEventItem {

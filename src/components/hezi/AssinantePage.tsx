@@ -24,8 +24,8 @@ export function AssinantePage({ S }: { S: AppContextProps }) {
     },
     {
       icon: <Zap className="w-5 h-5 text-[#FF5400]" />,
-      title: "Multiplicador de Hezi Points",
-      desc: "Assinantes ganham mais Hezi Points (HP) que usuários convencionais, automaticamente nos treinos, ao entrar na pelada e eventos,  desbloqueando meias, adesivos, cupons e camisetas na metade do tempo.",
+      title: "Multiplicador de Grind Points (GP)",
+      desc: "Assinantes ganham o dobro de Grind Points (GP) nos treinos, ao entrar na pelada e eventos, desbloqueando meias, adesivos, cupons e camisetas no Hezi Pass na metade do tempo.",
     },
     {
       icon: <Shirt className="w-5 h-5 text-[#FF5400]" />,

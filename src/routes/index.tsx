@@ -470,8 +470,8 @@ function HeziSuperApp() {
       createdAt: nowTs,
       timeLabel: formatTimeHHMM(nowTs),
       message: alreadyRewarded
-        ? `${u.nome} solicitou retornar à fila de "${targetEv.t}" (Hezi Points deste evento já foram creditados anteriormente).`
-        : `${u.nome} solicitou entrar na fila de "${targetEv.t}". Ao aprovar, entra na fila e ganha +${pts} Hezi Points${isSub ? " (2x Assinante)" : ""}.`,
+        ? `${u.nome} solicitou retornar à fila de "${targetEv.t}" (Grind Points deste evento já foram creditados anteriormente).`
+        : `${u.nome} solicitou entrar na fila de "${targetEv.t}". Ao aprovar, entra na fila e ganha +${pts} Grind Points (GP)${isSub ? " (2x Assinante)" : ""}.`,
     });
 
     say(
@@ -565,9 +565,20 @@ function HeziSuperApp() {
       const nowTs = Date.now();
 
       if (!alreadyRewarded) {
-        // Libera Hezi Points apenas na PRIMEIRA vez que o usuário entra neste evento!
+        // Libera Grind Points (GP) apenas na PRIMEIRA vez que o usuário entra neste evento!
         markEventRewarded(targetEv.id, targetUser.id);
-        updUser(targetUser.id, { hp: targetUser.hp + pts });
+        const gpEntry = {
+          id: `gp-ev-${nowTs}-${targetUser.id}`,
+          amount: pts,
+          baseAmount: basePts,
+          reason: `Check-in: ${targetEv.t}`,
+          date: new Date().toLocaleDateString("pt-BR"),
+          doubled: isSub,
+        };
+        updUser(targetUser.id, {
+          gp: (targetUser.gp ?? 0) + pts,
+          gpHistory: [gpEntry, ...(targetUser.gpHistory || [])],
+        });
 
         addNotification({
           id: `notif-info-${nowTs}-${targetUser.id}`,
@@ -580,11 +591,11 @@ function HeziSuperApp() {
           status: "accepted",
           createdAt: nowTs,
           timeLabel: formatTimeHHMM(nowTs),
-          message: `Sua entrada em "${targetEv.t}" foi aprovada! Você entrou na fila e ganhou +${pts} Hezi Points${isSub ? " (Dobro 2x Assinante)" : ""}! 🏀`,
+          message: `Sua entrada em "${targetEv.t}" foi aprovada! Você entrou na fila e ganhou +${pts} Grind Points (GP)${isSub ? " (Dobro 2x Assinante)" : ""}! 🏀`,
         });
 
         say(
-          `✅ ${targetUser.nome} aprovado na fila e recebeu +${pts} Hezi Points${isSub ? " (2x Assinante)" : ""}!`,
+          `✅ ${targetUser.nome} aprovado na fila e recebeu +${pts} Grind Points (GP)${isSub ? " (2x Assinante)" : ""}!`,
         );
       } else {
         // Já recebeu HP neste evento anteriormente: entra na fila sem ganhar HP repetido
@@ -599,7 +610,7 @@ function HeziSuperApp() {
           status: "accepted",
           createdAt: nowTs,
           timeLabel: formatTimeHHMM(nowTs),
-          message: `Sua reentrada em "${targetEv.t}" foi aprovada! (Os Hezi Points deste evento já foram creditados na sua primeira entrada). 🏀`,
+          message: `Sua reentrada em "${targetEv.t}" foi aprovada! (Os Grind Points deste evento já foram creditados na sua primeira entrada). 🏀`,
         });
 
         say(

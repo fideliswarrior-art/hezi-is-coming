@@ -90,8 +90,9 @@ import { Av, GRN, RED, AVATAR_ICONS, compressImageFileToDataUrl } from "@/routes
 import { sanitizeUsername, validatePasswordRules, formatDateInput } from "./AuthComponents";
 
 export function Pass({ u }: { u: HeziUser }) {
-  const nx = PASS.find((p) => u.hp < p[0]);
-  const pct = nx ? Math.min(100, Math.round((u.hp / nx[0]) * 100)) : 100;
+  const gpVal = u.gp ?? 0;
+  const nx = PASS.find((p) => gpVal < p[0]);
+  const pct = nx ? Math.min(100, Math.round((gpVal / nx[0]) * 100)) : 100;
   const subActive = isActiveSubscriber(u);
 
   return (
@@ -115,14 +116,14 @@ export function Pass({ u }: { u: HeziUser }) {
         />
       </div>
       <p className="text-xs text-[#6E7381] mt-2 mb-3">
-        <span className="n font-bold text-[#111317]">{u.hp}</span> HP
+        <span className="n font-bold text-[#111317]">{gpVal}</span> GP (Grind Points)
         acumulados ·{" "}
         {nx
-          ? `faltam ${nx[0] - u.hp} HP para desbloquear o Nível ${PASS.indexOf(nx) + 1}`
+          ? `faltam ${nx[0] - gpVal} GP para desbloquear o Nível ${PASS.indexOf(nx) + 1}`
           : "Passe completo! 🏆"}
       </p>
       {PASS.map(([h, r], i) => {
-        const ok = u.hp >= h;
+        const ok = gpVal >= h;
         return (
           <div
             key={h}
@@ -614,9 +615,12 @@ export function ProfileEditModal({
 export function RankingsPage({ S }: { S: AppContextProps }) {
   const u = S.me;
   const [viewingUser, setViewingUser] = useState<HeziUser | null>(null);
+  const [rankMode, setRankMode] = useState<"hp" | "gp">("hp");
 
   const rankedUsers = [...S.users].sort((a, b) => {
-    const diff = (b.hp ?? 0) - (a.hp ?? 0);
+    const valA = rankMode === "hp" ? (a.hp ?? 0) : (a.gp ?? 0);
+    const valB = rankMode === "hp" ? (b.hp ?? 0) : (b.gp ?? 0);
+    const diff = valB - valA;
     if (diff !== 0) return diff;
     return a.nome.localeCompare(b.nome, "pt-BR");
   });
@@ -659,7 +663,15 @@ export function RankingsPage({ S }: { S: AppContextProps }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-2 pt-2 border-t border-[#EAEBEF]">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-[#EAEBEF]">
+            <div className="bg-[#F4F5F7] rounded-xl p-2.5 text-center">
+              <p className="text-[10px] font-extrabold uppercase text-[#6E7381]">
+                Grind Points
+              </p>
+              <p className="n font-extrabold text-lg text-[#10B981]">
+                {viewingUser.gp ?? 0}
+              </p>
+            </div>
             <div className="bg-[#F4F5F7] rounded-xl p-2.5 text-center">
               <p className="text-[10px] font-extrabold uppercase text-[#6E7381]">
                 Hezi Points
@@ -694,12 +706,40 @@ export function RankingsPage({ S }: { S: AppContextProps }) {
     <div className="p-3 sm:p-4 space-y-3">
       <div>
         <h2 className="font-extrabold text-base text-[#111317]">
-          📊 Ranking Hezi Points
+          {rankMode === "hp" ? "🏆 Ranking Hezi Points (HP)" : "🔥 Ranking de Grind (GP)"}
         </h2>
         <p className="text-[11px] text-[#6E7381]">
-          {rankedUsers.length} usuários · Atualizado em tempo real
+          {rankedUsers.length} usuários ·{" "}
+          {rankMode === "hp"
+            ? "Competitivo (Torneios)"
+            : "Constância & Hezi Pass"}
           {myRank > 0 ? ` · Sua posição: #${myRank}` : ""}
         </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={() => setRankMode("hp")}
+          className={`rounded-xl py-2 px-3 text-xs font-extrabold transition ${
+            rankMode === "hp"
+              ? "bg-[#111317] text-white"
+              : "bg-white border border-[#EAEBEF] text-[#6E7381]"
+          }`}
+        >
+          🏆 Hezi Points (HP)
+        </button>
+        <button
+          type="button"
+          onClick={() => setRankMode("gp")}
+          className={`rounded-xl py-2 px-3 text-xs font-extrabold transition ${
+            rankMode === "gp"
+              ? "bg-[#111317] text-white"
+              : "bg-white border border-[#EAEBEF] text-[#6E7381]"
+          }`}
+        >
+          🔥 Grind Points (GP)
+        </button>
       </div>
 
       <div className="space-y-2">
@@ -740,11 +780,15 @@ export function RankingsPage({ S }: { S: AppContextProps }) {
                 )}
               </div>
               <div className="text-right shrink-0">
-                <span className="n font-extrabold text-sm text-[#FF5400]">
-                  {item.hp ?? 0}
+                <span
+                  className={`n font-extrabold text-sm ${
+                    rankMode === "hp" ? "text-[#FF5400]" : "text-[#10B981]"
+                  }`}
+                >
+                  {rankMode === "hp" ? (item.hp ?? 0) : (item.gp ?? 0)}
                 </span>
                 <span className="block text-[10px] font-bold text-[#6E7381]">
-                  HP
+                  {rankMode === "hp" ? "HP" : "GP"}
                 </span>
               </div>
             </button>

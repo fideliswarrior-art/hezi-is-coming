@@ -599,7 +599,7 @@ export function Pelada({ S }: { S: AppContextProps }) {
                 {alreadyRewardedThisEvent ? (
                   <>
                     Assim que o Administrador ou Professor aceitar sua entrada,
-                    você retornará à fila (os Hezi Points deste evento já foram
+                    você retornará à fila (os Grind Points deste evento já foram
                     creditados anteriormente).
                   </>
                 ) : (
@@ -607,7 +607,7 @@ export function Pelada({ S }: { S: AppContextProps }) {
                     Assim que o Administrador ou Professor aceitar sua entrada
                     nas notificações, você entrará na fila e ganhará{" "}
                     <strong className="text-[#FF5400]">
-                      +{myRewardPoints} Hezi Points
+                      +{myRewardPoints} Grind Points (GP)
                       {isSubscriber ? " (Dobro 2x Assinante)" : ""}
                     </strong>
                     !
@@ -631,7 +631,7 @@ export function Pelada({ S }: { S: AppContextProps }) {
               {S.me && (
                 <p className="text-[11px] text-center text-[#6E7381]">
                   {alreadyRewardedThisEvent
-                    ? "ℹ️ Você já recebeu os Hezi Points deste evento (liberados 1 vez por evento)."
+                    ? "ℹ️ Você já recebeu os Grind Points (GP) deste evento (liberados 1 vez por evento)."
                     : isSubscriber
                       ? "⚡ Bônus Assinante Ativo: você ganha +10 HP (2x) ao entrar neste evento!"
                       : "🏀 Ganhe +5 HP ao ter sua entrada confirmada neste evento (1x por evento)."}
@@ -681,7 +681,7 @@ export function Pelada({ S }: { S: AppContextProps }) {
                   Aguardando confirmação do Administrador/Professor para entrar
                   na fila e receber{" "}
                   <strong className="text-[#FF5400]">
-                    +{myRewardPoints} Hezi Points
+                    +{myRewardPoints} Grind Points (GP)
                     {isSubscriber ? " (2x Assinante)" : ""}
                   </strong>
                   .
@@ -705,7 +705,7 @@ export function Pelada({ S }: { S: AppContextProps }) {
             {S.me && (
               <p className="text-[11px] text-center text-[#6E7381]">
                 {alreadyRewardedThisEvent
-                  ? "ℹ️ Você já recebeu os Hezi Points deste evento (liberados 1 vez por evento)."
+                  ? "ℹ️ Você já recebeu os Grind Points (GP) deste evento (liberados 1 vez por evento)."
                   : isSubscriber
                     ? "⚡ Bônus Assinante Ativo: você ganha +10 HP (2x) ao entrar neste evento!"
                     : "🏀 Ganhe +5 HP ao ter sua entrada confirmada neste evento (1x por evento)."}
