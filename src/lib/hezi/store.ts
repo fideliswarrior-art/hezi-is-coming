@@ -304,6 +304,11 @@ export interface HeziUser {
   autorizacaoImagemData?: string;
   isModerator?: boolean;
   dominantHand?: "destro" | "canhoto";
+  evalDraft?: {
+    r: Record<string, number>;
+    nota?: string;
+    updatedAt: string;
+  };
   evalHistory?: {
     id: string;
     date: string;

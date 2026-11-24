@@ -155,15 +155,24 @@ export function Avaliar({ S }: { S: AppContextProps }) {
   const u = al.find((x) => x.id === id) || al[0];
 
   const [r, setR] = useState<Record<NanoKey, number>>(() =>
-    u?.r ? { ...u.r } : mkR(baseSub),
+    u?.evalDraft?.r
+      ? { ...(u.evalDraft.r as Record<NanoKey, number>) }
+      : u?.r
+        ? { ...u.r }
+        : mkR(baseSub),
   );
-  const [nt, setNt] = useState<string>("");
+  const [nt, setNt] = useState<string>(() => u?.evalDraft?.nota || "");
 
   const selectStudent = (newId: number) => {
     setId(newId);
     const target = al.find((x) => x.id === newId);
-    setR(target?.r ? { ...target.r } : mkR(target?.sub || baseSub));
-    setNt("");
+    if (target?.evalDraft?.r) {
+      setR({ ...(target.evalDraft.r as Record<NanoKey, number>) });
+      setNt(target.evalDraft.nota || "");
+    } else {
+      setR(target?.r ? { ...target.r } : mkR(target?.sub || baseSub));
+      setNt("");
+    }
   };
 
   if (!u) return null;
@@ -229,9 +238,22 @@ export function Avaliar({ S }: { S: AppContextProps }) {
       ev: { d: evalDate, c: ci },
       nota: nt.trim() || u.nota,
       evalHistory: [newEvalEntry, ...(u.evalHistory || [])],
+      evalDraft: undefined,
     });
     S.say(`Avaliação salva! ${u.nome}: OVR ${prevOvr} → ${nextOvr}`);
     setNt("");
+  };
+
+  const saveDraft = () => {
+    const updatedAt = new Date().toLocaleDateString("pt-BR");
+    S.upd(id, {
+      evalDraft: {
+        r: { ...r },
+        nota: nt.trim(),
+        updatedAt,
+      },
+    });
+    S.say(`Avaliação salva em andamento (não concluída) para ${u.nome}.`);
   };
 
   return (
@@ -248,9 +270,36 @@ export function Avaliar({ S }: { S: AppContextProps }) {
           {al.map((a) => (
             <option key={a.id} value={a.id}>
               {a.nome} ({a.pos}) — OVR {ovr(a.sub || baseSub)}
+              {a.evalDraft ? " ⏳ (Em andamento)" : ""}
             </option>
           ))}
         </select>
+
+        {u.evalDraft && (
+          <div className="bg-[#FFFBEB] border border-[#F59E0B] rounded-xl p-3 flex items-center justify-between gap-2">
+            <div>
+              <p className="text-xs font-extrabold text-[#B45309]">
+                ⏳ Avaliação em andamento (Não concluída)
+              </p>
+              <p className="text-[11px] text-[#92400E]">
+                Progresso salvo em {u.evalDraft.updatedAt}. Continue de onde parou ou processe ao finalizar.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (!window.confirm("Descartar o rascunho em andamento deste atleta?")) return;
+                S.upd(id, { evalDraft: undefined });
+                setR(u.r ? { ...u.r } : mkR(u.sub || baseSub));
+                setNt("");
+                S.say("Rascunho descartado.");
+              }}
+              className="text-[11px] font-extrabold text-[#EF4444] bg-white border border-[#FCA5A5] px-2.5 py-1 rounded-lg shrink-0 hover:bg-[#FEF2F2] transition"
+            >
+              Descartar
+            </button>
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-2">
           {(["destro", "canhoto"] as const).map((hand) => (
@@ -374,10 +423,18 @@ export function Avaliar({ S }: { S: AppContextProps }) {
         className="w-full bg-white border border-[#EAEBEF] rounded-xl p-3.5 text-sm outline-none focus:ring-2 ring-[#FF5400]"
       />
 
-      <Btn onClick={go} c={OB}>
-        <CheckCircle2 className="w-4 h-4" />
-        Processar Avaliação & Atualizar Boletim
-      </Btn>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        <Btn
+          onClick={saveDraft}
+          c="bg-[#FFFBEB] text-[#B45309] border border-[#F59E0B] hover:bg-[#FEF3C7]"
+        >
+          ⏳ Salvar em Andamento (Não Concluída)
+        </Btn>
+        <Btn onClick={go} c={OB}>
+          <CheckCircle2 className="w-4 h-4" />
+          Processar Avaliação & Atualizar Boletim
+        </Btn>
+      </div>
 
       {/* Histórico de Avaliações & Comparativo */}
       <div className={C + " p-4 space-y-2.5"}>
