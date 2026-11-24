@@ -615,12 +615,9 @@ export function ProfileEditModal({
 export function RankingsPage({ S }: { S: AppContextProps }) {
   const u = S.me;
   const [viewingUser, setViewingUser] = useState<HeziUser | null>(null);
-  const [rankMode, setRankMode] = useState<"hp" | "gp">("hp");
 
   const rankedUsers = [...S.users].sort((a, b) => {
-    const valA = rankMode === "hp" ? (a.hp ?? 0) : (a.gp ?? 0);
-    const valB = rankMode === "hp" ? (b.hp ?? 0) : (b.gp ?? 0);
-    const diff = valB - valA;
+    const diff = (b.hp ?? 0) - (a.hp ?? 0);
     if (diff !== 0) return diff;
     return a.nome.localeCompare(b.nome, "pt-BR");
   });
@@ -706,40 +703,12 @@ export function RankingsPage({ S }: { S: AppContextProps }) {
     <div className="p-3 sm:p-4 space-y-3">
       <div>
         <h2 className="font-extrabold text-base text-[#111317]">
-          {rankMode === "hp" ? "🏆 Ranking Hezi Points (HP)" : "🔥 Ranking de Grind (GP)"}
+          🏆 Ranking Hezi Points (HP)
         </h2>
         <p className="text-[11px] text-[#6E7381]">
-          {rankedUsers.length} usuários ·{" "}
-          {rankMode === "hp"
-            ? "Competitivo (Torneios)"
-            : "Constância & Hezi Pass"}
+          {rankedUsers.length} usuários · Competitivo (Torneios)
           {myRank > 0 ? ` · Sua posição: #${myRank}` : ""}
         </p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={() => setRankMode("hp")}
-          className={`rounded-xl py-2 px-3 text-xs font-extrabold transition ${
-            rankMode === "hp"
-              ? "bg-[#111317] text-white"
-              : "bg-white border border-[#EAEBEF] text-[#6E7381]"
-          }`}
-        >
-          🏆 Hezi Points (HP)
-        </button>
-        <button
-          type="button"
-          onClick={() => setRankMode("gp")}
-          className={`rounded-xl py-2 px-3 text-xs font-extrabold transition ${
-            rankMode === "gp"
-              ? "bg-[#111317] text-white"
-              : "bg-white border border-[#EAEBEF] text-[#6E7381]"
-          }`}
-        >
-          🔥 Grind Points (GP)
-        </button>
       </div>
 
       <div className="space-y-2">
@@ -780,15 +749,11 @@ export function RankingsPage({ S }: { S: AppContextProps }) {
                 )}
               </div>
               <div className="text-right shrink-0">
-                <span
-                  className={`n font-extrabold text-sm ${
-                    rankMode === "hp" ? "text-[#FF5400]" : "text-[#10B981]"
-                  }`}
-                >
-                  {rankMode === "hp" ? (item.hp ?? 0) : (item.gp ?? 0)}
+                <span className="n font-extrabold text-sm text-[#FF5400]">
+                  {item.hp ?? 0}
                 </span>
                 <span className="block text-[10px] font-bold text-[#6E7381]">
-                  {rankMode === "hp" ? "HP" : "GP"}
+                  HP
                 </span>
               </div>
             </button>
@@ -928,6 +893,62 @@ export function Painel({
           </button>
         </div>
         <Pass u={u} />
+
+        {(() => {
+          const grindRanked = [...S.users].sort((a, b) => {
+            const diff = (b.gp ?? 0) - (a.gp ?? 0);
+            if (diff !== 0) return diff;
+            return a.nome.localeCompare(b.nome, "pt-BR");
+          });
+          const myGrindRank = grindRanked.findIndex((x) => x.id === u.id) + 1;
+          return (
+            <div className={C + " p-4 space-y-2.5"}>
+              <div>
+                <p className="font-extrabold text-sm text-[#111317]">
+                  🔥 Grind Points
+                </p>
+                <p className="text-[11px] text-[#6E7381]">
+                  Líderes da temporada · Sua posição: #{myGrindRank} ({u.gp ?? 0} GP)
+                </p>
+              </div>
+              <div className="space-y-1.5 max-h-80 overflow-y-auto">
+                {grindRanked.map((item, idx) => {
+                  const pos = idx + 1;
+                  const isMe = item.id === u.id;
+                  const medal =
+                    pos === 1 ? "🥇" : pos === 2 ? "🥈" : pos === 3 ? "🥉" : `#${pos}`;
+                  const nick = item.apelido?.trim() || item.nome.split(" ")[0];
+                  return (
+                    <div
+                      key={item.id}
+                      className={`flex items-center gap-2.5 p-2 rounded-xl border ${
+                        isMe
+                          ? "bg-[#FFF4EE] border-[#FF5400]"
+                          : "bg-[#F4F5F7] border-transparent"
+                      }`}
+                    >
+                      <span className="w-7 text-center font-extrabold text-xs shrink-0 text-[#111317]">
+                        {medal}
+                      </span>
+                      <Av u={item} s="w-8 h-8 text-[11px]" />
+                      <span className="flex-1 min-w-0 font-bold text-xs text-[#111317] truncate">
+                        {nick}
+                        {isMe && (
+                          <span className="ml-1 text-[10px] text-[#FF5400]">
+                            (Você)
+                          </span>
+                        )}
+                      </span>
+                      <span className="n font-extrabold text-xs text-[#10B981] shrink-0">
+                        {item.gp ?? 0} GP
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
         {u.hpHistory && u.hpHistory.length > 0 && (
           <div className={C + " p-3.5 space-y-2"}>
             <p className="text-xs font-extrabold text-[#111317] uppercase">
