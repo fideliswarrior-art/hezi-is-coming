@@ -931,7 +931,8 @@ function HeziSuperApp() {
                   </button>
                 </>
               )}
-              {!(me?.tipo === "aluno" && me?.st !== "ex_aluno") &&
+              {role !== "visitante" &&
+                !(me?.tipo === "aluno" && me?.st !== "ex_aluno") &&
                 role !== "admin" &&
                 role !== "professor" && (
                   <>
