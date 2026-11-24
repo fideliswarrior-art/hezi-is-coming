@@ -665,7 +665,7 @@ export function Assinantes({ S }: { S: AppContextProps }) {
             bloco &ldquo;Usuários&rdquo;.
           </p>
         </div>
-        <Chip c="bg-[#FFF4EE] text-[#FF5400]">2x HP Automático</Chip>
+        <Chip c="bg-[#FFF4EE] text-[#FF5400]">2x GP Automático</Chip>
       </div>
 
       {assinantesList.length === 0 ? (
@@ -703,8 +703,8 @@ export function Assinantes({ S }: { S: AppContextProps }) {
                 <p className="text-xs text-[#6E7381]">
                   {x.st === "ex_aluno"
                     ? "Ex-Assinante (Exibido como Comum)"
-                    : "Assinante Hezi Skills (2x HP)"}{" "}
-                  · <span className="n font-bold text-[#FF5400]">{x.hp} HP</span>
+                    : "Assinante Hezi Skills (2x GP)"}{" "}
+                  · <span className="n font-bold text-[#10B981]">{x.gp ?? 0} GP</span>
                   {x.st !== "ex_aluno" ? ` · 🔥 ${x.of ?? 0} sem.` : ""}
                 </p>
               </div>
@@ -740,7 +740,7 @@ export function Assinantes({ S }: { S: AppContextProps }) {
                           S.say(
                             `${x.nome}: atualizado para ${
                               stKey === "ativo"
-                                ? "Matrícula Regular (2x HP ativo)"
+                                ? "Matrícula Regular (2x GP ativo)"
                                 : stKey === "pendente"
                                   ? "Mensalidade Pendente (acesso liberado com aviso em vermelho)"
                                   : "Ex-Assinante (dados preservados, exibido como usuário comum)"
@@ -1335,7 +1335,7 @@ export function UsuariosGeral({ S }: { S: AppContextProps }) {
                         bd: x.bd || B0(),
                       });
                       S.say(
-                        `⚡ ${x.nome} agora é Assinante Assinante Hezi Skills (movido para a aba Assinantes com 2x HP)!`,
+                        `⚡ ${x.nome} agora é Assinante Hezi Skills (movido para a aba Assinantes com 2x GP)!`,
                       );
                     }}
                     className="text-xs font-extrabold rounded-xl bg-[#FFF4EE] hover:bg-[#FF5400] text-[#FF5400] hover:text-white border border-[#FF5400]/30 px-3 py-1.5 transition"
