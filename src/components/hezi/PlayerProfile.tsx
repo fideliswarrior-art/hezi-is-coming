@@ -670,9 +670,8 @@ export function Painel({
       const targetSub = viewingUser.sub || baseSub;
       const targetOvr = ovr(targetSub);
       const targetRank = rankedUsers.findIndex((x) => x.id === viewingUser.id) + 1;
-      const displayNick = viewingUser.username
-        ? `@${viewingUser.username}`
-        : viewingUser.nome.split(" ")[0];
+      const displayNick =
+        viewingUser.apelido?.trim() || viewingUser.nome.split(" ")[0];
 
       return (
         <div className="p-3 sm:p-4 space-y-3">
@@ -811,9 +810,8 @@ export function Painel({
       const targetSub = viewingUser.sub || baseSub;
       const targetOvr = ovr(targetSub);
       const targetRank = rankedUsers.findIndex((x) => x.id === viewingUser.id) + 1;
-      const displayNick = viewingUser.username
-        ? `@${viewingUser.username}`
-        : viewingUser.nome.split(" ")[0];
+      const displayNick =
+        viewingUser.apelido?.trim() || viewingUser.nome.split(" ")[0];
 
       return (
         <div className="p-3 sm:p-4 space-y-3">
