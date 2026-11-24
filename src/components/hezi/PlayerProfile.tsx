@@ -690,7 +690,7 @@ export function RankingsPage({ S }: { S: AppContextProps }) {
                 Ofensiva
               </p>
               <p className="n font-extrabold text-lg text-[#111317]">
-                🔥 {viewingUser.st === "ex_aluno" ? 0 : (viewingUser.streak ?? 0)}
+                🔥 {viewingUser.st === "ex_aluno" ? 0 : (viewingUser.of ?? 0)}
               </p>
             </div>
           </div>
@@ -810,74 +810,6 @@ export function Painel({
   }
 
   if (subTab === "pass") {
-    if (viewingUser) {
-      const targetSub = viewingUser.sub || baseSub;
-      const targetOvr = ovr(targetSub);
-      const targetRank = rankedUsers.findIndex((x) => x.id === viewingUser.id) + 1;
-      const displayNick =
-        viewingUser.apelido?.trim() || viewingUser.nome.split(" ")[0];
-
-      return (
-        <div className="p-3 sm:p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <button
-              type="button"
-              onClick={() => setViewingUser(null)}
-              className="text-xs font-extrabold text-[#FF5400] hover:underline"
-            >
-              ← Voltar ao Ranking
-            </button>
-            <span className="text-[11px] font-extrabold text-[#6E7381]">
-              Posição #{targetRank}
-            </span>
-          </div>
-
-          <div className={C + " p-4 space-y-3"}>
-            <div className="flex items-center gap-3">
-              <Av u={viewingUser} s="w-16 h-16 text-xl" />
-              <div className="flex-1 min-w-0">
-                <p className="font-extrabold text-base text-[#111317] truncate">
-                  {displayNick}
-                </p>
-                {viewingUser.instagram && (
-                  <p className="text-xs font-bold text-[#6E7381] truncate mt-0.5">
-                    📷 {viewingUser.instagram}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-[#EAEBEF]">
-              <div className="bg-[#F4F5F7] rounded-xl p-2.5 text-center">
-                <p className="text-[10px] font-extrabold uppercase text-[#6E7381]">
-                  Hezi Points
-                </p>
-                <p className="n font-extrabold text-lg text-[#FF5400]">
-                  {viewingUser.hp ?? 0}
-                </p>
-              </div>
-              <div className="bg-[#F4F5F7] rounded-xl p-2.5 text-center">
-                <p className="text-[10px] font-extrabold uppercase text-[#6E7381]">
-                  Overall
-                </p>
-                <p className="n font-extrabold text-lg text-[#111317]">
-                  {targetOvr}
-                </p>
-              </div>
-              <div className="bg-[#F4F5F7] rounded-xl p-2.5 text-center">
-                <p className="text-[10px] font-extrabold uppercase text-[#6E7381]">
-                  Ofensiva
-                </p>
-                <p className="n font-extrabold text-lg text-[#111317]">
-                  🔥 {viewingUser.st === "ex_aluno" ? 0 : (viewingUser.streak ?? 0)}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
     return (
       <div className="p-3 sm:p-4 space-y-3">
         <div className="flex items-center justify-between">

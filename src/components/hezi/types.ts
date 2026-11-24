@@ -4,7 +4,7 @@ import type {
   HeziUser,
 } from "@/lib/hezi/store";
 
-export type AppTab = "home" | "pelada" | "painel" | "login" | "assinante";
+export type AppTab = "home" | "pelada" | "painel" | "login" | "assinante" | "rankings";
 export type StaffSubTabKey =
   | "cm"
   | "nf"

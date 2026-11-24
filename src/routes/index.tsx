@@ -101,7 +101,7 @@ export const RED = "bg-[#FEF2F2] text-[#EF4444]";
 const btBase =
   "flex items-center justify-center gap-2 w-full text-center rounded-xl py-3.5 px-4 font-extrabold text-sm transition active:scale-95 ";
 
-export type AppTab = "home" | "pelada" | "painel" | "login" | "assinante";
+export type AppTab = "home" | "pelada" | "painel" | "login" | "assinante" | "rankings";
 
 import { Cadastro, EmailVerificationModal, LoginPage, generateSixDigitCode, sanitizeUsername } from "@/components/hezi/AuthComponents";
 import { Home, Pelada } from "@/components/hezi/HomeAndEvents";
@@ -570,7 +570,7 @@ function HeziSuperApp() {
         const gpEntry = {
           id: `gp-ev-${nowTs}-${targetUser.id}`,
           amount: pts,
-          baseAmount: basePts,
+          baseAmount: isSub ? Math.round(pts / 2) : pts,
           reason: `Check-in: ${targetEv.t}`,
           date: new Date().toLocaleDateString("pt-BR"),
           doubled: isSub,
