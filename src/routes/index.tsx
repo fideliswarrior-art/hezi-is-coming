@@ -105,7 +105,7 @@ export type AppTab = "home" | "pelada" | "painel" | "login" | "assinante";
 
 import { Cadastro, EmailVerificationModal, LoginPage, generateSixDigitCode, sanitizeUsername } from "@/components/hezi/AuthComponents";
 import { Home, Pelada } from "@/components/hezi/HomeAndEvents";
-import { Painel, NotificacoesPlayerModal } from "@/components/hezi/PlayerProfile";
+import { Painel, RankingsPage, NotificacoesPlayerModal } from "@/components/hezi/PlayerProfile";
 import { Staff } from "@/components/hezi/AdminPanels";
 
 
@@ -344,7 +344,7 @@ function HeziSuperApp() {
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [modMenuOpen, setModMenuOpen] = useState(false);
   const [perfilMenuOpen, setPerfilMenuOpen] = useState(false);
-  const [profileSubTab, setProfileSubTab] = useState<"perfil" | "pass" | "ranking">("perfil");
+  const [profileSubTab, setProfileSubTab] = useState<"perfil" | "pass">("perfil");
 
   const me =
     typeof sid === "number" ? users.find((x) => x.id === sid) || null : null;
@@ -890,6 +890,21 @@ function HeziSuperApp() {
               >
                 EVENTOS
               </button>
+              <span className="text-white/40 select-none">|</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setAccountMenuOpen(false);
+                  setSelectedEventId(null);
+                  setTab("rankings");
+                }}
+                className={
+                  "ote-nav-link transition hover:text-[#FF5400] " +
+                  (tab === "rankings" ? "text-[#FF5400]" : "text-white")
+                }
+              >
+                RANKINGS
+              </button>
               {role === "visitante" && (
                 <>
                   <span className="text-white/40 select-none">|</span>
@@ -1066,25 +1081,22 @@ function HeziSuperApp() {
                                   >
                                     🏆 Hezi Pass
                                   </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setAccountMenuOpen(false);
-                                      setProfileSubTab("ranking");
-                                      if (staff && me) {
-                                        setStaffSubTab("perfil");
-                                        setTab("painel");
-                                      } else {
-                                        goMeuPerfil();
-                                      }
-                                    }}
-                                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold text-[#E5E7EB] hover:bg-[#FF5400] hover:text-white transition text-left"
-                                  >
-                                    📊 Ranking Hezi Points
-                                  </button>
                                 </div>
                               )}
                             </div>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAccountMenuOpen(false);
+                                setSelectedEventId(null);
+                                setTab("rankings");
+                              }}
+                              className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-extrabold bg-white/5 hover:bg-[#FF5400] transition text-left"
+                            >
+                              <span className="text-sm">📊</span>
+                              Rankings
+                            </button>
 
                             {staff && (
                               <div className="space-y-1">
@@ -1242,6 +1254,8 @@ function HeziSuperApp() {
             />
           ) : tab === "assinante" ? (
             <AssinantePage S={S} />
+          ) : tab === "rankings" ? (
+            <RankingsPage S={S} />
           ) : staff ? (
             <Staff
               S={S}

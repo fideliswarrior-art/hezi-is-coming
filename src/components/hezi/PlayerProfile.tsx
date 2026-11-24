@@ -611,21 +611,163 @@ export function ProfileEditModal({
   );
 }
 
+export function RankingsPage({ S }: { S: AppContextProps }) {
+  const u = S.me;
+  const [viewingUser, setViewingUser] = useState<HeziUser | null>(null);
+
+  const rankedUsers = [...S.users].sort((a, b) => {
+    const diff = (b.hp ?? 0) - (a.hp ?? 0);
+    if (diff !== 0) return diff;
+    return a.nome.localeCompare(b.nome, "pt-BR");
+  });
+  const myRank = rankedUsers.findIndex((x) => x.id === u?.id) + 1;
+
+  if (viewingUser) {
+    const targetSub = viewingUser.sub || baseSub;
+    const targetOvr = ovr(targetSub);
+    const targetRank = rankedUsers.findIndex((x) => x.id === viewingUser.id) + 1;
+    const displayNick =
+      viewingUser.apelido?.trim() || viewingUser.nome.split(" ")[0];
+
+    return (
+      <div className="p-3 sm:p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => setViewingUser(null)}
+            className="text-xs font-extrabold text-[#FF5400] hover:underline"
+          >
+            ← Voltar ao Ranking
+          </button>
+          <span className="text-[11px] font-extrabold text-[#6E7381]">
+            Posição #{targetRank}
+          </span>
+        </div>
+
+        <div className={C + " p-4 space-y-3"}>
+          <div className="flex items-center gap-3">
+            <Av u={viewingUser} s="w-16 h-16 text-xl" />
+            <div className="flex-1 min-w-0">
+              <p className="font-extrabold text-base text-[#111317] truncate">
+                {displayNick}
+              </p>
+              {viewingUser.instagram && (
+                <p className="text-xs font-bold text-[#6E7381] truncate mt-0.5">
+                  📷 {viewingUser.instagram}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 pt-2 border-t border-[#EAEBEF]">
+            <div className="bg-[#F4F5F7] rounded-xl p-2.5 text-center">
+              <p className="text-[10px] font-extrabold uppercase text-[#6E7381]">
+                Hezi Points
+              </p>
+              <p className="n font-extrabold text-lg text-[#FF5400]">
+                {viewingUser.hp ?? 0}
+              </p>
+            </div>
+            <div className="bg-[#F4F5F7] rounded-xl p-2.5 text-center">
+              <p className="text-[10px] font-extrabold uppercase text-[#6E7381]">
+                Overall
+              </p>
+              <p className="n font-extrabold text-lg text-[#111317]">
+                {targetOvr}
+              </p>
+            </div>
+            <div className="bg-[#F4F5F7] rounded-xl p-2.5 text-center">
+              <p className="text-[10px] font-extrabold uppercase text-[#6E7381]">
+                Ofensiva
+              </p>
+              <p className="n font-extrabold text-lg text-[#111317]">
+                🔥 {viewingUser.st === "ex_aluno" ? 0 : (viewingUser.streak ?? 0)}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-3 sm:p-4 space-y-3">
+      <div>
+        <h2 className="font-extrabold text-base text-[#111317]">
+          📊 Ranking Hezi Points
+        </h2>
+        <p className="text-[11px] text-[#6E7381]">
+          {rankedUsers.length} usuários · Atualizado em tempo real
+          {myRank > 0 ? ` · Sua posição: #${myRank}` : ""}
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        {rankedUsers.map((item, idx) => {
+          const pos = idx + 1;
+          const isMe = item.id === u?.id;
+          const medal =
+            pos === 1 ? "🥇" : pos === 2 ? "🥈" : pos === 3 ? "🥉" : `#${pos}`;
+          const nick = item.apelido?.trim() || item.nome.split(" ")[0];
+          return (
+            <button
+              type="button"
+              key={item.id}
+              onClick={() => setViewingUser(item)}
+              className={`w-full text-left flex items-center gap-2.5 p-2.5 rounded-2xl border transition hover:border-[#FF5400] ${
+                isMe
+                  ? "bg-[#FFF4EE] border-[#FF5400] shadow-xs"
+                  : "bg-white border-[#EAEBEF]"
+              }`}
+            >
+              <div className="w-8 text-center font-extrabold text-sm shrink-0 text-[#111317]">
+                {medal}
+              </div>
+              <Av u={item} s="w-9 h-9 text-xs" />
+              <div className="flex-1 min-w-0">
+                <p className="font-extrabold text-xs text-[#111317] truncate">
+                  {nick}
+                  {isMe && (
+                    <span className="ml-1.5 text-[10px] text-[#FF5400]">
+                      (Você)
+                    </span>
+                  )}
+                </p>
+                {item.instagram && (
+                  <p className="text-[11px] text-[#6E7381] truncate">
+                    📷 {item.instagram}
+                  </p>
+                )}
+              </div>
+              <div className="text-right shrink-0">
+                <span className="n font-extrabold text-sm text-[#FF5400]">
+                  {item.hp ?? 0}
+                </span>
+                <span className="block text-[10px] font-bold text-[#6E7381]">
+                  HP
+                </span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function Painel({
   S,
   initialSubTab = "perfil",
 }: {
   S: AppContextProps;
-  initialSubTab?: "perfil" | "pass" | "ranking";
+  initialSubTab?: "perfil" | "pass";
 }) {
   const u = S.me;
   const [editOpen, setEditOpen] = useState(false);
-  const [subTab, setSubTab] = useState<"perfil" | "pass" | "ranking">(initialSubTab);
-  const [viewingUser, setViewingUser] = useState<HeziUser | null>(null);
+  const [subTab, setSubTab] = useState<"perfil" | "pass">(initialSubTab);
 
   useEffect(() => {
     setSubTab(initialSubTab);
-    setViewingUser(null);
   }, [initialSubTab]);
 
   if (!u) {
@@ -653,153 +795,6 @@ export function Painel({
               Já tenho conta · Fazer Login
             </Btn>
           </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (subTab === "ranking") {
-    const rankedUsers = [...S.users].sort((a, b) => {
-      const diff = (b.hp ?? 0) - (a.hp ?? 0);
-      if (diff !== 0) return diff;
-      return a.nome.localeCompare(b.nome, "pt-BR");
-    });
-    const myRank = rankedUsers.findIndex((x) => x.id === u?.id) + 1;
-
-    if (viewingUser) {
-      const targetSub = viewingUser.sub || baseSub;
-      const targetOvr = ovr(targetSub);
-      const targetRank = rankedUsers.findIndex((x) => x.id === viewingUser.id) + 1;
-      const displayNick =
-        viewingUser.apelido?.trim() || viewingUser.nome.split(" ")[0];
-
-      return (
-        <div className="p-3 sm:p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <button
-              type="button"
-              onClick={() => setViewingUser(null)}
-              className="text-xs font-extrabold text-[#FF5400] hover:underline"
-            >
-              ← Voltar ao Ranking
-            </button>
-            <span className="text-[11px] font-extrabold text-[#6E7381]">
-              Posição #{targetRank}
-            </span>
-          </div>
-
-          <div className={C + " p-4 space-y-3"}>
-            <div className="flex items-center gap-3">
-              <Av u={viewingUser} s="w-16 h-16 text-xl" />
-              <div className="flex-1 min-w-0">
-                <p className="font-extrabold text-base text-[#111317] truncate">
-                  {displayNick}
-                </p>
-                {viewingUser.instagram && (
-                  <p className="text-xs font-bold text-[#6E7381] truncate mt-0.5">
-                    📷 {viewingUser.instagram}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-[#EAEBEF]">
-              <div className="bg-[#F4F5F7] rounded-xl p-2.5 text-center">
-                <p className="text-[10px] font-extrabold uppercase text-[#6E7381]">
-                  Hezi Points
-                </p>
-                <p className="n font-extrabold text-lg text-[#FF5400]">
-                  {viewingUser.hp ?? 0}
-                </p>
-              </div>
-              <div className="bg-[#F4F5F7] rounded-xl p-2.5 text-center">
-                <p className="text-[10px] font-extrabold uppercase text-[#6E7381]">
-                  Overall
-                </p>
-                <p className="n font-extrabold text-lg text-[#111317]">
-                  {targetOvr}
-                </p>
-              </div>
-              <div className="bg-[#F4F5F7] rounded-xl p-2.5 text-center">
-                <p className="text-[10px] font-extrabold uppercase text-[#6E7381]">
-                  Ofensiva
-                </p>
-                <p className="n font-extrabold text-lg text-[#111317]">
-                  🔥 {viewingUser.st === "ex_aluno" ? 0 : (viewingUser.streak ?? 0)}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <div className="p-3 sm:p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="font-extrabold text-base text-[#111317]">
-              📊 Ranking Hezi Points
-            </h2>
-            <p className="text-[11px] text-[#6E7381]">
-              {rankedUsers.length} usuários · Atualizado em tempo real
-              {myRank > 0 ? ` · Sua posição: #${myRank}` : ""}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setSubTab("perfil")}
-            className="text-xs font-extrabold text-[#FF5400] hover:underline shrink-0"
-          >
-            ← Voltar ao Perfil
-          </button>
-        </div>
-
-        <div className="space-y-2">
-          {rankedUsers.map((item, idx) => {
-            const pos = idx + 1;
-            const isMe = item.id === u?.id;
-            const medal =
-              pos === 1 ? "🥇" : pos === 2 ? "🥈" : pos === 3 ? "🥉" : `#${pos}`;
-            return (
-              <button
-                type="button"
-                key={item.id}
-                onClick={() => setViewingUser(item)}
-                className={`w-full text-left flex items-center gap-2.5 p-2.5 rounded-2xl border transition hover:border-[#FF5400] ${
-                  isMe
-                    ? "bg-[#FFF4EE] border-[#FF5400] shadow-xs"
-                    : "bg-white border-[#EAEBEF]"
-                }`}
-              >
-                <div className="w-8 text-center font-extrabold text-sm shrink-0 text-[#111317]">
-                  {medal}
-                </div>
-                <Av u={item} s="w-9 h-9 text-xs" />
-                <div className="flex-1 min-w-0">
-                  <p className="font-extrabold text-xs text-[#111317] truncate">
-                    {item.nome}
-                    {isMe && (
-                      <span className="ml-1.5 text-[10px] text-[#FF5400]">
-                        (Você)
-                      </span>
-                    )}
-                  </p>
-                  <p className="text-[11px] text-[#6E7381] truncate">
-                    {item.username ? `@${item.username}` : item.pos || "Atleta"}
-                  </p>
-                </div>
-                <div className="text-right shrink-0">
-                  <span className="n font-extrabold text-sm text-[#FF5400]">
-                    {item.hp ?? 0}
-                  </span>
-                  <span className="block text-[10px] font-bold text-[#6E7381]">
-                    HP
-                  </span>
-                </div>
-              </button>
-            );
-          })}
         </div>
       </div>
     );

@@ -2482,7 +2482,7 @@ export function Staff({
   S: AppContextProps;
   initialSubTab?: StaffSubTabKey;
   onSubTabChange?: (st: StaffSubTabKey) => void;
-  profileSubTab?: "perfil" | "pass" | "ranking";
+  profileSubTab?: "perfil" | "pass";
 }) {
   const adm = S.role === "admin";
   const pendingStaffCount = S.notifications.filter(
