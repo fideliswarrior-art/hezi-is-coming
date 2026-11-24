@@ -701,14 +701,38 @@ export function RankingsPage({ S }: { S: AppContextProps }) {
 
   return (
     <div className="p-3 sm:p-4 space-y-3">
-      <div>
-        <h2 className="font-extrabold text-base text-[#111317]">
-          🏆 Ranking Hezi Points (HP)
-        </h2>
-        <p className="text-[11px] text-[#6E7381]">
-          {rankedUsers.length} usuários · Competitivo (Torneios)
-          {myRank > 0 ? ` · Sua posição: #${myRank}` : ""}
-        </p>
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h2 className="font-extrabold text-base text-[#111317]">
+            🏆 Ranking Hezi Points (HP)
+          </h2>
+          <p className="text-[11px] text-[#6E7381]">
+            {rankedUsers.length} usuários · Competitivo (Torneios)
+            {myRank > 0 ? ` · Sua posição: #${myRank}` : ""}
+          </p>
+        </div>
+        {S.role === "admin" && (
+          <button
+            type="button"
+            onClick={() => {
+              if (
+                !window.confirm(
+                  "Zerar os Hezi Points (HP) de TODOS os usuários para iniciar a temporada competitiva?"
+                )
+              )
+                return;
+              S.users.forEach((usr) => {
+                if ((usr.hp ?? 0) !== 0 || (usr.hpHistory && usr.hpHistory.length > 0)) {
+                  S.upd(usr.id, { hp: 0, hpHistory: [] });
+                }
+              });
+              S.say("Hezi Points (HP) zerados para todos os usuários!");
+            }}
+            className="text-[11px] font-extrabold text-[#EF4444] bg-[#FEF2F2] hover:bg-[#FEE2E2] px-2.5 py-1 rounded-lg shrink-0 transition"
+          >
+            Zerar HP
+          </button>
+        )}
       </div>
 
       <div className="space-y-2">
