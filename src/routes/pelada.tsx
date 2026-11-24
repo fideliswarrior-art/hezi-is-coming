@@ -829,16 +829,6 @@ function PlayerPill({
       >
         {justPlayed && <Ban className="h-3.5 w-3.5 text-red-600 shrink-0" />}
         <span className="truncate max-w-[115px]">{name}</span>
-        {role === "aluno" && (
-          <span
-            className={cn(
-              "text-[9px] px-1 font-black shrink-0",
-              selected ? "bg-white text-brand-orange" : "bg-brand-orange text-white",
-            )}
-          >
-            ALUNO
-          </span>
-        )}
       </button>
       <button
         type="button"
