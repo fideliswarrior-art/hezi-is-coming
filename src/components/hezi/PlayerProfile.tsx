@@ -143,7 +143,7 @@ export function Pass({ u }: { u: HeziUser }) {
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-bold text-[#111317]">
-                  Nível {i + 1} · <span className="n">{h} HP</span>
+                  Nível {i + 1} · <span className="n">{h} GP</span>
                 </p>
                 <span
                   className={
@@ -903,7 +903,7 @@ export function Painel({
                       {new Date(h.date).toLocaleString("pt-BR")}
                     </span>
                   </div>
-                  <span className="font-extrabold text-[#10B981]">+{h.amount} HP</span>
+                  <span className="font-extrabold text-[#10B981]">+{h.amount} GP</span>
                 </div>
               ))}
             </div>
@@ -1027,7 +1027,7 @@ export function Painel({
               ) : (
                 <Chip c={GRN}>🟢 Matrícula Regular</Chip>
               )}
-              <Chip c="bg-[#FFF4EE] text-[#FF5400]">⚡ 2x HP Ativo</Chip>
+              <Chip c="bg-[#FFF4EE] text-[#FF5400]">⚡ 2x GP Ativo</Chip>
             </div>
           </div>
           <button
