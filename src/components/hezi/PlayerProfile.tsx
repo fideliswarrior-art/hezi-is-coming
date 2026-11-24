@@ -621,9 +621,11 @@ export function Painel({
   const u = S.me;
   const [editOpen, setEditOpen] = useState(false);
   const [subTab, setSubTab] = useState<"perfil" | "pass" | "ranking">(initialSubTab);
+  const [viewingUser, setViewingUser] = useState<HeziUser | null>(null);
 
   useEffect(() => {
     setSubTab(initialSubTab);
+    setViewingUser(null);
   }, [initialSubTab]);
 
   if (!u) {
@@ -664,6 +666,132 @@ export function Painel({
     });
     const myRank = rankedUsers.findIndex((x) => x.id === u?.id) + 1;
 
+    if (viewingUser) {
+      const targetSub = viewingUser.sub || baseSub;
+      const targetBd = viewingUser.bd || B0();
+      const targetOvr = ovr(targetSub);
+      const targetRank = rankedUsers.findIndex((x) => x.id === viewingUser.id) + 1;
+      const roleLabel =
+        viewingUser.tipo === "professor"
+          ? "Professor"
+          : viewingUser.isModerator
+            ? "Moderador"
+            : viewingUser.tipo === "aluno" && viewingUser.st !== "ex_aluno"
+              ? "Assinante Hezi"
+              : "Atleta";
+
+      return (
+        <div className="p-3 sm:p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => setViewingUser(null)}
+              className="text-xs font-extrabold text-[#FF5400] hover:underline"
+            >
+              ← Voltar ao Ranking
+            </button>
+            <span className="text-[11px] font-extrabold text-[#6E7381]">
+              Posição #{targetRank}
+            </span>
+          </div>
+
+          <div className={C + " p-4 space-y-3"}>
+            <div className="flex items-center gap-3">
+              <Av u={viewingUser} s="w-16 h-16 text-xl" />
+              <div className="flex-1 min-w-0">
+                <p className="font-extrabold text-base text-[#111317] truncate">
+                  {viewingUser.nome}
+                </p>
+                {viewingUser.username && (
+                  <p className="text-xs font-bold text-[#6E7381] truncate">
+                    @{viewingUser.username}
+                  </p>
+                )}
+                <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-[#FFF4EE] text-[#FF5400]">
+                    {roleLabel}
+                  </span>
+                  {viewingUser.pos && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#F4F5F7] text-[#111317]">
+                      {viewingUser.pos}
+                    </span>
+                  )}
+                  {viewingUser.instagram && (
+                    <span className="text-[10px] font-bold text-[#6E7381]">
+                      📷 {viewingUser.instagram}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-[#EAEBEF]">
+              <div className="bg-[#F4F5F7] rounded-xl p-2.5 text-center">
+                <p className="text-[10px] font-extrabold uppercase text-[#6E7381]">
+                  Hezi Points
+                </p>
+                <p className="n font-extrabold text-lg text-[#FF5400]">
+                  {viewingUser.hp ?? 0}
+                </p>
+              </div>
+              <div className="bg-[#F4F5F7] rounded-xl p-2.5 text-center">
+                <p className="text-[10px] font-extrabold uppercase text-[#6E7381]">
+                  Overall
+                </p>
+                <p className="n font-extrabold text-lg text-[#111317]">
+                  {targetOvr}
+                </p>
+              </div>
+              <div className="bg-[#F4F5F7] rounded-xl p-2.5 text-center">
+                <p className="text-[10px] font-extrabold uppercase text-[#6E7381]">
+                  Ofensiva
+                </p>
+                <p className="n font-extrabold text-lg text-[#111317]">
+                  🔥 {viewingUser.st === "ex_aluno" ? 0 : (viewingUser.streak ?? 0)}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className={C + " p-4 space-y-2"}>
+            <p className="font-extrabold text-xs uppercase tracking-wider text-[#6E7381]">
+              Habilidades & Badges
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {CATS.map((c) => {
+                const b = targetBd[c.k]?.l ?? 0;
+                return (
+                  <div
+                    key={c.k}
+                    className="flex items-center gap-2.5 bg-[#F4F5F7] rounded-xl p-2.5"
+                  >
+                    <img
+                      src={`/badges/${c.k}.png`}
+                      alt={c.t}
+                      className={`w-9 h-9 object-contain shrink-0 ${
+                        b === 0 ? "opacity-45 grayscale" : ""
+                      }`}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-xs text-[#111317] truncate">
+                        {c.t}
+                      </p>
+                      <p className="text-[10px] text-[#6E7381]">
+                        {BE[b]} {BN[b]}
+                      </p>
+                    </div>
+                    <span className="n font-extrabold text-sm text-[#111317]">
+                      {targetSub[c.k]}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="p-3 sm:p-4 space-y-3">
         <div className="flex items-center justify-between">
@@ -692,9 +820,11 @@ export function Painel({
             const medal =
               pos === 1 ? "🥇" : pos === 2 ? "🥈" : pos === 3 ? "🥉" : `#${pos}`;
             return (
-              <div
+              <button
+                type="button"
                 key={item.id}
-                className={`flex items-center gap-2.5 p-2.5 rounded-2xl border transition ${
+                onClick={() => setViewingUser(item)}
+                className={`w-full text-left flex items-center gap-2.5 p-2.5 rounded-2xl border transition hover:border-[#FF5400] ${
                   isMe
                     ? "bg-[#FFF4EE] border-[#FF5400] shadow-xs"
                     : "bg-white border-[#EAEBEF]"
@@ -725,7 +855,7 @@ export function Painel({
                     HP
                   </span>
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -734,6 +864,132 @@ export function Painel({
   }
 
   if (subTab === "pass") {
+    if (viewingUser) {
+      const targetSub = viewingUser.sub || baseSub;
+      const targetBd = viewingUser.bd || B0();
+      const targetOvr = ovr(targetSub);
+      const targetRank = rankedUsers.findIndex((x) => x.id === viewingUser.id) + 1;
+      const roleLabel =
+        viewingUser.tipo === "professor"
+          ? "Professor"
+          : viewingUser.isModerator
+            ? "Moderador"
+            : viewingUser.tipo === "aluno" && viewingUser.st !== "ex_aluno"
+              ? "Assinante Hezi"
+              : "Atleta";
+
+      return (
+        <div className="p-3 sm:p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => setViewingUser(null)}
+              className="text-xs font-extrabold text-[#FF5400] hover:underline"
+            >
+              ← Voltar ao Ranking
+            </button>
+            <span className="text-[11px] font-extrabold text-[#6E7381]">
+              Posição #{targetRank}
+            </span>
+          </div>
+
+          <div className={C + " p-4 space-y-3"}>
+            <div className="flex items-center gap-3">
+              <Av u={viewingUser} s="w-16 h-16 text-xl" />
+              <div className="flex-1 min-w-0">
+                <p className="font-extrabold text-base text-[#111317] truncate">
+                  {viewingUser.nome}
+                </p>
+                {viewingUser.username && (
+                  <p className="text-xs font-bold text-[#6E7381] truncate">
+                    @{viewingUser.username}
+                  </p>
+                )}
+                <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-[#FFF4EE] text-[#FF5400]">
+                    {roleLabel}
+                  </span>
+                  {viewingUser.pos && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#F4F5F7] text-[#111317]">
+                      {viewingUser.pos}
+                    </span>
+                  )}
+                  {viewingUser.instagram && (
+                    <span className="text-[10px] font-bold text-[#6E7381]">
+                      📷 {viewingUser.instagram}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-[#EAEBEF]">
+              <div className="bg-[#F4F5F7] rounded-xl p-2.5 text-center">
+                <p className="text-[10px] font-extrabold uppercase text-[#6E7381]">
+                  Hezi Points
+                </p>
+                <p className="n font-extrabold text-lg text-[#FF5400]">
+                  {viewingUser.hp ?? 0}
+                </p>
+              </div>
+              <div className="bg-[#F4F5F7] rounded-xl p-2.5 text-center">
+                <p className="text-[10px] font-extrabold uppercase text-[#6E7381]">
+                  Overall
+                </p>
+                <p className="n font-extrabold text-lg text-[#111317]">
+                  {targetOvr}
+                </p>
+              </div>
+              <div className="bg-[#F4F5F7] rounded-xl p-2.5 text-center">
+                <p className="text-[10px] font-extrabold uppercase text-[#6E7381]">
+                  Ofensiva
+                </p>
+                <p className="n font-extrabold text-lg text-[#111317]">
+                  🔥 {viewingUser.st === "ex_aluno" ? 0 : (viewingUser.streak ?? 0)}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className={C + " p-4 space-y-2"}>
+            <p className="font-extrabold text-xs uppercase tracking-wider text-[#6E7381]">
+              Habilidades & Badges
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {CATS.map((c) => {
+                const b = targetBd[c.k]?.l ?? 0;
+                return (
+                  <div
+                    key={c.k}
+                    className="flex items-center gap-2.5 bg-[#F4F5F7] rounded-xl p-2.5"
+                  >
+                    <img
+                      src={`/badges/${c.k}.png`}
+                      alt={c.t}
+                      className={`w-9 h-9 object-contain shrink-0 ${
+                        b === 0 ? "opacity-45 grayscale" : ""
+                      }`}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-xs text-[#111317] truncate">
+                        {c.t}
+                      </p>
+                      <p className="text-[10px] text-[#6E7381]">
+                        {BE[b]} {BN[b]}
+                      </p>
+                    </div>
+                    <span className="n font-extrabold text-sm text-[#111317]">
+                      {targetSub[c.k]}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="p-3 sm:p-4 space-y-3">
         <div className="flex items-center justify-between">
