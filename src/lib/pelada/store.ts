@@ -499,6 +499,39 @@ export const usePelada = create<PeladaState>()(
               p.name.toLowerCase() === trimmed.toLowerCase(),
           );
           if (existing) {
+            const isInQueue = s.queue.some(
+              (entry) =>
+                (entry.kind === "player" && entry.id === existing.id) ||
+                (entry.kind === "team" &&
+                  s.teams[entry.id]?.memberIds.includes(existing.id)),
+            );
+            const isOnCourt =
+              (s.court.teamAId &&
+                s.teams[s.court.teamAId]?.memberIds.includes(existing.id)) ||
+              (s.court.teamBId &&
+                s.teams[s.court.teamBId]?.memberIds.includes(existing.id));
+            const isWaitingChamp =
+              s.waitingChampion &&
+              s.teams[s.waitingChampion]?.memberIds.includes(existing.id);
+
+            if (!isInQueue && !isOnCourt && !isWaitingChamp) {
+              const draft = cloneState(s);
+              draft.players[existing.id] = {
+                ...existing,
+                name: trimmed,
+                justPlayed: false,
+                ...(meta?.role ? { role: meta.role } : {}),
+                ...(meta?.userId ? { userId: meta.userId } : {}),
+                ...(meta?.position ? { position: meta.position } : {}),
+              };
+              draft.queue.push({ kind: "player", id: existing.id });
+              logAction(
+                draft,
+                `🏀 ${trimmed}${meta?.role === "aluno" ? " (Aluno)" : ""} entrou na fila`,
+              );
+              return draft;
+            }
+
             // Update role/userId if missing
             if (meta?.role && !existing.role) {
               return {
