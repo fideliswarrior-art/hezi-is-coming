@@ -2445,7 +2445,7 @@ export function BancoDados({ S }: { S: AppContextProps }) {
           </p>
         ) : (
           <div className="space-y-2">
-            {info.recentEvaluations.map((ev) => (
+            {info.recentEvaluations.map((ev: any) => (
               <div
                 key={ev.id}
                 className="bg-[#F4F5F7] rounded-xl p-3 text-xs space-y-1"

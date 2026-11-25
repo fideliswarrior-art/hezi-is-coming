@@ -268,10 +268,11 @@ export const mkR = (
   const r = {} as Record<NanoKey, number>;
   CATS.forEach((c) =>
     c.n.forEach(([k]) => {
-      r[k] = Math.round((s[c.k] - 50) / 2.45);
+      const ov = o[k];
+      r[k] = typeof ov === "number" ? ov : Math.round((s[c.k] - 50) / 2.45);
     }),
   );
-  return { ...r, ...o };
+  return r;
 };
 
 export interface HeziUser {

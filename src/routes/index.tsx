@@ -101,8 +101,6 @@ export const RED = "bg-[#FEF2F2] text-[#EF4444]";
 const btBase =
   "flex items-center justify-center gap-2 w-full text-center rounded-xl py-3.5 px-4 font-extrabold text-sm transition active:scale-95 ";
 
-export type AppTab = "home" | "pelada" | "painel" | "login" | "assinante" | "rankings";
-
 import { Cadastro, EmailVerificationModal, LoginPage, generateSixDigitCode, sanitizeUsername } from "@/components/hezi/AuthComponents";
 import { Home, Pelada } from "@/components/hezi/HomeAndEvents";
 import { Painel, RankingsPage, NotificacoesPlayerModal } from "@/components/hezi/PlayerProfile";
@@ -477,7 +475,7 @@ function HeziSuperApp() {
     say(
       alreadyRewarded
         ? "Solicitação de retorno enviada ao Administrador! 🏀"
-        : `Solicitação enviada ao Administrador! Ao ser aceita, você entra na fila e ganha +${pts} HP${isSub ? " (2x Assinante)" : ""} 🏀`,
+        : `Solicitação enviada ao Administrador! Ao ser aceita, você entra na ${targetEv.tp === "Treino" ? "lista" : "fila"} e ganha +${pts} GP${isSub ? " (2x Assinante)" : ""} 🏀`,
     );
   };
 
@@ -494,7 +492,7 @@ function HeziSuperApp() {
       return;
     }
     if (targetEv?.tp === "Treino" && me.tipo !== "aluno") {
-      return say("Treino exclusivo para assinantes assinantes Hezi Skills!");
+      return say("Treino exclusivo para assinantes Hezi Skills!");
     }
     sendQueueRequestForUser(me, eid);
   };
@@ -808,7 +806,7 @@ function HeziSuperApp() {
           userId: String(u.id),
           name: u.nome,
         });
-        if (status.player) {
+        if (status.status !== "not-in-pelada" && status.player) {
           peladaStore.removePlayer(status.player.id);
         }
       }

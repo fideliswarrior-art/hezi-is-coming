@@ -156,7 +156,7 @@ export function Home({ S }: { S: AppContextProps }) {
                     <Radio className="w-3.5 h-3.5" />
                     {ev.tp}
                   </span>
-                  <Chip c="bg-[#111317] text-white">{queueCount} {e.tp === "Treino" ? "na lista" : "na fila"}</Chip>
+                  <Chip c="bg-[#111317] text-white">{queueCount} {ev.tp === "Treino" ? "na lista" : "na fila"}</Chip>
                 </div>
 
                 <div>
@@ -368,7 +368,7 @@ export function Pelada({ S }: { S: AppContextProps }) {
                       )}
                     </div>
                     <Chip c="bg-[#F4F5F7] text-[#111317]">
-                      {queueCount} {e.tp === "Treino" ? "na lista" : "na fila"}
+                      {queueCount} {ev.tp === "Treino" ? "na lista" : "na fila"}
                     </Chip>
                   </div>
 
@@ -582,7 +582,7 @@ export function Pelada({ S }: { S: AppContextProps }) {
                 className="w-full rounded-xl bg-white hover:bg-[#FEF2F2] border border-[#EF4444]/40 text-[#EF4444] text-xs font-extrabold py-2.5 px-3 transition active:scale-95 flex items-center justify-center gap-1.5"
               >
                 <DoorOpen className="w-4 h-4" />
-                Sair da {ev.tp === "Treino" ? "lista" : "fila"}
+                Sair da {selectedEvent.tp === "Treino" ? "lista" : "fila"}
               </button>
             </div>
           ) : myPendingQueueRequest ? (
@@ -620,21 +620,21 @@ export function Pelada({ S }: { S: AppContextProps }) {
                 className="w-full rounded-xl bg-white hover:bg-[#FEF2F2] border border-[#EF4444]/30 text-[#EF4444] text-xs font-extrabold py-2 px-3 transition active:scale-95 flex items-center justify-center gap-1.5"
               >
                 <X className="w-3.5 h-3.5" />
-                Cancelar solicitação / Sair da {ev.tp === "Treino" ? "lista" : "fila"}
+                Cancelar solicitação / Sair da {selectedEvent.tp === "Treino" ? "lista" : "fila"}
               </button>
             </div>
           ) : (
             <div className="space-y-2">
               <Btn onClick={() => S.join(selectedEvent.id)} c={OB}>
-                Entrar na {ev.tp === "Treino" ? "lista" : "fila"}
+                Entrar na {selectedEvent.tp === "Treino" ? "lista" : "fila"}
               </Btn>
               {S.me && (
                 <p className="text-[11px] text-center text-[#6E7381]">
                   {alreadyRewardedThisEvent
                     ? "ℹ️ Você já recebeu os Grind Points (GP) deste evento (liberados 1 vez por evento)."
                     : isSubscriber
-                      ? "⚡ Bônus Assinante Ativo: você ganha +10 HP (2x) ao entrar neste evento!"
-                      : "🏀 Ganhe +5 HP ao ter sua entrada confirmada neste evento (1x por evento)."}
+                      ? "⚡ Bônus Assinante Ativo: você ganha +10 GP (2x) ao entrar neste evento!"
+                      : "🏀 Ganhe +5 GP ao ter sua entrada confirmada neste evento (1x por evento)."}
                 </p>
               )}
             </div>
@@ -642,10 +642,10 @@ export function Pelada({ S }: { S: AppContextProps }) {
         ) : isInSimpleEventQueue ? (
           <div className="bg-[#ECFDF5] border border-[#10B981]/40 rounded-xl p-3.5 space-y-2.5">
             <p className="text-xs font-extrabold uppercase tracking-wider text-[#10B981]">
-              ✓ Presença Confirmada na Fila (
+              ✓ Presença Confirmada na {selectedEvent.tp === "Treino" ? "Lista" : "Fila"} (
               {alreadyRewardedThisEvent
-                ? `HP creditado: +${myRewardPoints} HP`
-                : `+${myRewardPoints} HP${isSubscriber ? " · 2x Assinante" : ""}`}
+                ? `GP creditado: +${myRewardPoints} GP`
+                : `+${myRewardPoints} GP${isSubscriber ? " · 2x Assinante" : ""}`}
               )
             </p>
             <p className="text-sm font-extrabold text-[#111317]">
@@ -657,7 +657,7 @@ export function Pelada({ S }: { S: AppContextProps }) {
               className="w-full rounded-xl bg-white hover:bg-[#FEF2F2] border border-[#EF4444]/40 text-[#EF4444] text-xs font-extrabold py-2.5 px-3 transition active:scale-95 flex items-center justify-center gap-1.5"
             >
               <DoorOpen className="w-4 h-4" />
-              Sair da {ev.tp === "Treino" ? "lista" : "fila"}
+              Sair da {selectedEvent.tp === "Treino" ? "lista" : "fila"}
             </button>
           </div>
         ) : myPendingQueueRequest ? (
@@ -674,12 +674,12 @@ export function Pelada({ S }: { S: AppContextProps }) {
               {alreadyRewardedThisEvent ? (
                 <>
                   Aguardando confirmação do Administrador/Professor para
-                  retornar à fila (HP deste evento já liberado anteriormente).
+                  retornar à {selectedEvent.tp === "Treino" ? "lista" : "fila"} (GP deste evento já liberado anteriormente).
                 </>
               ) : (
                 <>
                   Aguardando confirmação do Administrador/Professor para entrar
-                  na {ev.tp === "Treino" ? "lista" : "fila"} e receber{" "}
+                  na {selectedEvent.tp === "Treino" ? "lista" : "fila"} e receber{" "}
                   <strong className="text-[#FF5400]">
                     +{myRewardPoints} Grind Points (GP)
                     {isSubscriber ? " (2x Assinante)" : ""}
@@ -694,20 +694,20 @@ export function Pelada({ S }: { S: AppContextProps }) {
               className="w-full rounded-xl bg-white hover:bg-[#FEF2F2] border border-[#EF4444]/30 text-[#EF4444] text-xs font-extrabold py-2 px-3 transition active:scale-95 flex items-center justify-center gap-1.5"
             >
               <X className="w-3.5 h-3.5" />
-              Cancelar solicitação / Sair da {ev.tp === "Treino" ? "lista" : "fila"}
+              Cancelar solicitação / Sair da {selectedEvent.tp === "Treino" ? "lista" : "fila"}
             </button>
           </div>
         ) : (
           <div className="space-y-2">
             <Btn onClick={() => S.join(selectedEvent.id)} c={OB}>
-              Entrar na {ev.tp === "Treino" ? "lista" : "fila"}
+              Entrar na {selectedEvent.tp === "Treino" ? "lista" : "fila"}
             </Btn>
             {S.me && (
               <p className="text-[11px] text-center text-[#6E7381]">
                 {alreadyRewardedThisEvent
                   ? "ℹ️ Você já recebeu os Grind Points (GP) deste evento (liberados 1 vez por evento)."
                   : isSubscriber
-                    ? "⚡ Bônus Assinante Ativo: você ganha +10 HP (2x) ao entrar neste evento!"
+                    ? "⚡ Bônus Assinante Ativo: você ganha +10 GP (2x) ao entrar neste evento!"
                     : "🏀 Ganhe +5 HP ao ter sua entrada confirmada neste evento (1x por evento)."}
               </p>
             )}
@@ -840,8 +840,8 @@ export function Pelada({ S }: { S: AppContextProps }) {
 
             {peladaStore.queue.length === 0 ? (
               <p className="text-xs text-[#6E7381] py-3 text-center">
-                Nenhum jogador na {ev.tp === "Treino" ? "lista" : "fila de espera"} no momento. Toque em
-                &ldquo;Entrar na {ev.tp === "Treino" ? "lista" : "fila"}&rdquo; acima!
+                Nenhum jogador na {selectedEvent.tp === "Treino" ? "lista" : "fila de espera"} no momento. Toque em
+                &ldquo;Entrar na {selectedEvent.tp === "Treino" ? "lista" : "fila"}&rdquo; acima!
               </p>
             ) : (
               <div className="divide-y divide-[#EAEBEF]">
