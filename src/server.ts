@@ -289,6 +289,19 @@ export default {
         });
       }
 
+      const readSessionCookie = (req: Request): { sid: string | number; role: string; exp: number } | null => {
+        try {
+          const cookieHeader = req.headers.get("cookie") || "";
+          const match = cookieHeader.match(/(?:^|;\s*)hezi_session=([^;]+)/);
+          if (!match) return null;
+          const parsed = JSON.parse(Buffer.from(match[1], "base64url").toString("utf8"));
+          if (!parsed || typeof parsed.exp !== "number" || parsed.exp < Date.now()) return null;
+          return parsed;
+        } catch {
+          return null;
+        }
+      };
+
       // 4. Granular Entity Endpoints (/api/hezi/*)
       if (url.pathname === "/api/hezi/users/upsert" && request.method === "POST") {
         const { user } = (await request.json()) as { user: any };
@@ -300,6 +313,13 @@ export default {
       }
 
       if (url.pathname === "/api/hezi/users/delete" && request.method === "POST") {
+        const session = readSessionCookie(request);
+        if (!session || (session.role !== "admin" && session.role !== "professor")) {
+          return new Response(JSON.stringify({ ok: false, error: "unauthorized" }), {
+            status: 403,
+            headers: { "content-type": "application/json", "cache-control": "no-store" },
+          });
+        }
         const { userId } = (await request.json()) as { userId: number };
         const ok = typeof userId === "number" ? await deleteSingleUserInSupabase(userId) : false;
         return new Response(JSON.stringify({ ok }), {
@@ -325,6 +345,13 @@ export default {
       }
 
       if (url.pathname === "/api/hezi/pelada/reset" && request.method === "POST") {
+        const session = readSessionCookie(request);
+        if (!session || (session.role !== "admin" && session.role !== "professor")) {
+          return new Response(JSON.stringify({ ok: false, error: "unauthorized" }), {
+            status: 403,
+            headers: { "content-type": "application/json", "cache-control": "no-store" },
+          });
+        }
         const ok = await resetPeladaInSupabase();
         return new Response(JSON.stringify({ ok }), {
           status: ok ? 200 : 500,

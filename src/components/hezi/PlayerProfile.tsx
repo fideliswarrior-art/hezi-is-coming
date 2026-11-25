@@ -619,7 +619,7 @@ export function RankingsPage({ S }: { S: AppContextProps }) {
   const rankedUsers = [...S.users].sort((a, b) => {
     const diff = (b.hp ?? 0) - (a.hp ?? 0);
     if (diff !== 0) return diff;
-    return a.nome.localeCompare(b.nome, "pt-BR");
+    return (a.nome || "").localeCompare(b.nome || "", "pt-BR");
   });
   const myRank = rankedUsers.findIndex((x) => x.id === u?.id) + 1;
 
@@ -628,7 +628,7 @@ export function RankingsPage({ S }: { S: AppContextProps }) {
     const targetOvr = ovr(targetSub);
     const targetRank = rankedUsers.findIndex((x) => x.id === viewingUser.id) + 1;
     const displayNick =
-      viewingUser.apelido?.trim() || viewingUser.nome.split(" ")[0];
+      viewingUser.apelido?.trim() || (viewingUser.nome || "Atleta").split(" ")[0];
 
     return (
       <div className="p-3 sm:p-4 space-y-3">
@@ -741,7 +741,7 @@ export function RankingsPage({ S }: { S: AppContextProps }) {
           const isMe = item.id === u?.id;
           const medal =
             pos === 1 ? "🥇" : pos === 2 ? "🥈" : pos === 3 ? "🥉" : `#${pos}`;
-          const nick = item.apelido?.trim() || item.nome.split(" ")[0];
+          const nick = item.apelido?.trim() || (item.nome || "Atleta").split(" ")[0];
           return (
             <button
               type="button"

@@ -965,7 +965,8 @@ export function UsuariosGeral({ S }: { S: AppContextProps }) {
       wpp: "(21) 99999-0000",
       pos: mockForm.pos,
       st: mockForm.tipo === "aluno" ? mockForm.st : undefined,
-      hp: Number(mockForm.hp) || 0,
+      hp: 0,
+      gp: Number(mockForm.hp) || 0,
       of: mockForm.tipo === "aluno" ? 1 : 0,
       sub: mockForm.tipo === "aluno" ? baseSub : undefined,
       r: mockForm.tipo === "aluno" ? mkR(baseSub) : undefined,
@@ -1110,7 +1111,7 @@ export function UsuariosGeral({ S }: { S: AppContextProps }) {
 
               <div>
                 <label className="block text-[11px] font-bold text-[#6E7381] mb-1">
-                  HP Inicial
+                  GP Inicial (Grind Points)
                 </label>
                 <input
                   type="number"
