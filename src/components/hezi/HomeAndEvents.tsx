@@ -112,7 +112,7 @@ export function Home({ S }: { S: AppContextProps }) {
           Cadastre-se e participe do Hezi Pass para ganhar prêmios, entrar na fila pelo celular
         </p>
         <div className="grid grid-cols-2 gap-3">
-          <Btn onClick={() => S.setTab("pelada")} c={OB}>
+          <Btn onClick={() => { S.setSelectedEventId(null); S.setTab("pelada"); }} c={OB}>
             Jogar
           </Btn>
           <Btn onClick={S.goMeuPerfil} c="bg-[#111317] text-white">
@@ -268,7 +268,7 @@ export function Pelada({ S }: { S: AppContextProps }) {
   useTick();
 
   const { selectedEventId, setSelectedEventId } = S;
-  const [adminPreviewUserView, setAdminPreviewUserView] = useState(false);
+  const [adminPreviewUserView, setAdminPreviewUserView] = useState(true);
 
   const isOrganizer = S.role === "admin" || S.role === "professor";
   const maxTeamSize = getMaxTeamSize(peladaStore.gameFormat);
