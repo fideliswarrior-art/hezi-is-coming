@@ -860,7 +860,7 @@ function HeziSuperApp() {
       <div
         className={
           "relative w-full h-full bg-[#FBFBFC] flex flex-col overflow-hidden sm:border-x border-[#EAEBEF] transition-all duration-300 " +
-          (isWideCourtMaster ? "max-w-6xl" : "max-w-[480px]")
+          "max-w-full md:max-w-5xl lg:max-w-6xl"
         }
       >
         {/* BARRA SUPERIOR ESTILO OTE (PRETA COM LOGO HEZI + EVENTOS | MEU PERFIL | QUERO SER ASSINANTE) */}
@@ -870,7 +870,7 @@ function HeziSuperApp() {
               📡 Sem conexão com o servidor — alterações salvas localmente, tentando reconectar...
             </div>
           )}
-          <div className="flex items-center justify-between px-3.5 py-2.5 gap-2">
+          <div className="flex items-center justify-between px-3.5 md:px-6 py-2.5 md:py-3 gap-2">
             <button
               type="button"
               onClick={() => setTab("home")}
@@ -884,7 +884,7 @@ function HeziSuperApp() {
               />
             </button>
 
-            <nav className="flex items-center gap-1.5 sm:gap-2.5 text-[10px] sm:text-xs font-extrabold uppercase tracking-wider">
+            <nav className="flex items-center gap-1.5 sm:gap-2.5 md:gap-4 text-[10px] sm:text-xs md:text-sm font-extrabold uppercase tracking-wider">
               <button
                 type="button"
                 onClick={() => {

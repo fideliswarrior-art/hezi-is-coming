@@ -341,7 +341,7 @@ export function Pelada({ S }: { S: AppContextProps }) {
             </p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {S.evs.map((ev) => {
               const isPeladaEvent = ev.tp === "Pelada";
               const queueCount = isPeladaEvent

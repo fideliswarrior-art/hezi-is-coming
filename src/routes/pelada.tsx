@@ -413,7 +413,7 @@ export function CourtMasterOrganizer({ embedded = false }: { embedded?: boolean 
     >
       <div
         className={
-          embedded ? "space-y-4" : "max-w-[600px] mx-auto p-4 space-y-4"
+          embedded ? "space-y-4" : "max-w-6xl mx-auto p-4 md:p-6 space-y-4"
         }
       >
         {!embedded && (
@@ -921,8 +921,9 @@ export function CourtMasterOrganizer({ embedded = false }: { embedded?: boolean 
           </div>
         )}
 
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
         {/* BLOCO 1: EM QUADRA AGORA */}
-        <div className="bg-white border border-[#EAEBEF] rounded-2xl p-5 shadow-xs space-y-4">
+        <div className="lg:col-span-7 bg-white border border-[#EAEBEF] rounded-2xl p-5 shadow-xs space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-extrabold text-lg text-[#111317]">
               Em Quadra Agora ({modeLabel})
@@ -1135,6 +1136,8 @@ export function CourtMasterOrganizer({ embedded = false }: { embedded?: boolean 
           </button>
         </div>
 
+        {/* COLUNA DIREITA NO DESKTOP: ADICIONAR + FILA */}
+        <div className="lg:col-span-5 space-y-4">
         {/* BLOCO 2: ADICIONAR JOGADOR RÁPIDO */}
         <div className="bg-white border border-[#EAEBEF] rounded-2xl p-5 shadow-xs space-y-3">
           <div className="space-y-0.5">
@@ -1381,6 +1384,8 @@ export function CourtMasterOrganizer({ embedded = false }: { embedded?: boolean 
               })}
             </div>
           )}
+        </div>
+        </div>
         </div>
       </div>
     </div>

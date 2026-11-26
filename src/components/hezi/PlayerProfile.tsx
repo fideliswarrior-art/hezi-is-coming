@@ -187,7 +187,7 @@ export function Boletim({ u }: { u: HeziUser }) {
           ? `Última avaliação: ${u.ev.d} · Ciclo ${u.ev.c}`
           : "Atleta iniciando na base 65 OVR. O professor lançará a primeira avaliação em quadra."}
       </p>
-      <div className="space-y-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
         {CATS.map((c) => {
           const open = o === c.k;
           const b = bd[c.k]?.l ?? 0;
@@ -735,7 +735,7 @@ export function RankingsPage({ S }: { S: AppContextProps }) {
         )}
       </div>
 
-      <div className="space-y-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
         {rankedUsers.map((item, idx) => {
           const pos = idx + 1;
           const isMe = item.id === u?.id;
