@@ -10,6 +10,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import { isActiveSubscriber, useHeziPlatform } from "../../../lib/hezi/store";
+import { useTeamStore } from "../../teams/services/teamService";
 import { TIER_LABELS } from "../constants/hpTable";
 import { usePartnerStore } from "../services/partnerService";
 import type { CircuitStatus, SanctionTier } from "../types";
@@ -22,6 +23,7 @@ interface AdminPartnersTabProps {
 export function AdminPartnersTab({ adminUserId }: AdminPartnersTabProps) {
   const users = useHeziPlatform((s) => s.users);
   const updUser = useHeziPlatform((s) => s.updUser);
+  const { teamRequests, approveTeamRequest, rejectTeamRequest } = useTeamStore();
 
   const {
     partners,
@@ -110,6 +112,78 @@ export function AdminPartnersTab({ adminUserId }: AdminPartnersTabProps) {
           <CheckCircle2 className="w-4 h-4 shrink-0" />
           <span>{feedback.msg}</span>
         </div>
+      )}
+
+      {/* 0. SOLICITAÇÕES DE NOVOS TIMES OFICIAIS */}
+      {teamRequests.filter((r) => r.status === "pendente").length > 0 && (
+        <section className="bg-white border-2 border-[#FF5500]/40 rounded-2xl p-4 sm:p-5 space-y-3 shadow-sm">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-[#FF5500]" />
+              <h3 className="text-sm font-black uppercase tracking-wide">
+                Solicitações de Novos Times Oficiais
+              </h3>
+            </div>
+            <span className="px-2.5 py-1 rounded-full bg-[#FF5500] text-white text-[11px] font-black">
+              {teamRequests.filter((r) => r.status === "pendente").length} pendente(s)
+            </span>
+          </div>
+
+          <div className="space-y-2.5">
+            {teamRequests
+              .filter((r) => r.status === "pendente")
+              .map((req) => {
+                const cap = userById.get(req.captain_user_id);
+                return (
+                  <div
+                    key={req.id}
+                    className="p-3.5 rounded-xl bg-[#F8F9FA] border border-[#EAEBEF] flex flex-wrap items-center justify-between gap-3"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-black">{req.name}</span>
+                        <span className="px-2 py-0.5 rounded bg-[#111317] text-white text-[10px] font-black uppercase">
+                          {req.modality}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#6B7280] mt-0.5">
+                        Capitão: <strong>{cap ? cap.apelido || cap.nome : `#${req.captain_user_id}`}</strong> ·{" "}
+                        {req.initial_member_ids.length} atleta(s) no elenco inicial
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const res = approveTeamRequest(req.id, adminUserId);
+                          setFeedback({
+                            ok: res.ok,
+                            msg: res.ok
+                              ? `Time Oficial "${req.name}" aprovado e criado!`
+                              : res.error || "Erro ao aprovar time.",
+                          });
+                        }}
+                        className="px-3.5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-black uppercase hover:bg-emerald-700 transition"
+                      >
+                        Aprovar & Criar Time
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          rejectTeamRequest(req.id, adminUserId);
+                          setFeedback({ ok: true, msg: `Solicitação "${req.name}" recusada.` });
+                        }}
+                        className="px-3 py-2 rounded-xl bg-red-600 text-white text-xs font-black uppercase hover:bg-red-700 transition"
+                      >
+                        Recusar
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </section>
       )}
 
       {/* 1. FILA DE HOMOLOGAÇÃO EM 1 CLIQUE */}

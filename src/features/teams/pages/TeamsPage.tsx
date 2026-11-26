@@ -11,7 +11,14 @@ interface TeamsPageProps {
 
 export function TeamsPage({ currentUserId, onBack }: TeamsPageProps) {
   const users = useHeziPlatform((s) => s.users);
-  const { teams, rosterMembers, createTeam, addMemberToTeam, removeMemberFromTeam } = useTeamStore();
+  const {
+    teams,
+    rosterMembers,
+    teamRequests,
+    submitTeamRequest,
+    addMemberToTeam,
+    removeMemberFromTeam,
+  } = useTeamStore();
 
   const [modalityFilter, setModalityFilter] = useState<"all" | TeamModality>("all");
   const [showCreate, setShowCreate] = useState(false);
@@ -83,7 +90,7 @@ export function TeamsPage({ currentUserId, onBack }: TeamsPageProps) {
       setFeedback({ ok: false, msg: "Faça login para fundar um Time Oficial." });
       return;
     }
-    const res = createTeam({
+    const res = submitTeamRequest({
       name,
       modality,
       captain_user_id: currentUserId,
@@ -91,10 +98,13 @@ export function TeamsPage({ currentUserId, onBack }: TeamsPageProps) {
       initialMemberIds: selectedMemberIds,
     });
     if (!res.ok) {
-      setFeedback({ ok: false, msg: res.error || "Erro ao criar time." });
+      setFeedback({ ok: false, msg: res.error || "Erro ao enviar solicitação." });
       return;
     }
-    setFeedback({ ok: true, msg: `Time Oficial "${res.team?.name}" fundado com sucesso!` });
+    setFeedback({
+      ok: true,
+      msg: `Solicitação do time "${res.request?.name}" enviada! Os administradores foram notificados e o time será criado após aprovação.`,
+    });
     setName("");
     setLogoUrl("");
     setSelectedMemberIds([]);
@@ -296,6 +306,40 @@ export function TeamsPage({ currentUserId, onBack }: TeamsPageProps) {
             </div>
           </form>
         )}
+
+        {/* My Pending / Rejected Requests */}
+        {currentUserId !== null &&
+          teamRequests.some((r) => r.captain_user_id === currentUserId && r.status !== "aprovado") && (
+            <div className="bg-white border border-[#EAEBEF] rounded-2xl p-4 space-y-2 shadow-sm">
+              <p className="text-xs font-black uppercase text-[#6B7280]">
+                Minhas Solicitações de Time
+              </p>
+              <div className="space-y-1.5">
+                {teamRequests
+                  .filter((r) => r.captain_user_id === currentUserId && r.status !== "aprovado")
+                  .map((r) => (
+                    <div
+                      key={r.id}
+                      className="flex items-center justify-between px-3 py-2 rounded-xl bg-[#F8F9FA] border border-[#EAEBEF] text-xs"
+                    >
+                      <div>
+                        <span className="font-black">{r.name}</span>{" "}
+                        <span className="text-[#6B7280]">({r.modality})</span>
+                      </div>
+                      <span
+                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                          r.status === "pendente"
+                            ? "bg-amber-100 text-amber-800"
+                            : "bg-red-100 text-red-700"
+                        }`}
+                      >
+                        {r.status === "pendente" ? "Aguardando Admin" : "Recusado"}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
 
         {/* Filter tabs */}
         <div className="flex items-center gap-2">

@@ -28,3 +28,17 @@ export const TEAM_MAX_ROSTER: Record<TeamModality, number> = {
 };
 
 export const TEAM_MAX_SWAPS_PER_SEASON = 2;
+
+export interface TeamRequest {
+  id: string;
+  name: string;
+  modality: TeamModality;
+  captain_user_id: number;
+  logo_url: string;
+  initial_member_ids: number[];
+  status: "pendente" | "aprovado" | "recusado";
+  created_at: string;
+  reviewed_by?: number | null;
+  reviewed_at?: string | null;
+  reject_reason?: string | null;
+}

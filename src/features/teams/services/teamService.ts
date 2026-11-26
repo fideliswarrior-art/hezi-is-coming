@@ -5,6 +5,7 @@ import {
   TEAM_MAX_SWAPS_PER_SEASON,
   type OfficialTeam,
   type TeamModality,
+  type TeamRequest,
   type TeamRosterMember,
 } from "../types";
 
@@ -20,6 +21,23 @@ function slugify(text: string): string {
 interface TeamStoreState {
   teams: OfficialTeam[];
   rosterMembers: TeamRosterMember[];
+  teamRequests: TeamRequest[];
+  submitTeamRequest: (input: {
+    name: string;
+    modality: TeamModality;
+    captain_user_id: number;
+    logo_url?: string;
+    initialMemberIds: number[];
+  }) => { ok: boolean; request?: TeamRequest; error?: string };
+  approveTeamRequest: (
+    requestId: string,
+    adminUserId: number,
+  ) => { ok: boolean; team?: OfficialTeam; error?: string };
+  rejectTeamRequest: (
+    requestId: string,
+    adminUserId: number,
+    reason?: string,
+  ) => { ok: boolean; error?: string };
   createTeam: (input: {
     name: string;
     modality: TeamModality;
@@ -42,6 +60,129 @@ export const useTeamStore = create<TeamStoreState>()(
     (set, get) => ({
       teams: [],
       rosterMembers: [],
+      teamRequests: [],
+
+      submitTeamRequest: ({
+        name,
+        modality,
+        captain_user_id,
+        logo_url,
+        initialMemberIds,
+      }) => {
+        const cleanName = name.trim();
+        if (!cleanName) {
+          return { ok: false, error: "Informe o nome do time." };
+        }
+        const seasonYear = new Date().getFullYear();
+        const duplicateTeam = get().teams.some(
+          (t) => t.name.trim().toLowerCase() === cleanName.toLowerCase(),
+        );
+        const duplicatePending = get().teamRequests.some(
+          (r) =>
+            r.status === "pendente" &&
+            r.name.trim().toLowerCase() === cleanName.toLowerCase(),
+        );
+        if (duplicateTeam || duplicatePending) {
+          return {
+            ok: false,
+            error: "Já existe um Time Oficial ou solicitação pendente com este nome.",
+          };
+        }
+
+        const uniqueIds = Array.from(
+          new Set([captain_user_id, ...initialMemberIds]),
+        );
+        const maxRoster = TEAM_MAX_ROSTER[modality];
+        if (uniqueIds.length > maxRoster) {
+          return {
+            ok: false,
+            error: `Máximo de ${maxRoster} jogadores ativos no ${modality}.`,
+          };
+        }
+
+        const activeInModality = get().rosterMembers.filter(
+          (m) =>
+            m.is_active &&
+            m.modality === modality &&
+            m.season_year === seasonYear,
+        );
+        for (const uid of uniqueIds) {
+          if (activeInModality.some((m) => m.user_id === uid)) {
+            return {
+              ok: false,
+              error: `Um dos atletas já está ativo em outro Time Oficial de ${modality} nesta temporada.`,
+            };
+          }
+        }
+
+        const request: TeamRequest = {
+          id: `treq-${Date.now()}`,
+          name: cleanName,
+          modality,
+          captain_user_id,
+          logo_url: logo_url || "",
+          initial_member_ids: uniqueIds,
+          status: "pendente",
+          created_at: new Date().toISOString(),
+        };
+
+        set((s) => ({
+          teamRequests: [request, ...s.teamRequests],
+        }));
+
+        return { ok: true, request };
+      },
+
+      approveTeamRequest: (requestId, adminUserId) => {
+        const req = get().teamRequests.find((r) => r.id === requestId);
+        if (!req) return { ok: false, error: "Solicitação não encontrada." };
+        if (req.status !== "pendente") {
+          return { ok: false, error: "Esta solicitação já foi analisada." };
+        }
+
+        const res = get().createTeam({
+          name: req.name,
+          modality: req.modality,
+          captain_user_id: req.captain_user_id,
+          logo_url: req.logo_url,
+          initialMemberIds: req.initial_member_ids,
+        });
+        if (!res.ok) return res;
+
+        set((s) => ({
+          teamRequests: s.teamRequests.map((r) =>
+            r.id === requestId
+              ? {
+                  ...r,
+                  status: "aprovado",
+                  reviewed_by: adminUserId,
+                  reviewed_at: new Date().toISOString(),
+                }
+              : r,
+          ),
+        }));
+
+        return res;
+      },
+
+      rejectTeamRequest: (requestId, adminUserId, reason) => {
+        const req = get().teamRequests.find((r) => r.id === requestId);
+        if (!req) return { ok: false, error: "Solicitação não encontrada." };
+        set((s) => ({
+          teamRequests: s.teamRequests.map((r) =>
+            r.id === requestId
+              ? {
+                  ...r,
+                  status: "recusado",
+                  reviewed_by: adminUserId,
+                  reviewed_at: new Date().toISOString(),
+                  reject_reason: reason?.trim() || "Recusado pelo administrador",
+                }
+              : r,
+          ),
+        }));
+        return { ok: true };
+      },
 
       createTeam: ({ name, modality, captain_user_id, logo_url, initialMemberIds }) => {
         const cleanName = name.trim();
