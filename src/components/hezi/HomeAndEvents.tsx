@@ -1,4 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { usePartnerStore } from "@/features/partners/services/partnerService";
+import { MODALITY_LABELS, TIER_LABELS } from "@/features/partners/constants/hpTable";
 import { useEffect, useState } from "react";
 import { HomePartnerBanner } from "@/features/partners/components/HomePartnerBanner";
 import {
@@ -92,6 +94,7 @@ import { Av, SHIRT_FRONT_IMG, SHIRT_BACK_IMG } from "@/routes/index";
 export function Home({ S }: { S: AppContextProps }) {
   useTick(15000);
   const peladaStore = usePelada();
+  const { circuits: partnerCircuits, subEvents: partnerSubEvents, partners } = usePartnerStore();
   const totalWaitingPlayers = peladaStore.queue.reduce((acc, entry) => {
     if (entry.kind === "player") return acc + 1;
     const t = peladaStore.teams[entry.id];
@@ -265,6 +268,7 @@ export function formatClockMs(ms: number) {
 
 export function Pelada({ S }: { S: AppContextProps }) {
   const peladaStore = usePelada();
+  const { circuits: partnerCircuits, subEvents: partnerSubEvents, partners } = usePartnerStore();
   useTick();
 
   const { selectedEventId, setSelectedEventId } = S;
@@ -310,6 +314,15 @@ export function Pelada({ S }: { S: AppContextProps }) {
     return acc + (t ? t.memberIds.length : 0);
   }, 0);
 
+  const availablePartnerStages = partnerSubEvents
+    .filter((st) => st.status === "inscricoes_abertas" || st.status === "em_andamento")
+    .map((st) => {
+      const circuit = partnerCircuits.find((c) => c.id === st.circuit_id);
+      const partner = partners.find((p) => p.id === st.partner_id);
+      return circuit && circuit.status !== "encerrado" ? { stage: st, circuit, partner } : null;
+    })
+    .filter((item): item is NonNullable<typeof item> => item !== null);
+
   // 1) LISTA DE EVENTOS DISPONÍVEIS (quando nenhum evento foi clicado ainda)
   if (!selectedEvent) {
     return (
@@ -335,7 +348,7 @@ export function Pelada({ S }: { S: AppContextProps }) {
           )}
         </div>
 
-        {S.evs.length === 0 ? (
+        {S.evs.length === 0 && availablePartnerStages.length === 0 ? (
           <div className={C + " p-6 text-center space-y-2"}>
             <p className="font-extrabold text-base text-[#111317]">
               Nenhum evento disponível no momento
@@ -393,11 +406,45 @@ export function Pelada({ S }: { S: AppContextProps }) {
 
                   <div className="pt-1 flex items-center justify-between text-xs font-extrabold text-[#FF5400]">
                     <span>Abrir evento e ver fila</span>
+          </div>
                     <span>→</span>
-                  </div>
                 </button>
               );
             })}
+
+            {availablePartnerStages.map(({ stage, circuit, partner }) => (
+              <Link
+                key={stage.id}
+                to="/circuito/$slug"
+                params={{ slug: circuit.slug }}
+                className={
+                  C +
+                  " w-full p-4 text-left border-l-4 border-l-[#111317] hover:border-[#FF5400] transition active:scale-[0.99] space-y-2.5 block"
+                }
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-extrabold uppercase tracking-wider text-[#FF5400]">
+                      {MODALITY_LABELS[circuit.modality]} · {TIER_LABELS[circuit.sanction_tier]}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-extrabold uppercase">
+                      {stage.status === "em_andamento" ? "Em andamento" : "Inscrições abertas"}
+                    </span>
+                  </div>
+                </div>
+                <p className="font-extrabold text-base text-[#111317] leading-snug">
+                  {stage.title}
+                </p>
+                <p className="text-xs text-[#6E7381]">
+                  {circuit.title} {partner ? `· ${partner.name}` : ""} ·{" "}
+                  {new Date(stage.start_date).toLocaleDateString("pt-BR")} · {stage.location}
+                </p>
+                <div className="flex items-center justify-between text-xs font-extrabold text-[#FF5400] pt-1">
+                  <span>Abrir circuito e se inscrever</span>
+                  <span>→</span>
+                </div>
+              </Link>
+            ))}
           </div>
         )}
       </div>
