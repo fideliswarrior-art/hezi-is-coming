@@ -2064,13 +2064,14 @@ export function Eventos({ S }: { S: AppContextProps }) {
                     <p className="text-[11px] font-extrabold text-[#FF5400] uppercase">
                       🏆 Times com Mais Vitórias
                     </p>
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="flex flex-col gap-1.5">
                       {h.teamRanking.map((tr, idx) => (
                         <span
                           key={tr.teamName + idx}
-                          className="text-xs font-bold bg-white border border-[#FF5400]/20 text-[#111317] px-2 py-0.5 rounded-lg"
+                          className="text-xs font-bold bg-white border border-[#FF5400]/20 text-[#111317] px-2.5 py-1 rounded-lg flex items-center justify-between"
                         >
-                          {idx + 1}º {tr.teamName}: {tr.wins}V ({tr.games}J)
+                          <span>{idx + 1}º {tr.teamName}</span>
+                          <span className="n font-extrabold text-[#FF5400]">{tr.wins}V ({tr.games}J)</span>
                         </span>
                       ))}
                     </div>

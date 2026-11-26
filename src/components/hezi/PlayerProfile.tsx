@@ -830,7 +830,7 @@ export function RankingsPage({ S }: { S: AppContextProps }) {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+        <div className="flex flex-col gap-2.5">
           {ranked.map((item, idx) => {
             const pos = idx + 1;
             const isMe = u && item.user_id === u.id;

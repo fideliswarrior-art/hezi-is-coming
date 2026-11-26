@@ -676,13 +676,15 @@ export function CourtMasterOrganizer({ embedded = false }: { embedded?: boolean 
                 </p>
               ) : (
                 <div className="space-y-1.5">
-                  {Object.values(teamStats).map((st) => (
+                  {[...Object.values(teamStats)]
+                    .sort((a, b) => b.wins - a.wins || a.losses - b.losses)
+                    .map((st, idx) => (
                     <div
                       key={st.teamId}
                       className="flex items-center justify-between bg-[#F4F5F7] rounded-xl px-3 py-2 text-xs"
                     >
                       <span className="font-bold text-[#111317] truncate pr-2">
-                        {teamNames[st.teamId] || `Time ${st.number}`}
+                        #{idx + 1} {teamNames[st.teamId] || `Time ${st.number}`}
                       </span>
                       <span className="n font-extrabold text-[#111317] shrink-0">
                         {st.wins}V · {st.losses}D · {st.draws}E
