@@ -197,6 +197,10 @@ interface PartnerStoreState {
     description?: string;
     rules_summary?: string;
   }) => { ok: boolean; circuit?: PartnerCircuit; error?: string };
+  updateCircuit: (
+    circuitId: string,
+    patch: Partial<Pick<PartnerCircuit, "title" | "modality" | "description" | "rules_summary">>,
+  ) => void;
   updateCircuitAdmin: (
     circuitId: string,
     patch: Partial<
@@ -325,6 +329,13 @@ export const usePartnerStore = create<PartnerStoreState>()(
       },
 
       updateCircuitAdmin: (circuitId, patch) =>
+        set((s) => ({
+          circuits: s.circuits.map((c) =>
+            c.id === circuitId ? { ...c, ...patch } : c,
+          ),
+        })),
+
+      updateCircuit: (circuitId, patch) =>
         set((s) => ({
           circuits: s.circuits.map((c) =>
             c.id === circuitId ? { ...c, ...patch } : c,

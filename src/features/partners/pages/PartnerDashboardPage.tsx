@@ -47,6 +47,7 @@ export function PartnerDashboardPage({
     playerStats,
     updatePartner,
     createCircuit,
+    updateCircuit,
     createSubEvent,
     updateSubEvent,
     registerParticipant,
@@ -96,6 +97,13 @@ export function PartnerDashboardPage({
   const [newCircuitModality, setNewCircuitModality] = useState<PartnerModality>("1x1");
   const [newCircuitDesc, setNewCircuitDesc] = useState("");
   const [newCircuitRules, setNewCircuitRules] = useState("");
+
+  // Circuit editing
+  const [editingCircuitId, setEditingCircuitId] = useState<string | null>(null);
+  const [editCircuitTitle, setEditCircuitTitle] = useState("");
+  const [editCircuitModality, setEditCircuitModality] = useState<PartnerModality>("1x1");
+  const [editCircuitDesc, setEditCircuitDesc] = useState("");
+  const [editCircuitRules, setEditCircuitRules] = useState("");
 
   // Stage creation
   const [stageCircuitId, setStageCircuitId] = useState("");
@@ -588,7 +596,7 @@ export function PartnerDashboardPage({
             <div className="bg-white border border-[#EAEBEF] rounded-2xl p-4 space-y-3">
               <h2 className="text-sm font-black uppercase">Meus Circuitos Licenciados</h2>
               {partnerCircuits.map((c) => (
-                <div key={c.id} className="p-3.5 rounded-xl bg-[#F8F9FA] border border-[#EAEBEF] space-y-1">
+                <div key={c.id} className="p-3.5 rounded-xl bg-[#F8F9FA] border border-[#EAEBEF] space-y-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-sm font-black">{c.title}</span>
                     <div className="flex items-center gap-1.5">
@@ -598,9 +606,82 @@ export function PartnerDashboardPage({
                       <span className="px-2 py-0.5 rounded bg-orange-100 text-[#FF5500] text-[10px] font-black">
                         {TIER_LABELS[c.sanction_tier]}
                       </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (editingCircuitId === c.id) {
+                            setEditingCircuitId(null);
+                          } else {
+                            setEditingCircuitId(c.id);
+                            setEditCircuitTitle(c.title);
+                            setEditCircuitModality(c.modality);
+                            setEditCircuitDesc(c.description);
+                            setEditCircuitRules(c.rules_summary);
+                          }
+                        }}
+                        className="px-2.5 py-0.5 rounded border border-[#EAEBEF] bg-white text-[10px] font-black uppercase hover:border-[#FF5500] hover:text-[#FF5500] transition"
+                      >
+                        {editingCircuitId === c.id ? "Fechar" : "Editar"}
+                      </button>
                     </div>
                   </div>
                   <p className="text-xs text-[#6B7280]">{c.description}</p>
+                  {editingCircuitId === c.id && (
+                    <div className="pt-2 border-t border-[#EAEBEF] space-y-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <input
+                          type="text"
+                          value={editCircuitTitle}
+                          onChange={(e) => setEditCircuitTitle(e.target.value)}
+                          placeholder="Título do Circuito"
+                          className="sm:col-span-2 px-3 py-2 rounded-xl border border-[#EAEBEF] bg-white text-xs font-semibold"
+                        />
+                        <select
+                          value={editCircuitModality}
+                          onChange={(e) => setEditCircuitModality(e.target.value as PartnerModality)}
+                          className="px-3 py-2 rounded-xl border border-[#EAEBEF] bg-white text-xs font-bold"
+                        >
+                          <option value="1x1">1x1</option>
+                          <option value="3x3">3x3</option>
+                          <option value="5x5">5x5</option>
+                          <option value="dunk">Desafio Dunk (0 HP)</option>
+                          <option value="3pt">Desafio 3 Pts (0 HP)</option>
+                          <option value="skills">Desafio Skills (0 HP)</option>
+                        </select>
+                      </div>
+                      <input
+                        type="text"
+                        value={editCircuitDesc}
+                        onChange={(e) => setEditCircuitDesc(e.target.value)}
+                        placeholder="Descrição resumida..."
+                        className="w-full px-3 py-2 rounded-xl border border-[#EAEBEF] bg-white text-xs"
+                      />
+                      <input
+                        type="text"
+                        value={editCircuitRules}
+                        onChange={(e) => setEditCircuitRules(e.target.value)}
+                        placeholder="Regras principais..."
+                        className="w-full px-3 py-2 rounded-xl border border-[#EAEBEF] bg-white text-xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!editCircuitTitle.trim()) return;
+                          updateCircuit(c.id, {
+                            title: editCircuitTitle.trim(),
+                            modality: editCircuitModality,
+                            description: editCircuitDesc,
+                            rules_summary: editCircuitRules,
+                          });
+                          setEditingCircuitId(null);
+                          setFeedback({ ok: true, msg: "Circuito atualizado com sucesso!" });
+                        }}
+                        className="px-4 py-2 rounded-xl bg-[#FF5500] text-white text-xs font-black uppercase"
+                      >
+                        Salvar Alterações
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
 

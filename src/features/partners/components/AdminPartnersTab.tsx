@@ -34,6 +34,7 @@ export function AdminPartnersTab({ adminUserId }: AdminPartnersTabProps) {
     hpLedger,
     createOrPromotePartner,
     updatePartner,
+    updateCircuit,
     updateCircuitAdmin,
     updateSubEvent,
     homologateSubEvent,
@@ -46,6 +47,10 @@ export function AdminPartnersTab({ adminUserId }: AdminPartnersTabProps) {
   const [partnerBio, setPartnerBio] = useState("");
   const [feedback, setFeedback] = useState<{ ok: boolean; msg: string } | null>(null);
   const [revokeReasonById, setRevokeReasonById] = useState<Record<string, string>>({});
+  const [editingCircuitId, setEditingCircuitId] = useState<string | null>(null);
+  const [editCircuitTitle, setEditCircuitTitle] = useState("");
+  const [editCircuitDesc, setEditCircuitDesc] = useState("");
+  const [editCircuitRules, setEditCircuitRules] = useState("");
 
   const userById = useMemo(() => new Map(users.map((u) => [u.id, u])), [users]);
 
@@ -384,6 +389,23 @@ export function AdminPartnersTab({ adminUserId }: AdminPartnersTabProps) {
                   </select>
 
                   <button
+                    type="button"
+                    onClick={() => {
+                      if (editingCircuitId === c.id) {
+                        setEditingCircuitId(null);
+                      } else {
+                        setEditingCircuitId(c.id);
+                        setEditCircuitTitle(c.title);
+                        setEditCircuitDesc(c.description);
+                        setEditCircuitRules(c.rules_summary);
+                      }
+                    }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-black border bg-white text-[#111317] border-[#EAEBEF] hover:border-[#FF5500]"
+                  >
+                    {editingCircuitId === c.id ? "Fechar" : "Editar"}
+                  </button>
+
+                  <button
                     onClick={() => updateCircuitAdmin(c.id, { pin_on_home: !c.pin_on_home })}
                     className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-black border transition ${
                       c.pin_on_home
@@ -395,6 +417,48 @@ export function AdminPartnersTab({ adminUserId }: AdminPartnersTabProps) {
                     {c.pin_on_home ? "Fixado na Home" : "Fixar na Home"}
                   </button>
                 </div>
+
+                {editingCircuitId === c.id && (
+                  <div className="w-full pt-3 mt-1 border-t border-[#EAEBEF] space-y-2">
+                    <input
+                      type="text"
+                      value={editCircuitTitle}
+                      onChange={(e) => setEditCircuitTitle(e.target.value)}
+                      placeholder="Título do Circuito"
+                      className="w-full px-3 py-2 rounded-xl border border-[#EAEBEF] bg-white text-xs font-semibold"
+                    />
+                    <input
+                      type="text"
+                      value={editCircuitDesc}
+                      onChange={(e) => setEditCircuitDesc(e.target.value)}
+                      placeholder="Descrição..."
+                      className="w-full px-3 py-2 rounded-xl border border-[#EAEBEF] bg-white text-xs"
+                    />
+                    <input
+                      type="text"
+                      value={editCircuitRules}
+                      onChange={(e) => setEditCircuitRules(e.target.value)}
+                      placeholder="Regras..."
+                      className="w-full px-3 py-2 rounded-xl border border-[#EAEBEF] bg-white text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!editCircuitTitle.trim()) return;
+                        updateCircuit(c.id, {
+                          title: editCircuitTitle.trim(),
+                          description: editCircuitDesc,
+                          rules_summary: editCircuitRules,
+                        });
+                        setEditingCircuitId(null);
+                        setFeedback({ ok: true, msg: "Circuito atualizado com sucesso!" });
+                      }}
+                      className="px-4 py-2 rounded-xl bg-[#FF5500] text-white text-xs font-black uppercase"
+                    >
+                      Salvar Alterações
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}
