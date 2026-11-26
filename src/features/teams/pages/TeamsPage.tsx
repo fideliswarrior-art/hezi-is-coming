@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Shield, Plus, Users, UserPlus, UserMinus, ArrowLeft, CheckCircle2, AlertCircle, Crown } from "lucide-react";
 import { useHeziPlatform } from "../../../lib/hezi/store";
+import { ImageUploadField } from "../../../components/hezi/ImageUploadField";
 import { useTeamStore } from "../services/teamService";
 import { TEAM_MAX_ROSTER, TEAM_MAX_SWAPS_PER_SEASON, type TeamModality } from "../types";
 
@@ -230,18 +231,12 @@ export function TeamsPage({ currentUserId, onBack }: TeamsPageProps) {
               </div>
             </div>
 
-            <div>
-              <label className="block text-[11px] font-extrabold uppercase text-[#6B7280] mb-1">
-                Escudo / Logo URL (opcional)
-              </label>
-              <input
-                type="url"
-                value={logoUrl}
-                onChange={(e) => setLogoUrl(e.target.value)}
-                placeholder="https://..."
-                className="w-full px-3.5 py-2 rounded-xl border border-[#EAEBEF] bg-[#F8F9FA] text-xs font-medium focus:outline-none focus:border-[#FF5500]"
-              />
-            </div>
+            <ImageUploadField
+              label="Escudo / Logo do Time (opcional)"
+              value={logoUrl}
+              onChange={setLogoUrl}
+              maxSize={384}
+            />
 
             {/* Select initial roster */}
             <div className="space-y-2">

@@ -17,6 +17,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { useHeziPlatform } from "../../../lib/hezi/store";
+import { ImageUploadField } from "../../../components/hezi/ImageUploadField";
 import { useTeamStore } from "../../teams/services/teamService";
 import { CATEGORY_LABELS, MODALITY_LABELS, TIER_LABELS } from "../constants/hpTable";
 import { usePartnerStore } from "../services/partnerService";
@@ -557,24 +558,19 @@ export function PartnerDashboardPage({
               />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[11px] font-extrabold uppercase text-[#6B7280] mb-1">Logo URL</label>
-                <input
-                  type="url"
-                  value={editLogo}
-                  onChange={(e) => setEditLogo(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl border border-[#EAEBEF] bg-[#F8F9FA] text-xs"
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] font-extrabold uppercase text-[#6B7280] mb-1">Banner URL</label>
-                <input
-                  type="url"
-                  value={editBanner}
-                  onChange={(e) => setEditBanner(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl border border-[#EAEBEF] bg-[#F8F9FA] text-xs"
-                />
-              </div>
+              <ImageUploadField
+                label="Logo do Projeto"
+                value={editLogo}
+                onChange={setEditLogo}
+                maxSize={384}
+              />
+              <ImageUploadField
+                label="Banner do Circuito"
+                value={editBanner}
+                onChange={setEditBanner}
+                maxSize={1024}
+                previewClassName="w-24 h-14 rounded-xl object-cover border border-[#EAEBEF]"
+              />
             </div>
             <button
               type="submit"
