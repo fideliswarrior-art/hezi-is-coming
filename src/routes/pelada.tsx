@@ -32,13 +32,13 @@ import { useRealtimeSync } from "@/lib/hezi/sync";
 export const Route = createFileRoute("/pelada")({
   head: () => ({
     meta: [
-      { title: "HEZI FAM® - Moving the Game | Pelada & Court Master" },
+      { title: "HEZI FAM - Moving the Game | Pelada & Court Master" },
       {
         name: "description",
         content:
           "Court Master da Hezi Fam: gerencie times, placar, tempo, regras e fila com um toque.",
       },
-      { property: "og:title", content: "HEZI FAM® - Court Master" },
+      { property: "og:title", content: "HEZI FAM - Court Master" },
       {
         property: "og:description",
         content: "Gerencie a pelada direto do celular com um fluxo simples.",

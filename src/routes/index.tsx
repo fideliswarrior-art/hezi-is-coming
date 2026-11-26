@@ -225,7 +225,7 @@ function Chip({
   );
 }
 
-export const AVATAR_ICONS = ["🏀", "⚡", "🔥", "👑", "🎯", "🦁", "🦅", "🛡️", "🚀", "💎"];
+export const AVATAR_ICONS = ["", "", "", "", "", "", "", "", "", ""];
 
 export function Av({
   u,
@@ -450,7 +450,7 @@ function HeziSuperApp() {
         n.status === "pending",
     );
     if (alreadyPending) {
-      say("Sua solicitação já foi enviada e aguarda aprovação do Admin! ⏳");
+      say("Sua solicitação já foi enviada e aguarda aprovação do Admin! ");
       return;
     }
 
@@ -476,8 +476,8 @@ function HeziSuperApp() {
 
     say(
       alreadyRewarded
-        ? "Solicitação de retorno enviada ao Administrador! 🏀"
-        : `Solicitação enviada ao Administrador! Ao ser aceita, você entra na ${targetEv.tp === "Treino" ? "lista" : "fila"} e ganha +${pts} GP${isSub ? " (2x Assinante)" : ""} 🏀`,
+        ? "Solicitação de retorno enviada ao Administrador! "
+        : `Solicitação enviada ao Administrador! Ao ser aceita, você entra na ${targetEv.tp === "Treino" ? "lista" : "fila"} e ganha +${pts} GP${isSub ? " (2x Assinante)" : ""} `,
     );
   };
 
@@ -591,11 +591,11 @@ function HeziSuperApp() {
           status: "accepted",
           createdAt: nowTs,
           timeLabel: formatTimeHHMM(nowTs),
-          message: `Sua entrada em "${targetEv.t}" foi aprovada! Você entrou na fila e ganhou +${pts} Grind Points (GP)${isSub ? " (Dobro 2x Assinante)" : ""}! 🏀`,
+          message: `Sua entrada em "${targetEv.t}" foi aprovada! Você entrou na fila e ganhou +${pts} Grind Points (GP)${isSub ? " (Dobro 2x Assinante)" : ""}! `,
         });
 
         say(
-          `✅ ${targetUser.nome} aprovado na fila e recebeu +${pts} Grind Points (GP)${isSub ? " (2x Assinante)" : ""}!`,
+          ` ${targetUser.nome} aprovado na fila e recebeu +${pts} Grind Points (GP)${isSub ? " (2x Assinante)" : ""}!`,
         );
       } else {
         // Já recebeu HP neste evento anteriormente: entra na fila sem ganhar HP repetido
@@ -610,11 +610,11 @@ function HeziSuperApp() {
           status: "accepted",
           createdAt: nowTs,
           timeLabel: formatTimeHHMM(nowTs),
-          message: `Sua reentrada em "${targetEv.t}" foi aprovada! (Os Grind Points deste evento já foram creditados na sua primeira entrada). 🏀`,
+          message: `Sua reentrada em "${targetEv.t}" foi aprovada! (Os Grind Points deste evento já foram creditados na sua primeira entrada). `,
         });
 
         say(
-          `✅ ${targetUser.nome} entrou novamente na fila (HP deste evento já liberado anteriormente).`,
+          ` ${targetUser.nome} entrou novamente na fila (HP deste evento já liberado anteriormente).`,
         );
       }
     }
@@ -665,7 +665,7 @@ function HeziSuperApp() {
       message: `${me.nome} convidou você para formar um grupo/time na fila de "${targetEv.t}".`,
     });
 
-    say(`Convite de grupo enviado para ${toUser.nome}! 🤝`);
+    say(`Convite de grupo enviado para ${toUser.nome}! `);
   };
 
   const acceptGroupInvite = (notifId: string) => {
@@ -716,7 +716,7 @@ function HeziSuperApp() {
     });
 
     say(
-      `🤝 Grupo formado! ${fromUser.nome} e ${toUser.nome} estão juntos no ${res.teamLabel}!`,
+      ` Grupo formado! ${fromUser.nome} e ${toUser.nome} estão juntos no ${res.teamLabel}!`,
     );
   };
 
@@ -869,7 +869,7 @@ function HeziSuperApp() {
         <header className="shrink-0 bg-black text-white">
           {(!isOnline || syncError) && (
             <div className="bg-[#EF4444] text-white text-[11px] font-extrabold text-center py-1 px-3">
-              📡 Sem conexão com o servidor — alterações salvas localmente, tentando reconectar...
+               Sem conexão com o servidor — alterações salvas localmente, tentando reconectar...
             </div>
           )}
           <div className="flex items-center justify-between px-3.5 md:px-6 py-2.5 md:py-3 gap-2">
@@ -1028,14 +1028,14 @@ function HeziSuperApp() {
                             {role === "visitante"
                               ? "Não autenticado"
                               : me?.isModerator
-                                ? "🛡️ Moderador"
+                                ? " Moderador"
                                 : role === "admin"
-                                  ? "🔑 Administrador"
+                                  ? " Administrador"
                                   : role === "professor"
-                                    ? "🧑‍🏫 Professor"
+                                    ? " Professor"
                                     : me?.tipo === "aluno" && me?.st !== "ex_aluno"
-                                      ? "⚡ Assinante VIP"
-                                      : "🏀 Usuário"}
+                                      ? " Assinante VIP"
+                                      : " Usuário"}
                           </span>
                         </div>
                       </div>
@@ -1075,7 +1075,7 @@ function HeziSuperApp() {
                                     }}
                                     className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold text-[#E5E7EB] hover:bg-[#FF5400] hover:text-white transition text-left"
                                   >
-                                    👤 Perfil
+                                     Perfil
                                   </button>
                                   <button
                                     type="button"
@@ -1091,7 +1091,7 @@ function HeziSuperApp() {
                                     }}
                                     className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold text-[#E5E7EB] hover:bg-[#FF5400] hover:text-white transition text-left"
                                   >
-                                    🏆 Hezi Pass
+                                     Hezi Pass
                                   </button>
                                 </div>
                               )}
@@ -1106,7 +1106,7 @@ function HeziSuperApp() {
                               }}
                               className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-extrabold bg-white/5 hover:bg-[#FF5400] transition text-left"
                             >
-                              <span className="text-sm">📊</span>
+                              <span className="text-sm"></span>
                               Rankings
                             </button>
                             <button
@@ -1118,7 +1118,7 @@ function HeziSuperApp() {
                               }}
                               className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-extrabold bg-white/5 hover:bg-[#FF5400] transition text-left"
                             >
-                              <span className="text-sm">🛡️</span>
+                              <span className="text-sm"></span>
                               Times Oficiais
                             </button>
                             {(role === "partner" || role === "admin") && (
@@ -1131,7 +1131,7 @@ function HeziSuperApp() {
                                 }}
                                 className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-extrabold bg-[#FF5400] text-white hover:bg-[#e04b00] transition text-left"
                               >
-                                <span className="text-sm">🏟️</span>
+                                <span className="text-sm"></span>
                                 PAINEL DO PARCEIRO
                               </button>
                             )}
@@ -1158,10 +1158,10 @@ function HeziSuperApp() {
                                   <div className="pl-3 space-y-1">
                                     {(
                                       [
-                                        ["al", "⚡ Assinantes"],
-                                        ["us", "🏀 Usuários"],
-                                        ["ev", "📅 Eventos"],
-                                        ...(role === "admin" ? [["parceiros", "🤝 Parceiros"], ["db", "🗄️ Banco de Dados"]] : []),
+                                        ["al", " Assinantes"],
+                                        ["us", " Usuários"],
+                                        ["ev", " Eventos"],
+                                        ...(role === "admin" ? [["parceiros", " Parceiros"], ["db", " Banco de Dados"]] : []),
                                       ] as [StaffSubTabKey, string][]
                                     ).map(([key, label]) => (
                                       <button
@@ -1336,7 +1336,7 @@ function HeziSuperApp() {
                 verificationCode: undefined,
               });
               setVerifyModalUserId(null);
-              say("✅ E-mail confirmado com sucesso! Sua conta está ativa!");
+              say(" E-mail confirmado com sucesso! Sua conta está ativa!");
             }}
             onResendCode={() => {
               const newCode = generateSixDigitCode();

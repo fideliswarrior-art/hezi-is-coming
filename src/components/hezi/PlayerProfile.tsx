@@ -113,7 +113,7 @@ export function Pass({ u }: { u: HeziUser }) {
           Hezi Pass · Temporada 1
           {subActive && (
             <span className="text-[10px] font-black uppercase bg-[#FFF4EE] text-[#FF5400] px-2 py-0.5 rounded-full">
-              ⚡ 2x Pontos
+               2x Pontos
             </span>
           )}
         </p>
@@ -130,7 +130,7 @@ export function Pass({ u }: { u: HeziUser }) {
         acumulados ·{" "}
         {nx
           ? `faltam ${nx[0] - gpVal} GP para desbloquear o Nível ${PASS.indexOf(nx) + 1}`
-          : "Passe completo! 🏆"}
+          : "Passe completo! "}
       </p>
       {PASS.map(([h, r], i) => {
         const ok = gpVal >= h;
@@ -254,7 +254,7 @@ export function Boletim({ u }: { u: HeziUser }) {
                   ))}
                   {asym && (
                     <div className="bg-[#FEF2F2] text-[#EF4444] text-xs font-bold rounded-lg p-3">
-                      ⚠️ Assimetria detectada:{" "}
+                       Assimetria detectada:{" "}
                       {Math.abs((r.dir ?? 0) - (r.esq ?? 0))} acertos de
                       diferença entre mão direita ({r.dir}/20) e esquerda (
                       {r.esq}/20).
@@ -278,14 +278,14 @@ export function Boletim({ u }: { u: HeziUser }) {
 
       <div className={C + " p-4 mt-3"}>
         <p className="font-extrabold text-sm mb-1 text-[#111317]">
-          📝 Recado Técnico do Professor
+           Recado Técnico do Professor
         </p>
         <p className="text-sm text-[#6E7381]">
           {u.nota || "Sem recado técnico registrado ainda."}
         </p>
       </div>
       <p className="text-center text-xs text-[#6E7381] mt-3">
-        🔒 Ficha individual privada · Ciclo de avaliação técnica Mensal.
+         Ficha individual privada · Ciclo de avaliação técnica Mensal.
       </p>
     </div>
   );
@@ -742,7 +742,7 @@ export function RankingsPage({ S }: { S: AppContextProps }) {
       <div className="flex items-start justify-between gap-2">
         <div>
           <h2 className="font-extrabold text-base text-[#111317]">
-            🏆 Ranking Hezi Points (HP)
+             Ranking Hezi Points (HP)
           </h2>
           <p className="text-[11px] text-[#6E7381]">
             Extrato Oficial (hp_ledger) · Competitivo (Torneios)
@@ -835,7 +835,7 @@ export function RankingsPage({ S }: { S: AppContextProps }) {
             const pos = idx + 1;
             const isMe = u && item.user_id === u.id;
             const medal =
-              pos === 1 ? "🥇" : pos === 2 ? "🥈" : pos === 3 ? "🥉" : `#${pos}`;
+              pos === 1 ? "" : pos === 2 ? "" : pos === 3 ? "" : `#${pos}`;
             const matchedUser = item.user_id ? userById.get(item.user_id) || null : null;
 
             return (
@@ -869,7 +869,7 @@ export function RankingsPage({ S }: { S: AppContextProps }) {
                     )}
                   </p>
                   <p className="text-[11px] text-[#6E7381] truncate">
-                    {item.titles_count}🏆 · {item.real_wins}V-{item.real_losses}D · Saldo{" "}
+                    {item.titles_count} · {item.real_wins}V-{item.real_losses}D · Saldo{" "}
                     {item.avg_point_diff >= 0 ? `+${item.avg_point_diff.toFixed(1)}` : item.avg_point_diff.toFixed(1)}
                   </p>
                 </div>
@@ -940,7 +940,7 @@ export function Painel({
       <div className="p-3 sm:p-4 space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="font-extrabold text-base text-[#111317]">
-            🏆 Hezi Pass · Progresso
+             Hezi Pass · Progresso
           </h2>
           <button
             type="button"
@@ -963,7 +963,7 @@ export function Painel({
             <div className={C + " p-4 space-y-2.5"}>
               <div>
                 <p className="font-extrabold text-sm text-[#111317]">
-                  🔥 Grind Points
+                   Grind Points
                 </p>
                 <p className="text-[11px] text-[#6E7381]">
                   Líderes da temporada · Sua posição: #{myGrindRank} ({u.gp ?? 0} GP)
@@ -974,7 +974,7 @@ export function Painel({
                   const pos = idx + 1;
                   const isMe = item.id === u.id;
                   const medal =
-                    pos === 1 ? "🥇" : pos === 2 ? "🥈" : pos === 3 ? "🥉" : `#${pos}`;
+                    pos === 1 ? "" : pos === 2 ? "" : pos === 3 ? "" : `#${pos}`;
                   const nick = item.apelido?.trim() || (item.nome || "Atleta").split(" ")[0];
                   return (
                     <div
@@ -1052,7 +1052,7 @@ export function Painel({
           <div className="bg-[#FFF4EE] border border-[#FF5400]/40 rounded-2xl p-3.5 flex items-center justify-between gap-2">
             <div>
               <p className="text-xs font-extrabold text-[#FF5400]">
-                📩 Confirmação de E-mail Pendente
+                 Confirmação de E-mail Pendente
               </p>
               <p className="text-xs text-[#6E7381]">
                 Confirme o código enviado para {u.email} para ativar totalmente sua conta.
@@ -1121,7 +1121,7 @@ export function Painel({
         <div className="bg-[#FFF4EE] border border-[#FF5400]/40 rounded-2xl p-3.5 flex items-center justify-between gap-2">
           <div>
             <p className="text-xs font-extrabold text-[#FF5400]">
-              📩 Confirmação de E-mail Pendente
+               Confirmação de E-mail Pendente
             </p>
             <p className="text-xs text-[#6E7381]">
               Confirme o código enviado para {u.email} para ativar totalmente sua conta.
@@ -1149,11 +1149,11 @@ export function Painel({
             </p>
             <div className="flex flex-wrap gap-1.5">
               {isPaymentPending ? (
-                <Chip c={RED}>🔴 Mensalidade Pendente</Chip>
+                <Chip c={RED}> Mensalidade Pendente</Chip>
               ) : (
-                <Chip c={GRN}>🟢 Matrícula Regular</Chip>
+                <Chip c={GRN}> Matrícula Regular</Chip>
               )}
-              <Chip c="bg-[#FFF4EE] text-[#FF5400]">⚡ 2x GP Ativo</Chip>
+              <Chip c="bg-[#FFF4EE] text-[#FF5400]"> 2x GP Ativo</Chip>
             </div>
           </div>
           <button
@@ -1259,14 +1259,14 @@ export function NotificacoesPlayerModal({
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-extrabold uppercase text-[#FF5400]">
                     {n.type === "group_invite"
-                      ? "👥 Convite para Grupo na Fila"
+                      ? " Convite para Grupo na Fila"
                       : n.type === "queue_request"
-                        ? "🏀 Solicitação de Fila"
-                        : "⚡ Aviso Hezi"}
+                        ? " Solicitação de Fila"
+                        : " Aviso Hezi"}
                   </span>
                   <div className="flex items-center gap-2">
                     <span className="n text-[11px] font-bold text-[#6E7381]">
-                      🕒{" "}
+                      {" "}
                       {n.createdAt
                         ? new Date(n.createdAt).toLocaleString("pt-BR")
                         : n.timeLabel}

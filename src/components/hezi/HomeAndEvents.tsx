@@ -104,7 +104,7 @@ export function Home({ S }: { S: AppContextProps }) {
     <div className="p-4 space-y-6">
       {/* Hero */}
       <div className={C + " p-6"}>
-        <img src={LOGO} className="h-14 invert mb-2 object-contain" alt="HEZI FAM®" />
+        <img src={LOGO} className="h-14 invert mb-2 object-contain" alt="HEZI FAM" />
         <h1 className="font-extrabold text-4xl leading-tight tracking-tight text-[#111317]">
           Moving the game.
         </h1>
@@ -168,13 +168,13 @@ export function Home({ S }: { S: AppContextProps }) {
                     {ev.t}
                   </h3>
                   <p className="text-xs text-[#6E7381] mt-0.5">
-                    📅 {ev.q} · 📍 {ev.l}
+                     {ev.q} · {ev.l}
                   </p>
                 </div>
 
                 {ev.r && (
                   <p className="text-xs bg-white/90 border border-[#EAEBEF] rounded-lg px-2.5 py-1.5 text-[#111317] font-medium">
-                    📋 {ev.r}
+                     {ev.r}
                   </p>
                 )}
 
@@ -236,7 +236,7 @@ export function Home({ S }: { S: AppContextProps }) {
       <div className={C + " p-4 flex items-center justify-between gap-3"}>
         <div className="min-w-0">
           <p className="font-extrabold text-sm text-[#111317]">
-            Atendimento Oficial HEZI FAM®
+            Atendimento Oficial HEZI FAM
           </p>
           <p className="text-xs text-[#6E7381]">
             Dúvidas sobre eventos, treinos ou reservas? Fale diretamente com nossa equipe no WhatsApp oficial.
@@ -284,7 +284,7 @@ export function Pelada({ S }: { S: AppContextProps }) {
         <div className={C + " p-3.5 flex items-center justify-between gap-2"}>
           <div>
             <p className="font-extrabold text-sm text-[#111317]">
-              {S.role === "admin" ? "🔑 Área do Administrador" : "🧑‍🏫 Área do Professor"} · Court Master ({peladaStore.gameFormat.toUpperCase()} · Máx {maxTeamSize}/time)
+              {S.role === "admin" ? " Área do Administrador" : " Área do Professor"} · Court Master ({peladaStore.gameFormat.toUpperCase()} · Máx {maxTeamSize}/time)
             </p>
             <p className="text-xs text-[#6E7381]">
               Organize a pelada aqui. Os jogadores veem os eventos disponíveis e
@@ -296,7 +296,7 @@ export function Pelada({ S }: { S: AppContextProps }) {
             onClick={() => setAdminPreviewUserView(true)}
             className="shrink-0 rounded-xl bg-[#F4F5F7] border border-[#EAEBEF] px-3 py-2 text-xs font-extrabold text-[#111317]"
           >
-            👁️ Ver Eventos
+             Ver Eventos
           </button>
         </div>
         <CourtMasterOrganizer embedded />
@@ -368,7 +368,7 @@ export function Pelada({ S }: { S: AppContextProps }) {
                         {ev.tp}
                       </span>
                       {rolling && (
-                        <Chip c="bg-[#EF4444] text-white">🔥 Está rolando</Chip>
+                        <Chip c="bg-[#EF4444] text-white"> Está rolando</Chip>
                       )}
                     </div>
                     <Chip c="bg-[#F4F5F7] text-[#111317]">
@@ -381,13 +381,13 @@ export function Pelada({ S }: { S: AppContextProps }) {
                       {ev.t}
                     </h3>
                     <p className="text-xs text-[#6E7381] mt-0.5">
-                      📅 {ev.q} · 📍 {ev.l}
+                       {ev.q} · {ev.l}
                     </p>
                   </div>
 
                   {ev.r && (
                     <p className="text-xs bg-[#F4F5F7] rounded-lg px-2.5 py-1.5 text-[#111317] font-medium">
-                      📋 {ev.r}
+                       {ev.r}
                     </p>
                   )}
 
@@ -496,7 +496,7 @@ export function Pelada({ S }: { S: AppContextProps }) {
           {selectedEvent.t}
         </h2>
         <p className="text-xs text-[#6E7381]">
-          📅 {selectedEvent.q} · 📍 {selectedEvent.l} · Modalidade{" "}
+           {selectedEvent.q} · {selectedEvent.l} · Modalidade{" "}
           {peladaStore.gameFormat.toUpperCase()} (Máx {maxTeamSize}/time)
         </p>
       </div>
@@ -515,7 +515,7 @@ export function Pelada({ S }: { S: AppContextProps }) {
                   Convite para Grupo na Fila
                 </span>
                 <span className="n text-xs font-bold text-[#6E7381]">
-                  🕒 {inv.timeLabel}
+                   {inv.timeLabel}
                 </span>
               </div>
               <p className="text-xs text-[#111317] font-semibold">
@@ -548,7 +548,7 @@ export function Pelada({ S }: { S: AppContextProps }) {
       <div className={C + " p-4 space-y-3"}>
         {selectedEvent.r && (
           <p className="text-xs bg-[#F4F5F7] rounded-lg p-2.5 text-[#111317] font-medium">
-            📋 {selectedEvent.r}
+             {selectedEvent.r}
           </p>
         )}
 
@@ -566,16 +566,16 @@ export function Pelada({ S }: { S: AppContextProps }) {
               </div>
               <p className="text-base font-extrabold text-[#111317]">
                 {myCourtStatus.status === "on-court"
-                  ? `🏀 Você está EM QUADRA AGORA (${myCourtStatus.teamLabel} · Lado ${myCourtStatus.side})`
+                  ? ` Você está EM QUADRA AGORA (${myCourtStatus.teamLabel} · Lado ${myCourtStatus.side})`
                   : myCourtStatus.status === "champion-waiting"
-                    ? `👑 Você está no Time Campeão aguardando desafiante (${myCourtStatus.teamLabel})`
+                    ? ` Você está no Time Campeão aguardando desafiante (${myCourtStatus.teamLabel})`
                     : myCourtStatus.entryKind === "team"
-                      ? `⏱️ Você está na fila no ${myCourtStatus.teamLabel} — Posição #${myCourtStatus.position}`
+                      ? ` Você está na fila no ${myCourtStatus.teamLabel} — Posição #${myCourtStatus.position}`
                       : `✓ Você está na fila — Posição #${myCourtStatus.position} (${myCourtStatus.playersAheadCount} na sua frente)`}
               </p>
               {canInviteOthers && (
                 <p className="text-xs text-[#6E7381]">
-                  💡 Quer jogar junto com alguém da fila? Toque em{" "}
+                   Quer jogar junto com alguém da fila? Toque em{" "}
                   <strong className="text-[#FF5400]">+ Grupo</strong> ao lado do
                   nome do jogador abaixo para enviar solicitação de time!
                 </p>
@@ -593,10 +593,10 @@ export function Pelada({ S }: { S: AppContextProps }) {
             <div className="bg-[#FFF4EE] border border-[#FF5400]/40 rounded-xl p-3.5 space-y-2.5">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-extrabold uppercase tracking-wider text-[#FF5400]">
-                  ⏳ Solicitação Enviada ao Organizador
+                   Solicitação Enviada ao Organizador
                 </p>
                 <span className="n text-xs font-bold text-[#6E7381]">
-                  🕒 {myPendingQueueRequest.timeLabel}
+                   {myPendingQueueRequest.timeLabel}
                 </span>
               </div>
               <p className="text-xs text-[#111317] font-medium">
@@ -635,10 +635,10 @@ export function Pelada({ S }: { S: AppContextProps }) {
               {S.me && (
                 <p className="text-[11px] text-center text-[#6E7381]">
                   {alreadyRewardedThisEvent
-                    ? "ℹ️ Você já recebeu os Grind Points (GP) deste evento (liberados 1 vez por evento)."
+                    ? " Você já recebeu os Grind Points (GP) deste evento (liberados 1 vez por evento)."
                     : isSubscriber
-                      ? "⚡ Bônus Assinante Ativo: você ganha +10 GP (2x) ao entrar neste evento!"
-                      : "🏀 Ganhe +5 GP ao ter sua entrada confirmada neste evento (1x por evento)."}
+                      ? " Bônus Assinante Ativo: você ganha +10 GP (2x) ao entrar neste evento!"
+                      : " Ganhe +5 GP ao ter sua entrada confirmada neste evento (1x por evento)."}
                 </p>
               )}
             </div>
@@ -668,10 +668,10 @@ export function Pelada({ S }: { S: AppContextProps }) {
           <div className="bg-[#FFF4EE] border border-[#FF5400]/40 rounded-xl p-3.5 space-y-2.5">
             <div className="flex items-center justify-between">
               <p className="text-xs font-extrabold uppercase tracking-wider text-[#FF5400]">
-                ⏳ Solicitação Enviada ao Organizador
+                 Solicitação Enviada ao Organizador
               </p>
               <span className="n text-xs font-bold text-[#6E7381]">
-                🕒 {myPendingQueueRequest.timeLabel}
+                 {myPendingQueueRequest.timeLabel}
               </span>
             </div>
             <p className="text-xs text-[#111317] font-medium">
@@ -709,10 +709,10 @@ export function Pelada({ S }: { S: AppContextProps }) {
             {S.me && (
               <p className="text-[11px] text-center text-[#6E7381]">
                 {alreadyRewardedThisEvent
-                  ? "ℹ️ Você já recebeu os Grind Points (GP) deste evento (liberados 1 vez por evento)."
+                  ? " Você já recebeu os Grind Points (GP) deste evento (liberados 1 vez por evento)."
                   : isSubscriber
-                    ? "⚡ Bônus Assinante Ativo: você ganha +10 GP (2x) ao entrar neste evento!"
-                    : "🏀 Ganhe +5 HP ao ter sua entrada confirmada neste evento (1x por evento)."}
+                    ? " Bônus Assinante Ativo: você ganha +10 GP (2x) ao entrar neste evento!"
+                    : " Ganhe +5 HP ao ter sua entrada confirmada neste evento (1x por evento)."}
               </p>
             )}
           </div>
@@ -725,7 +725,7 @@ export function Pelada({ S }: { S: AppContextProps }) {
           <div className={C + " p-4 space-y-3"}>
             <div className="flex items-center justify-between">
               <span className="text-xs font-extrabold uppercase tracking-wider text-[#6E7381]">
-                🏀 Em Quadra Agora
+                 Em Quadra Agora
               </span>
               <span
                 className={
@@ -735,7 +735,7 @@ export function Pelada({ S }: { S: AppContextProps }) {
                     : "bg-[#F4F5F7] text-[#111317]")
                 }
               >
-                ⏱️ {formatClockMs(remaining)}
+                 {formatClockMs(remaining)}
               </span>
             </div>
 
@@ -814,7 +814,7 @@ export function Pelada({ S }: { S: AppContextProps }) {
               <div className="bg-[#FFF4EE] border border-[#FF5400]/30 rounded-xl p-2.5 flex items-center justify-between">
                 <div>
                   <p className="text-xs font-extrabold text-[#FF5400]">
-                    👑 CAMPEÃO AGUARDANDO PRÓXIMO JOGO
+                     CAMPEÃO AGUARDANDO PRÓXIMO JOGO
                   </p>
                   <p className="text-xs font-bold text-[#111317]">
                     {peladaStore.teamNames[champTeam.id] ??
@@ -834,7 +834,7 @@ export function Pelada({ S }: { S: AppContextProps }) {
           <div className={C + " p-4"}>
             <div className="flex items-center justify-between mb-3">
               <p className="text-xs font-extrabold text-[#111317] uppercase tracking-wider">
-                📋 FILA COMPLETA DE ESPERA
+                 FILA COMPLETA DE ESPERA
               </p>
               <span className="n text-xs font-bold text-[#FF5400]">
                 {peladaStore.queue.length} posições · {totalWaitingPlayers}{" "}
@@ -885,7 +885,7 @@ export function Pelada({ S }: { S: AppContextProps }) {
                         </div>
                         {p.justPlayed && (
                           <Chip c="bg-[#F4F5F7] text-[#6E7381]">
-                            🚫 Jogou a última
+                             Jogou a última
                           </Chip>
                         )}
                         {!isMe && canInviteOthers && heziUser && (
@@ -934,7 +934,7 @@ export function Pelada({ S }: { S: AppContextProps }) {
                             #{idx + 1}
                           </span>
                           <span className="font-extrabold text-sm text-[#111317]">
-                            🏀 {teamLabel}
+                             {teamLabel}
                           </span>
                           {hasMe && (
                             <Chip c="bg-[#FF5400] text-white">SEU TIME</Chip>
@@ -980,7 +980,7 @@ export function Pelada({ S }: { S: AppContextProps }) {
         <div className={C + " p-4"}>
           <div className="flex items-center justify-between mb-3">
             <p className="text-xs font-extrabold text-[#111317] uppercase tracking-wider">
-              📋 FILA DO EVENTO
+               FILA DO EVENTO
             </p>
             <span className="n text-xs font-bold text-[#FF5400]">
               {selectedEvent.f.length} inscritos

@@ -84,7 +84,7 @@ async function sendTransactionalEmail(payload: AuthEmailPayload): Promise<{
 
   const html = `
     <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; background: #111317; color: #ffffff; padding: 28px; border-radius: 16px;">
-      <h2 style="color: #FF5400; margin-top: 0;">HEZI FAM® — Moving the game.</h2>
+      <h2 style="color: #FF5400; margin-top: 0;">HEZI FAM — Moving the game.</h2>
       <p style="font-size: 15px; line-height: 1.5;">Olá${payload.nome ? `, <strong>${payload.nome}</strong>` : ""}!</p>
       <p style="font-size: 14px; color: #D1D5DB; line-height: 1.5;">
         ${
@@ -97,7 +97,7 @@ async function sendTransactionalEmail(payload: AuthEmailPayload): Promise<{
         <span style="font-size: 28px; font-weight: 800; letter-spacing: 6px; color: #ffffff;">${payload.code}</span>
       </div>
       <p style="font-size: 12px; color: #9CA3AF;">
-        Suporte oficial WhatsApp HEZI®
+        Suporte oficial WhatsApp HEZI
       </p>
     </div>
   `;

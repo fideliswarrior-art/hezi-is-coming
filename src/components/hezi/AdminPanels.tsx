@@ -271,7 +271,7 @@ export function Avaliar({ S }: { S: AppContextProps }) {
           {al.map((a) => (
             <option key={a.id} value={a.id}>
               {a.nome} ({a.pos}) — OVR {ovr(a.sub || baseSub)}
-              {a.evalDraft ? " ⏳ (Em andamento)" : ""}
+              {a.evalDraft ? " (Em andamento)" : ""}
             </option>
           ))}
         </select>
@@ -280,7 +280,7 @@ export function Avaliar({ S }: { S: AppContextProps }) {
           <div className="bg-[#FFFBEB] border border-[#F59E0B] rounded-xl p-3 flex items-center justify-between gap-2">
             <div>
               <p className="text-xs font-extrabold text-[#B45309]">
-                ⏳ Avaliação em andamento (Não concluída)
+                 Avaliação em andamento (Não concluída)
               </p>
               <p className="text-[11px] text-[#92400E]">
                 Progresso salvo em {u.evalDraft.updatedAt}. Continue de onde parou ou processe ao finalizar.
@@ -318,7 +318,7 @@ export function Avaliar({ S }: { S: AppContextProps }) {
                   : "bg-[#F4F5F7] text-[#6E7381] border-[#EAEBEF]")
               }
             >
-              ✋ {hand === "destro" ? "Destro (Mão Dir.)" : "Canhoto (Mão Esq.)"}
+               {hand === "destro" ? "Destro (Mão Dir.)" : "Canhoto (Mão Esq.)"}
             </button>
           ))}
         </div>
@@ -409,7 +409,7 @@ export function Avaliar({ S }: { S: AppContextProps }) {
 
             {c.k === "ban" && Math.abs(((r.bd ?? 0) + (r.brd ?? 0)) / 2 - ((r.be ?? 0) + (r.bre ?? 0)) / 2) > 4 && (
               <p className="text-xs font-bold text-[#EF4444] bg-[#FEF2F2] rounded-lg p-2.5 mt-2">
-                ⚠️ Assimetria entre mão dominante ({domHand === "destro" ? "Direita" : "Esquerda"}) e não dominante: penalidade técnica aplicada no Sub-OVR de finalização.
+                 Assimetria entre mão dominante ({domHand === "destro" ? "Direita" : "Esquerda"}) e não dominante: penalidade técnica aplicada no Sub-OVR de finalização.
               </p>
             )}
           </div>
@@ -429,7 +429,7 @@ export function Avaliar({ S }: { S: AppContextProps }) {
           onClick={saveDraft}
           c="bg-[#FFFBEB] text-[#B45309] border border-[#F59E0B] hover:bg-[#FEF3C7]"
         >
-          ⏳ Salvar em Andamento (Não Concluída)
+           Salvar em Andamento (Não Concluída)
         </Btn>
         <Btn onClick={go} c={OB}>
           <CheckCircle2 className="w-4 h-4" />
@@ -441,7 +441,7 @@ export function Avaliar({ S }: { S: AppContextProps }) {
       <div className={C + " p-4 space-y-2.5"}>
         <div className="flex items-center justify-between gap-2">
           <p className="font-extrabold text-sm text-[#111317]">
-            📊 Histórico de Avaliações ({(u.evalHistory || []).length})
+             Histórico de Avaliações ({(u.evalHistory || []).length})
           </p>
           {(u.evalHistory || []).length > 0 && (
             <button
@@ -612,9 +612,9 @@ export function Assinantes({ S }: { S: AppContextProps }) {
   const [subMode, setSubMode] = useState<"lista" | "avaliar">("lista");
 
   const getStatusLabel = (st?: HeziUser["st"]) => {
-    if (st === "ex_aluno") return "⚪ Ex-Assinante (Comum)";
-    if (st === "pendente" || st === "inativo") return "🔴 Mensalidade Pendente";
-    return "🟢 Matrícula Regular";
+    if (st === "ex_aluno") return " Ex-Assinante (Comum)";
+    if (st === "pendente" || st === "inativo") return " Mensalidade Pendente";
+    return " Matrícula Regular";
   };
 
   const getStatusChipClass = (st?: HeziUser["st"]) => {
@@ -636,7 +636,7 @@ export function Assinantes({ S }: { S: AppContextProps }) {
               : "bg-white border border-[#EAEBEF] text-[#6E7381]")
           }
         >
-          📋 Lista &amp; Pontos
+           Lista &amp; Pontos
         </button>
         <button
           type="button"
@@ -648,7 +648,7 @@ export function Assinantes({ S }: { S: AppContextProps }) {
               : "bg-white border border-[#EAEBEF] text-[#6E7381]")
           }
         >
-          📊 Avaliar Assinante
+           Avaliar Assinante
         </button>
       </div>
 
@@ -659,7 +659,7 @@ export function Assinantes({ S }: { S: AppContextProps }) {
       <div className={C + " p-3.5 flex items-center justify-between gap-2"}>
         <div>
           <p className="font-extrabold text-sm text-[#111317]">
-            ⚡ Gestão Exclusiva de Assinantes Assinantes ({assinantesList.length})
+             Gestão Exclusiva de Assinantes Assinantes ({assinantesList.length})
           </p>
           <p className="text-xs text-[#6E7381]">
             Apenas assinantes Hezi Skills aparecem aqui. Usuários gerais ficam no
@@ -706,7 +706,7 @@ export function Assinantes({ S }: { S: AppContextProps }) {
                     ? "Ex-Assinante (Exibido como Comum)"
                     : "Assinante Hezi Skills (2x GP)"}{" "}
                   · <span className="n font-bold text-[#10B981]">{x.gp ?? 0} GP</span>
-                  {x.st !== "ex_aluno" ? ` · 🔥 ${x.of ?? 0} sem.` : ""}
+                  {x.st !== "ex_aluno" ? ` · ${x.of ?? 0} sem.` : ""}
                 </p>
               </div>
 
@@ -724,9 +724,9 @@ export function Assinantes({ S }: { S: AppContextProps }) {
                 <div className="flex flex-wrap gap-1">
                   {(
                     [
-                      ["ativo", "🟢 Regular"],
-                      ["pendente", "🔴 Pendente"],
-                      ["ex_aluno", "⚪ Ex-Assinante"],
+                      ["ativo", " Regular"],
+                      ["pendente", " Pendente"],
+                      ["ex_aluno", " Ex-Assinante"],
                     ] as const
                   ).map(([stKey, label]) => {
                     const active =
@@ -858,7 +858,7 @@ export function Assinantes({ S }: { S: AppContextProps }) {
           {/* Histórico de ganhos de GP */}
           <div className="pt-2 border-t border-[#EAEBEF] space-y-1.5">
             <p className="text-[11px] font-extrabold text-[#6E7381] uppercase">
-              📜 Histórico de Ganhos de Grind Points ({(u.gpHistory || []).length})
+               Histórico de Ganhos de Grind Points ({(u.gpHistory || []).length})
             </p>
             {(!u.gpHistory || u.gpHistory.length === 0) ? (
               <p className="text-xs text-[#9CA3AF]">Nenhum ganho registrado ainda.</p>
@@ -998,7 +998,7 @@ export function UsuariosGeral({ S }: { S: AppContextProps }) {
         <div className="flex items-center justify-between gap-2">
           <div>
             <p className="font-extrabold text-sm text-[#111317]">
-              👥 Gestão de Usuários no Geral ({generalUsers.length})
+               Gestão de Usuários no Geral ({generalUsers.length})
             </p>
             <p className="text-xs text-[#6E7381]">
               Usuários comuns e professores separados da aba de Assinantes. Promova
@@ -1055,9 +1055,9 @@ export function UsuariosGeral({ S }: { S: AppContextProps }) {
                   }
                   className="w-full bg-white rounded-xl px-3 py-2 text-xs font-bold outline-none border border-[#EAEBEF]"
                 >
-                  <option value="jogador">🏀 Jogador / Usuário Comum</option>
-                  <option value="professor">🧑‍🏫 Professor (Staff)</option>
-                  <option value="aluno">⚡ Assinante Assinante Hezi Skills</option>
+                  <option value="jogador"> Jogador / Usuário Comum</option>
+                  <option value="professor"> Professor (Staff)</option>
+                  <option value="aluno"> Assinante Assinante Hezi Skills</option>
                 </select>
               </div>
 
@@ -1156,9 +1156,9 @@ export function UsuariosGeral({ S }: { S: AppContextProps }) {
                     }
                     className="w-full bg-white rounded-xl px-3 py-2 text-xs font-bold outline-none border border-[#EAEBEF]"
                   >
-                    <option value="ativo">🟢 Regular</option>
-                    <option value="pendente">🔴 Pendente</option>
-                    <option value="ex_aluno">⚪ Ex-Assinante</option>
+                    <option value="ativo"> Regular</option>
+                    <option value="pendente"> Pendente</option>
+                    <option value="ex_aluno"> Ex-Assinante</option>
                   </select>
                 </div>
               ) : (
@@ -1249,8 +1249,8 @@ export function UsuariosGeral({ S }: { S: AppContextProps }) {
                 </div>
                 <p className="text-xs text-[#6E7381] truncate">
                   {x.tipo === "professor"
-                    ? "🧑‍🏫 Professor (Organizador)"
-                    : "🏀 Usuário Comum"}{" "}
+                    ? " Professor (Organizador)"
+                    : " Usuário Comum"}{" "}
                   · <span className="n font-bold text-[#10B981]">{x.gp ?? 0} GP</span>
                   {x.email ? ` · ${x.email}` : ""}
                 </p>
@@ -1258,10 +1258,10 @@ export function UsuariosGeral({ S }: { S: AppContextProps }) {
 
               <div className="flex items-center gap-1 shrink-0">
                 {x.isModerator && (
-                  <Chip c="bg-[#FFF4EE] text-[#FF5400]">🛡️ Moderador</Chip>
+                  <Chip c="bg-[#FFF4EE] text-[#FF5400]"> Moderador</Chip>
                 )}
                 {x.tipo === "professor" ? (
-                  <Chip c="bg-[#ECFDF5] text-[#10B981]">🧑‍🏫 Professor</Chip>
+                  <Chip c="bg-[#ECFDF5] text-[#10B981]"> Professor</Chip>
                 ) : (
                   <Chip c="bg-[#F4F5F7] text-[#6E7381]">Usuário</Chip>
                 )}
@@ -1291,12 +1291,12 @@ export function UsuariosGeral({ S }: { S: AppContextProps }) {
                       onClick={() => {
                         S.upd(x.id, { isModerator: true });
                         S.say(
-                          `🛡️ ${x.nome} foi promovido a Moderador! Agora possui os mesmos poderes de Administrador.`,
+                          ` ${x.nome} foi promovido a Moderador! Agora possui os mesmos poderes de Administrador.`,
                         );
                       }}
                       className="text-xs font-extrabold rounded-xl bg-[#FF5400] hover:bg-[#E04800] text-white px-3 py-1.5 transition flex items-center gap-1.5"
                     >
-                      🛡️ Promover a Moderador
+                       Promover a Moderador
                     </button>
                   )}
 
@@ -1337,12 +1337,12 @@ export function UsuariosGeral({ S }: { S: AppContextProps }) {
                         bd: x.bd || B0(),
                       });
                       S.say(
-                        `⚡ ${x.nome} agora é Assinante Hezi Skills (movido para a aba Assinantes com 2x GP)!`,
+                        ` ${x.nome} agora é Assinante Hezi Skills (movido para a aba Assinantes com 2x GP)!`,
                       );
                     }}
                     className="text-xs font-extrabold rounded-xl bg-[#FFF4EE] hover:bg-[#FF5400] text-[#FF5400] hover:text-white border border-[#FF5400]/30 px-3 py-1.5 transition"
                   >
-                    ⚡ Tornar Assinante
+                     Tornar Assinante
                   </button>
                 </div>
 
@@ -1392,7 +1392,7 @@ export function UsuariosGeral({ S }: { S: AppContextProps }) {
                 Dados do Usuário Selecionado
               </p>
               <Chip c={u.isModerator ? "bg-[#FFF4EE] text-[#FF5400]" : "bg-[#F4F5F7] text-[#6E7381]"}>
-                {u.isModerator ? "🛡️ Moderador (Admin)" : u.tipo === "professor" ? "🧑‍🏫 Professor" : "🏀 Usuário"}
+                {u.isModerator ? " Moderador (Admin)" : u.tipo === "professor" ? " Professor" : " Usuário"}
               </Chip>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
@@ -1506,7 +1506,7 @@ export function UsuariosGeral({ S }: { S: AppContextProps }) {
             {/* Histórico de ganhos de GP */}
             <div className="pt-2 border-t border-[#EAEBEF] space-y-1.5">
               <p className="text-[11px] font-extrabold text-[#6E7381] uppercase">
-                📜 Histórico de Ganhos de Grind Points ({(u.gpHistory || []).length})
+                 Histórico de Ganhos de Grind Points ({(u.gpHistory || []).length})
               </p>
               {(!u.gpHistory || u.gpHistory.length === 0) ? (
                 <p className="text-xs text-[#9CA3AF]">Nenhum ganho registrado ainda.</p>
@@ -1612,7 +1612,7 @@ export function Eventos({ S }: { S: AppContextProps }) {
           </div>
         </div>
         <p className="text-[11px] text-[#6E7381]">
-          💡 Eventos aparecem automaticamente na Página Inicial com o destaque{" "}
+           Eventos aparecem automaticamente na Página Inicial com o destaque{" "}
           <strong>&ldquo;Está rolando&rdquo;</strong> a partir de{" "}
           <strong>30 minutos antes</strong> do horário programado.
         </p>
@@ -1673,7 +1673,7 @@ export function Eventos({ S }: { S: AppContextProps }) {
                     </span>
                   </p>
                   {rolling && (
-                    <Chip c="bg-[#EF4444] text-white">🔥 Está rolando</Chip>
+                    <Chip c="bg-[#EF4444] text-white"> Está rolando</Chip>
                   )}
                 </div>
                 <p className="text-xs text-[#6E7381]">
@@ -1748,7 +1748,7 @@ export function Eventos({ S }: { S: AppContextProps }) {
                   }
                   title="Alternar destaque 'Está rolando' na Página Inicial"
                 >
-                  {e.aoVivoAgora ? "🔥 Ao Vivo" : "Destacar"}
+                  {e.aoVivoAgora ? " Ao Vivo" : "Destacar"}
                 </button>
                 <button
                   type="button"
@@ -1999,7 +1999,7 @@ export function Eventos({ S }: { S: AppContextProps }) {
                 }}
                 className="col-span-2 rounded-xl bg-[#FF5400] hover:bg-[#E04800] text-white text-xs font-extrabold py-3 px-3 transition active:scale-95"
               >
-                🏁 Encerrar Evento e Salvar Histórico
+                 Encerrar Evento e Salvar Histórico
               </button>
               {e.tp === "Pelada" && (
                 <button
@@ -2011,7 +2011,7 @@ export function Eventos({ S }: { S: AppContextProps }) {
                 >
                   {openCourtEventId === e.id
                     ? "▲ Fechar Court Master desta Pelada"
-                    : "🏟️ Abrir Court Master desta Pelada"}
+                    : " Abrir Court Master desta Pelada"}
                 </button>
               )}
             </div>
@@ -2031,7 +2031,7 @@ export function Eventos({ S }: { S: AppContextProps }) {
         return (
           <div className="space-y-3 pt-2">
             <h3 className="font-extrabold text-sm text-[#111317] uppercase tracking-wider px-1">
-              📜 Histórico de Eventos ({eventHistory.length})
+               Histórico de Eventos ({eventHistory.length})
             </h3>
             {eventHistory.map((h) => (
               <div key={h.id} className={C + " p-4 space-y-2.5"}>
@@ -2062,7 +2062,7 @@ export function Eventos({ S }: { S: AppContextProps }) {
                 {h.teamRanking && h.teamRanking.length > 0 && (
                   <div className="bg-[#FFF4EE] rounded-xl p-2.5 space-y-1">
                     <p className="text-[11px] font-extrabold text-[#FF5400] uppercase">
-                      🏆 Times com Mais Vitórias
+                       Times com Mais Vitórias
                     </p>
                     <div className="flex flex-col gap-1.5">
                       {h.teamRanking.map((tr, idx) => (
@@ -2080,7 +2080,7 @@ export function Eventos({ S }: { S: AppContextProps }) {
 
                 <div>
                   <p className="text-[11px] font-bold text-[#6E7381] mb-1">
-                    👥 Participantes ({h.participants.length}):
+                     Participantes ({h.participants.length}):
                   </p>
                   <p className="text-xs text-[#111317]">
                     {h.participants.length > 0 ? h.participants.join(", ") : "Nenhum participante registrado."}
@@ -2161,7 +2161,7 @@ export function NotificacoesStaff({ S }: { S: AppContextProps }) {
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <p className="font-extrabold text-sm text-[#111317]">
-                      🏀 {req.fromUserName} solicitou entrar na fila
+                       {req.fromUserName} solicitou entrar na fila
                     </p>
                     <p className="text-xs text-[#6E7381] mt-0.5">
                       Evento:{" "}
@@ -2175,7 +2175,7 @@ export function NotificacoesStaff({ S }: { S: AppContextProps }) {
                         </span>
                       ) : isSub ? (
                         <span className="font-extrabold text-[#FF5400]">
-                          ⚡ Assinante (+{pts} HP · 2x)
+                           Assinante (+{pts} HP · 2x)
                         </span>
                       ) : (
                         <span className="font-bold text-[#10B981]">
@@ -2185,7 +2185,7 @@ export function NotificacoesStaff({ S }: { S: AppContextProps }) {
                     </p>
                   </div>
                   <Chip c="bg-[#F4F5F7] text-[#111317]">
-                    🕒 {req.timeLabel}
+                     {req.timeLabel}
                   </Chip>
                 </div>
 
@@ -2438,7 +2438,7 @@ export function BancoDados({ S }: { S: AppContextProps }) {
       {/* Histórico de Avaliações gravado na tabela evaluations_history */}
       <div className={C + " p-4 space-y-2.5"}>
         <p className="font-extrabold text-sm text-[#111317]">
-          📋 Histórico no Banco (`evaluations_history`)
+           Histórico no Banco (`evaluations_history`)
         </p>
         {!info || info.recentEvaluations.length === 0 ? (
           <p className="text-xs text-[#6E7381]">
@@ -2606,7 +2606,7 @@ export function Staff({
                   }}
                   className="rounded-xl bg-[#FF5400] hover:bg-[#E04800] text-white text-xs font-extrabold px-3 py-2 transition active:scale-95"
                 >
-                  🏁 Encerrar e Limpar
+                   Encerrar e Limpar
                 </button>
               )}
               <Users className="w-5 h-5 text-[#FF5400]" />

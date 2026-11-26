@@ -303,7 +303,7 @@ export function PartnerHubPage({ slug }: { slug: string }) {
           </Link>
           <span className="inline-flex items-center gap-1 text-[11px] font-extrabold uppercase bg-[#FFF4EE] text-[#FF5400] px-2.5 py-1 rounded-full">
             <ShieldCheck className="w-3.5 h-3.5" />
-            CHANCELA OFICIAL HEZI FAM® · {TIER_LABELS[circuit.sanction_tier]}
+            CHANCELA OFICIAL HEZI FAM · {TIER_LABELS[circuit.sanction_tier]}
           </span>
         </div>
 
@@ -623,7 +623,7 @@ export function PartnerHubPage({ slug }: { slug: string }) {
                             className="flex items-center justify-between text-xs bg-[#F4F5F7] rounded-lg px-2.5 py-1.5"
                           >
                             <span className="font-bold text-[#111317]">
-                              {st.player_name} {st.is_mvp ? "⭐ MVP" : ""}
+                              {st.player_name} {st.is_mvp ? " MVP" : ""}
                             </span>
                             <span className="n text-[#6E7381]">
                               {st.points} PTS · {st.three_pointers} 3PT · {st.rebounds} REB · {st.assists} AST · {st.blocks_steals} DEF

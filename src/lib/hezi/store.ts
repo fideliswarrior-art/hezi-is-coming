@@ -137,13 +137,13 @@ const QI_MINI: MiniCategoryDef[] = [
 ];
 
 export const CATS: CategoryDef[] = [
-  { k: "ban", t: "Finalização próximo a cesta", e: "🏀", mini: BAN_MINI, n: flattenMini(BAN_MINI) },
-  { k: "arr", t: "Arremesso", e: "🎯", mini: ARR_MINI, n: flattenMini(ARR_MINI) },
-  { k: "cb", t: "Controle de bola", e: "⚡", mini: CB_MINI, n: flattenMini(CB_MINI) },
-  { k: "pla", t: "Criação de jogadas (Passes)", e: "🧠", mini: PLA_MINI, n: flattenMini(PLA_MINI) },
-  { k: "def", t: "Defesa", e: "🛡️", mini: DEF_MINI, n: flattenMini(DEF_MINI) },
-  { k: "fis", t: "Físico & Atleticismo", e: "💪", mini: FIS_MINI, n: flattenMini(FIS_MINI) },
-  { k: "qi", t: "QI de Jogo & Reação", e: "👁️", mini: QI_MINI, n: flattenMini(QI_MINI) },
+  { k: "ban", t: "Finalização próximo a cesta", e: "", mini: BAN_MINI, n: flattenMini(BAN_MINI) },
+  { k: "arr", t: "Arremesso", e: "", mini: ARR_MINI, n: flattenMini(ARR_MINI) },
+  { k: "cb", t: "Controle de bola", e: "", mini: CB_MINI, n: flattenMini(CB_MINI) },
+  { k: "pla", t: "Criação de jogadas (Passes)", e: "", mini: PLA_MINI, n: flattenMini(PLA_MINI) },
+  { k: "def", t: "Defesa", e: "", mini: DEF_MINI, n: flattenMini(DEF_MINI) },
+  { k: "fis", t: "Físico & Atleticismo", e: "", mini: FIS_MINI, n: flattenMini(FIS_MINI) },
+  { k: "qi", t: "QI de Jogo & Reação", e: "", mini: QI_MINI, n: flattenMini(QI_MINI) },
 ];
 
 export const W: Record<CatKey, number> = {
@@ -157,7 +157,7 @@ export const W: Record<CatKey, number> = {
 };
 
 export const BN = ["Bloqueado", "Bronze", "Prata", "Ouro"];
-export const BE = ["🔒", "🥉", "🥈", "🥇"];
+export const BE = ["", "", "", ""];
 export const THR = [70, 80, 90];
 
 export const PASS: [number, string][] = [

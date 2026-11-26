@@ -656,7 +656,7 @@ export function EmailVerificationModal({
                 Confirme seu E-mail
               </h3>
               <p className="text-xs text-[#6E7381]">
-                Ative sua conta HEZI FAM®
+                Ative sua conta HEZI FAM
               </p>
             </div>
           </div>
@@ -688,7 +688,7 @@ export function EmailVerificationModal({
 
           {err && (
             <p className="text-xs font-bold text-[#EF4444] bg-[#FEF2F2] rounded-xl p-2.5">
-              ⚠️ {err}
+               {err}
             </p>
           )}
 
@@ -1042,7 +1042,7 @@ export function LoginPage({
 
               {forgotErr && (
                 <p className="text-xs font-bold text-[#EF4444] bg-[#FEF2F2] rounded-xl p-3">
-                  ⚠️ {forgotErr}
+                   {forgotErr}
                 </p>
               )}
 
@@ -1134,7 +1134,7 @@ export function LoginPage({
 
               {forgotErr && (
                 <p className="text-xs font-bold text-[#EF4444] bg-[#FEF2F2] rounded-xl p-3">
-                  ⚠️ {forgotErr}
+                   {forgotErr}
                 </p>
               )}
 
@@ -1228,7 +1228,7 @@ export function LoginPage({
 
           {errorMsg && (
             <div className="bg-[#FEF2F2] border border-[#EF4444]/30 text-[#EF4444] text-xs font-bold rounded-xl p-3">
-              ⚠️ {errorMsg}
+               {errorMsg}
               {isLockedOut && (
                 <span className="n block mt-1 text-sm font-extrabold">
                   Bloqueio temporário: {secondsRemaining}s restantes

@@ -10,7 +10,7 @@ export type ID = string;
 export interface Player {
   id: ID;
   name: string;
-  justPlayed: boolean; // 🚫 cooldown — set on match end for losers, cleared next match
+  justPlayed: boolean; // cooldown — set on match end for losers, cleared next match
   createdAt: number;
   role?: "aluno" | "convencional";
   userId?: string;
@@ -59,7 +59,7 @@ export interface PeladaState {
   players: Record<ID, Player>;
   teams: Record<ID, Team>;
   queue: QueueEntry[];
-  waitingChampion: ID | null; // teamId of the 👑 waiting
+  waitingChampion: ID | null; // teamId of the waiting
   court: CourtState;
   nextTeamNumber: number;
   adminPin: string; // "" = no pin set
@@ -70,7 +70,7 @@ export interface PeladaState {
   gameFormat: GameFormat;
   matchMs: number;
   suddenDeathMs: number;
-  /** When false, a team never leaves the court for winning twice (👑 rule off). */
+  /** When false, a team never leaves the court for winning twice ( rule off). */
   championRuleEnabled: boolean;
   /** How many consecutive wins send a team off court as champion. */
   winsToRotate: number;
@@ -527,7 +527,7 @@ export const usePelada = create<PeladaState>()(
               draft.queue.push({ kind: "player", id: existing.id });
               logAction(
                 draft,
-                `🏀 ${trimmed}${meta?.role === "aluno" ? " (Aluno)" : ""} entrou na fila`,
+                ` ${trimmed}${meta?.role === "aluno" ? " (Aluno)" : ""} entrou na fila`,
               );
               return draft;
             }
@@ -560,7 +560,7 @@ export const usePelada = create<PeladaState>()(
           draft.queue.push({ kind: "player", id });
           logAction(
             draft,
-            `🏀 ${trimmed}${meta?.role === "aluno" ? " (Aluno)" : ""} entrou na fila`,
+            ` ${trimmed}${meta?.role === "aluno" ? " (Aluno)" : ""} entrou na fila`,
           );
           return draft;
         }),
@@ -807,7 +807,7 @@ export const usePelada = create<PeladaState>()(
           bumpStat(draft, loser, "losses");
           logAction(
             draft,
-            `✅ ${teamLabel(draft, winner)} venceu ${teamLabel(draft, loser)}`,
+            ` ${teamLabel(draft, winner)} venceu ${teamLabel(draft, loser)}`,
           );
 
           updateCooldown(draft, loser.memberIds);
@@ -837,7 +837,7 @@ export const usePelada = create<PeladaState>()(
             draft.waitingChampion = winner.id;
             if (side === "A") draft.court.teamAId = null;
             else draft.court.teamBId = null;
-            logAction(draft, `👑 ${teamLabel(draft, winner)} vira campeão em espera`);
+            logAction(draft, ` ${teamLabel(draft, winner)} vira campeão em espera`);
           }
 
           draft.court.elapsedMs = 0;
@@ -857,7 +857,7 @@ export const usePelada = create<PeladaState>()(
 
           bumpStat(draft, a, "draws");
           bumpStat(draft, b, "draws");
-          logAction(draft, `🔀 Empate: ${teamLabel(draft, a)} × ${teamLabel(draft, b)}`);
+          logAction(draft, ` Empate: ${teamLabel(draft, a)} × ${teamLabel(draft, b)}`);
 
           updateCooldown(draft, []);
 
@@ -1029,7 +1029,7 @@ export const usePelada = create<PeladaState>()(
             memberIds: [...fresh.memberIds, pB.id],
           };
           const lbl = draft.teamNames[teamA.id] ?? `TIME ${teamA.number}`;
-          logAction(draft, `🤝 ${pB.name} entrou no grupo de ${pA.name} (${lbl})`);
+          logAction(draft, ` ${pB.name} entrou no grupo de ${pA.name} (${lbl})`);
           set(draft);
           return { ok: true, teamLabel: lbl };
         }
@@ -1049,7 +1049,7 @@ export const usePelada = create<PeladaState>()(
             memberIds: [...fresh.memberIds, pA.id],
           };
           const lbl = draft.teamNames[teamB.id] ?? `TIME ${teamB.number}`;
-          logAction(draft, `🤝 ${pA.name} e ${pB.name} formaram grupo (${lbl})`);
+          logAction(draft, ` ${pA.name} e ${pB.name} formaram grupo (${lbl})`);
           set(draft);
           return { ok: true, teamLabel: lbl };
         }
@@ -1079,7 +1079,7 @@ export const usePelada = create<PeladaState>()(
           const insertAt = idxA >= 0 ? Math.min(idxA, draft.queue.length) : draft.queue.length;
           draft.queue.splice(insertAt, 0, { kind: "team", id: teamId });
           const lbl = `TIME ${num}`;
-          logAction(draft, `🤝 ${pA.name} e ${pB.name} uniram grupos (${lbl})`);
+          logAction(draft, ` ${pA.name} e ${pB.name} uniram grupos (${lbl})`);
           set(draft);
           return { ok: true, teamLabel: lbl };
         }
@@ -1106,7 +1106,7 @@ export const usePelada = create<PeladaState>()(
         const insertAt = Math.min(earliestIdx, draft.queue.length);
         draft.queue.splice(insertAt, 0, { kind: "team", id: teamId });
         const lbl = `TIME ${num}`;
-        logAction(draft, `🤝 ${pA.name} e ${pB.name} formaram o ${lbl} na fila`);
+        logAction(draft, ` ${pA.name} e ${pB.name} formaram o ${lbl} na fila`);
         set(draft);
         return { ok: true, teamLabel: lbl };
       },
@@ -1135,8 +1135,8 @@ export const usePelada = create<PeladaState>()(
           logAction(
             draft,
             enabled
-              ? "⚙️ Regra 'ganhou 2 e sai' ativada"
-              : "⚙️ Regra 'ganhou 2 e sai' desativada",
+              ? " Regra 'ganhou 2 e sai' ativada"
+              : " Regra 'ganhou 2 e sai' desativada",
           );
           return draft;
         }),
@@ -1184,7 +1184,7 @@ export const usePelada = create<PeladaState>()(
           }
           draft.queue = [];
           draft.selection = [];
-          logAction(draft, "🧹 Fila de espera limpa pelo treinador");
+          logAction(draft, " Fila de espera limpa pelo treinador");
           return draft;
         }),
 
@@ -1207,7 +1207,7 @@ export const usePelada = create<PeladaState>()(
           nextTeamNumber: 1,
           teamNames: {},
           teamStats: {},
-          actionLog: [{ ts: Date.now(), msg: "🔄 Noite reiniciada" }],
+          actionLog: [{ ts: Date.now(), msg: " Noite reiniciada" }],
           selection: [],
         })),
 
