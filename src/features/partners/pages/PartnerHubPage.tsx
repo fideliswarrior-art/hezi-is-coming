@@ -309,16 +309,23 @@ export function PartnerHubPage({ slug }: { slug: string }) {
 
         {/* Partner Header */}
         <div className="bg-white border border-[#EAEBEF] rounded-2xl p-5 shadow-xs space-y-3">
-          <div className="flex items-center gap-3.5">
+          {partner.banner_url && (
+            <img
+              src={partner.banner_url}
+              alt={partner.name}
+              className="w-full h-36 sm:h-48 object-cover rounded-xl border border-[#EAEBEF]"
+            />
+          )}
+          <div className="flex items-center gap-4">
             {partner.logo_url ? (
               <img
                 src={partner.logo_url}
                 alt={partner.name}
-                className="w-14 h-14 rounded-2xl object-cover border border-[#EAEBEF]"
+                className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-contain bg-[#F8F9FA] p-1.5 border border-[#EAEBEF] shrink-0"
               />
             ) : (
-              <div className="w-14 h-14 rounded-2xl bg-[#111317] text-[#FF5400] flex items-center justify-center shrink-0">
-                <Trophy className="w-7 h-7" />
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-[#111317] text-[#FF5400] flex items-center justify-center shrink-0">
+                <Trophy className="w-8 h-8" />
               </div>
             )}
             <div className="min-w-0">

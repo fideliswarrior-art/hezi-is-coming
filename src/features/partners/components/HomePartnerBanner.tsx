@@ -69,8 +69,23 @@ export function HomePartnerBanner() {
         return (
           <div
             key={circuit.id}
-            className="relative overflow-hidden rounded-2xl border-2 border-[#FF5400] bg-gradient-to-br from-[#111317] via-[#1C2026] to-[#2A1810] text-white p-5 shadow-sm space-y-3.5"
+            className={`relative overflow-hidden rounded-2xl border-2 border-[#FF5400] text-white p-5 shadow-sm ${
+              partner?.banner_url
+                ? "bg-[#111317]"
+                : "bg-gradient-to-br from-[#111317] via-[#1C2026] to-[#2A1810]"
+            }`}
           >
+            {partner?.banner_url && (
+              <>
+                <img
+                  src={partner.banner_url}
+                  alt={partner.name}
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-black/55" />
+              </>
+            )}
+            <div className="relative z-10 space-y-3.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="inline-flex items-center gap-1.5 bg-[#FF5400] text-white text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full">
                 <span className="w-2 h-2 rounded-full bg-white animate-ping" />
@@ -86,16 +101,16 @@ export function HomePartnerBanner() {
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
               {partner?.logo_url ? (
                 <img
                   src={partner.logo_url}
                   alt={partner.name}
-                  className="w-12 h-12 rounded-2xl object-cover border border-white/20 shrink-0"
+                  className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-contain bg-white/10 p-1.5 border border-white/25 shrink-0"
                 />
               ) : (
-                <div className="w-12 h-12 rounded-2xl bg-[#FF5400]/20 border border-[#FF5400]/40 text-[#FF5400] flex items-center justify-center shrink-0">
-                  <Trophy className="w-6 h-6" />
+                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-[#FF5400]/20 border border-[#FF5400]/40 text-[#FF5400] flex items-center justify-center shrink-0">
+                  <Trophy className="w-8 h-8" />
                 </div>
               )}
               <div className="min-w-0">
@@ -121,6 +136,7 @@ export function HomePartnerBanner() {
               ACESSAR CIRCUITO & RANKING
               <ArrowRight className="w-4 h-4" />
             </Link>
+            </div>
           </div>
         );
       })}
