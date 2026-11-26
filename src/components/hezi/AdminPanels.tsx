@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { AdminPartnersTab } from "@/features/partners/components/AdminPartnersTab";
 import {
   Home as HomeIcon,
   Dribbble,
@@ -2496,7 +2497,12 @@ export function Staff({
     ["ev", "Eventos"],
     ["al", "Assinantes"],
     ["us", "Usuários"],
-    ...(adm ? ([["db", "Banco SQL"]] as [StaffSubTabKey, string][]) : []),
+    ...(adm
+      ? ([
+          ["parceiros", "Parceiros"],
+          ["db", "Banco SQL"],
+        ] as [StaffSubTabKey, string][])
+      : []),
   ];
   const [t, setT] = useState<StaffSubTabKey>(initialSubTab && initialSubTab !== "cm" ? initialSubTab : "ev");
 
@@ -2521,6 +2527,8 @@ export function Staff({
         <UsuariosGeral S={S} />
       ) : t === "ev" ? (
         <Eventos S={S} />
+      ) : t === "parceiros" && adm ? (
+        <AdminPartnersTab adminUserId={S.me?.id ?? 1} />
       ) : t === "db" && adm ? (
         <BancoDados S={S} />
       ) : t === "perfil" && S.me ? (

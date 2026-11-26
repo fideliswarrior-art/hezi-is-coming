@@ -4,7 +4,7 @@ import type {
   HeziUser,
 } from "@/lib/hezi/store";
 
-export type AppTab = "home" | "pelada" | "painel" | "login" | "assinante" | "rankings";
+export type AppTab = "home" | "pelada" | "painel" | "login" | "assinante" | "rankings" | "teams" | "partner_panel";
 export type StaffSubTabKey =
   | "cm"
   | "nf"
@@ -13,6 +13,7 @@ export type StaffSubTabKey =
   | "al"
   | "us"
   | "db"
+  | "parceiros"
   | "perfil";
 
 export interface AppContextProps {
@@ -21,7 +22,7 @@ export interface AppContextProps {
   setEvs: (evs: HeziEventItem[]) => void;
   notifications: HeziNotification[];
   me: HeziUser | null;
-  role: "visitante" | "jogador" | "aluno" | "professor" | "admin";
+  role: "visitante" | "jogador" | "aluno" | "professor" | "partner" | "admin";
   upd: (id: number, patch: Partial<HeziUser>) => void;
   addUser: (u: HeziUser) => void;
   deleteUser: (id: number) => void;

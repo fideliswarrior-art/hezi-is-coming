@@ -1,5 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { usePartnerStore } from "@/features/partners/services/partnerService";
+import { CATEGORY_LABELS, TIER_LABELS } from "@/features/partners/constants/hpTable";
+import type { CategoryCode } from "@/features/partners/types";
+import { useTeamStore } from "@/features/teams/services/teamService";
+import {
+  computeOfficialHpRanking,
+  type RankedEntity,
+  type RankingModalityTab,
+  type RankingPeriodFilter,
+} from "@/features/rankings/services/rankingService";
 import {
   Home as HomeIcon,
   Dribbble,
@@ -614,84 +624,112 @@ export function ProfileEditModal({
 
 export function RankingsPage({ S }: { S: AppContextProps }) {
   const u = S.me;
-  const [viewingUser, setViewingUser] = useState<HeziUser | null>(null);
+  const { hpLedger, subEvents, circuits } = usePartnerStore();
+  const { teams } = useTeamStore();
 
-  const rankedUsers = [...S.users].sort((a, b) => {
-    const diff = (b.hp ?? 0) - (a.hp ?? 0);
-    if (diff !== 0) return diff;
-    return (a.nome || "").localeCompare(b.nome || "", "pt-BR");
-  });
-  const myRank = rankedUsers.findIndex((x) => x.id === u?.id) + 1;
+  const [modalityTab, setModalityTab] = useState<RankingModalityTab>("all_around");
+  const [teamFilter, setTeamFilter] = useState<"3x3" | "5x5">("3x3");
+  const [period, setPeriod] = useState<RankingPeriodFilter>("current_season");
+  const [category, setCategory] = useState<CategoryCode | "all">("all");
+  const [selectedEntity, setSelectedEntity] = useState<RankedEntity | null>(null);
 
-  if (viewingUser) {
-    const targetSub = viewingUser.sub || baseSub;
-    const targetOvr = ovr(targetSub);
-    const targetRank = rankedUsers.findIndex((x) => x.id === viewingUser.id) + 1;
-    const displayNick =
-      viewingUser.apelido?.trim() || (viewingUser.nome || "Atleta").split(" ")[0];
+  const userById = useMemo(() => new Map(S.users.map((usr) => [usr.id, usr])), [S.users]);
+  const teamById = useMemo(() => new Map(teams.map((t) => [t.id, t])), [teams]);
+  const subEventById = useMemo(() => new Map(subEvents.map((s) => [s.id, s])), [subEvents]);
+  const circuitById = useMemo(() => new Map(circuits.map((c) => [c.id, c])), [circuits]);
+
+  const ranked = useMemo(() => {
+    return computeOfficialHpRanking({
+      ledger: hpLedger,
+      modalityTab,
+      teamFilter,
+      period,
+      category,
+      resolveName: (userId, teamId, fallback) => {
+        if (teamId) return teamById.get(teamId)?.name || fallback || "Time Oficial";
+        if (userId) {
+          const usr = userById.get(userId);
+          return usr ? usr.apelido?.trim() || usr.nome.split(" ")[0] : fallback || `Atleta #${userId}`;
+        }
+        return fallback || "Competidor";
+      },
+    });
+  }, [hpLedger, modalityTab, teamFilter, period, category, userById, teamById]);
+
+  const myRank = u ? ranked.findIndex((r) => r.user_id === u.id) + 1 : 0;
+
+  if (selectedEntity) {
+    const matchedUser = selectedEntity.user_id ? userById.get(selectedEntity.user_id) || null : null;
+    const targetRank = ranked.findIndex((r) => r.key === selectedEntity.key) + 1;
 
     return (
       <div className="p-3 sm:p-4 space-y-3">
         <div className="flex items-center justify-between">
           <button
             type="button"
-            onClick={() => setViewingUser(null)}
+            onClick={() => setSelectedEntity(null)}
             className="text-xs font-extrabold text-[#FF5400] hover:underline"
           >
-            ← Voltar ao Ranking
+            ← Voltar ao Ranking Oficial
           </button>
           <span className="text-[11px] font-extrabold text-[#6E7381]">
-            Posição #{targetRank}
+            Posição #{targetRank > 0 ? targetRank : "—"}
           </span>
         </div>
 
         <div className={C + " p-4 space-y-3"}>
           <div className="flex items-center gap-3">
-            <Av u={viewingUser} s="w-16 h-16 text-xl" />
+            {matchedUser ? (
+              <Av u={matchedUser} s="w-14 h-14 text-lg" />
+            ) : (
+              <div className="w-14 h-14 rounded-2xl bg-[#FFF4EE] border border-[#FF5400]/30 flex items-center justify-center font-black text-[#FF5400] text-lg">
+                {selectedEntity.display_name.slice(0, 2).toUpperCase()}
+              </div>
+            )}
             <div className="flex-1 min-w-0">
               <p className="font-extrabold text-base text-[#111317] truncate">
-                {displayNick}
+                {selectedEntity.display_name}
               </p>
-              {viewingUser.instagram && (
-                <p className="text-xs font-bold text-[#6E7381] truncate mt-0.5">
-                  📷 {viewingUser.instagram}
-                </p>
-              )}
+              <p className="text-[11px] font-bold text-[#6E7381]">
+                {selectedEntity.titles_count} título(s) · {selectedEntity.real_wins}V-{selectedEntity.real_losses}D ({(selectedEntity.win_rate * 100).toFixed(0)}%) · {selectedEntity.stages_played} etapa(s)
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="n font-black text-xl text-[#FF5400]">{selectedEntity.total_hp}</p>
+              <p className="text-[10px] font-extrabold uppercase text-[#6E7381]">HP Oficial</p>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-[#EAEBEF]">
-            <div className="bg-[#F4F5F7] rounded-xl p-2.5 text-center">
-              <p className="text-[10px] font-extrabold uppercase text-[#6E7381]">
-                Grind Points
-              </p>
-              <p className="n font-extrabold text-lg text-[#10B981]">
-                {viewingUser.gp ?? 0}
-              </p>
-            </div>
-            <div className="bg-[#F4F5F7] rounded-xl p-2.5 text-center">
-              <p className="text-[10px] font-extrabold uppercase text-[#6E7381]">
-                Hezi Points
-              </p>
-              <p className="n font-extrabold text-lg text-[#FF5400]">
-                {viewingUser.hp ?? 0}
-              </p>
-            </div>
-            <div className="bg-[#F4F5F7] rounded-xl p-2.5 text-center">
-              <p className="text-[10px] font-extrabold uppercase text-[#6E7381]">
-                Overall
-              </p>
-              <p className="n font-extrabold text-lg text-[#111317]">
-                {targetOvr}
-              </p>
-            </div>
-            <div className="bg-[#F4F5F7] rounded-xl p-2.5 text-center">
-              <p className="text-[10px] font-extrabold uppercase text-[#6E7381]">
-                Ofensiva
-              </p>
-              <p className="n font-extrabold text-lg text-[#111317]">
-                🔥 {viewingUser.st === "ex_aluno" ? 0 : (viewingUser.of ?? 0)}
-              </p>
+          <div className="pt-3 border-t border-[#EAEBEF] space-y-2">
+            <h3 className="text-xs font-black uppercase text-[#111317]">
+              Extrato Oficial de Hezi Points (hp_ledger)
+            </h3>
+            <div className="space-y-2">
+              {selectedEntity.entries.map((entry) => {
+                const stage = subEventById.get(entry.sub_event_id);
+                const circuit = circuitById.get(entry.circuit_id);
+                return (
+                  <div
+                    key={entry.id}
+                    className="p-3 rounded-xl bg-[#F8F9FA] border border-[#EAEBEF] flex items-center justify-between gap-2 text-xs"
+                  >
+                    <div>
+                      <p className="font-extrabold text-[#111317]">
+                        {stage?.title || entry.sub_event_title || "Etapa"} · {entry.final_placement}º lugar
+                      </p>
+                      <p className="text-[11px] text-[#6E7381]">
+                        {circuit?.title || entry.circuit_title || "Circuito"} · {entry.modality} · {TIER_LABELS[entry.effective_tier]}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="n font-black text-sm text-[#FF5400]">+{entry.total_hp} HP</p>
+                      <p className="text-[10px] text-[#6E7381]">
+                        Base {entry.placement_hp} + {entry.win_bonus_hp} ({entry.real_wins_count}V)
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -707,83 +745,147 @@ export function RankingsPage({ S }: { S: AppContextProps }) {
             🏆 Ranking Hezi Points (HP)
           </h2>
           <p className="text-[11px] text-[#6E7381]">
-            {rankedUsers.length} usuários · Competitivo (Torneios)
+            Extrato Oficial (hp_ledger) · Competitivo (Torneios)
             {myRank > 0 ? ` · Sua posição: #${myRank}` : ""}
           </p>
         </div>
-        {S.role === "admin" && (
-          <button
-            type="button"
-            onClick={() => {
-              if (
-                !window.confirm(
-                  "Zerar os Hezi Points (HP) de TODOS os usuários para iniciar a temporada competitiva?"
-                )
-              )
-                return;
-              S.users.forEach((usr) => {
-                if ((usr.hp ?? 0) !== 0 || (usr.hpHistory && usr.hpHistory.length > 0)) {
-                  S.upd(usr.id, { hp: 0, hpHistory: [] });
-                }
-              });
-              S.say("Hezi Points (HP) zerados para todos os usuários!");
-            }}
-            className="text-[11px] font-extrabold text-[#EF4444] bg-[#FEF2F2] hover:bg-[#FEE2E2] px-2.5 py-1 rounded-lg shrink-0 transition"
-          >
-            Zerar HP
-          </button>
-        )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-        {rankedUsers.map((item, idx) => {
-          const pos = idx + 1;
-          const isMe = item.id === u?.id;
-          const medal =
-            pos === 1 ? "🥇" : pos === 2 ? "🥈" : pos === 3 ? "🥉" : `#${pos}`;
-          const nick = item.apelido?.trim() || (item.nome || "Atleta").split(" ")[0];
-          return (
-            <button
-              type="button"
-              key={item.id}
-              onClick={() => setViewingUser(item)}
-              className={`w-full text-left flex items-center gap-2.5 p-2.5 rounded-2xl border transition hover:border-[#FF5400] ${
-                isMe
-                  ? "bg-[#FFF4EE] border-[#FF5400] shadow-xs"
-                  : "bg-white border-[#EAEBEF]"
-              }`}
-            >
-              <div className="w-8 text-center font-extrabold text-sm shrink-0 text-[#111317]">
-                {medal}
-              </div>
-              <Av u={item} s="w-9 h-9 text-xs" />
-              <div className="flex-1 min-w-0">
-                <p className="font-extrabold text-xs text-[#111317] truncate">
-                  {nick}
-                  {isMe && (
-                    <span className="ml-1.5 text-[10px] text-[#FF5400]">
-                      (Você)
-                    </span>
-                  )}
-                </p>
-                {item.instagram && (
-                  <p className="text-[11px] text-[#6E7381] truncate">
-                    📷 {item.instagram}
-                  </p>
-                )}
-              </div>
-              <div className="text-right shrink-0">
-                <span className="n font-extrabold text-sm text-[#FF5400]">
-                  {item.hp ?? 0}
-                </span>
-                <span className="block text-[10px] font-bold text-[#6E7381]">
-                  HP
-                </span>
-              </div>
-            </button>
-          );
-        })}
+      {/* Modality Tabs */}
+      <div className="flex flex-wrap gap-1.5">
+        {(
+          [
+            { id: "all_around", label: "Geral (All-Around)" },
+            { id: "1x1", label: "1x1" },
+            { id: "3x3", label: "3x3" },
+            { id: "5x5", label: "5x5" },
+            { id: "teams", label: "Times" },
+          ] as const
+        ).map((t) => (
+          <button
+            type="button"
+            key={t.id}
+            onClick={() => setModalityTab(t.id)}
+            className={`px-3 py-1.5 rounded-full text-xs font-extrabold border transition ${
+              modalityTab === t.id
+                ? "bg-[#111317] text-white border-[#111317]"
+                : "bg-white text-[#6E7381] border-[#EAEBEF] hover:text-[#111317]"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
+
+      {/* Filters Row */}
+      <div className="flex flex-wrap items-center gap-2">
+        {modalityTab === "teams" && (
+          <div className="flex rounded-xl border border-[#EAEBEF] bg-white p-0.5">
+            {(["3x3", "5x5"] as const).map((tf) => (
+              <button
+                type="button"
+                key={tf}
+                onClick={() => setTeamFilter(tf)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-black ${
+                  teamFilter === tf ? "bg-[#FF5400] text-white" : "text-[#6E7381]"
+                }`}
+              >
+                Times {tf}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <select
+          value={period}
+          onChange={(e) => setPeriod(e.target.value as RankingPeriodFilter)}
+          className="px-2.5 py-1.5 rounded-xl border border-[#EAEBEF] bg-white text-[11px] font-bold text-[#111317]"
+        >
+          <option value="current_season">Temporada Atual ({new Date().getFullYear()})</option>
+          <option value="previous_years">Anos Anteriores</option>
+          <option value="all_time">Histórico Geral (All-Time)</option>
+        </select>
+
+        <select
+          value={category}
+          onChange={(e) => setCategory(e.target.value as CategoryCode | "all")}
+          className="px-2.5 py-1.5 rounded-xl border border-[#EAEBEF] bg-white text-[11px] font-bold text-[#111317]"
+        >
+          <option value="all">Todas Categorias</option>
+          {Object.entries(CATEGORY_LABELS).map(([k, label]) => (
+            <option key={k} value={k}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {ranked.length === 0 ? (
+        <div className={C + " p-6 text-center space-y-1"}>
+          <p className="text-sm font-extrabold text-[#111317]">
+            Nenhum lançamento oficial nesta categoria/período
+          </p>
+          <p className="text-xs text-[#6E7381]">
+            Assim que uma etapa for homologada pela HEZI, os Hezi Points aparecerão aqui.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+          {ranked.map((item, idx) => {
+            const pos = idx + 1;
+            const isMe = u && item.user_id === u.id;
+            const medal =
+              pos === 1 ? "🥇" : pos === 2 ? "🥈" : pos === 3 ? "🥉" : `#${pos}`;
+            const matchedUser = item.user_id ? userById.get(item.user_id) || null : null;
+
+            return (
+              <button
+                type="button"
+                key={item.key}
+                onClick={() => setSelectedEntity(item)}
+                className={`w-full text-left flex items-center gap-2.5 p-2.5 rounded-2xl border transition hover:border-[#FF5400] ${
+                  isMe
+                    ? "bg-[#FFF4EE] border-[#FF5400] shadow-xs"
+                    : "bg-white border-[#EAEBEF]"
+                }`}
+              >
+                <div className="w-8 text-center font-extrabold text-sm shrink-0 text-[#111317]">
+                  {medal}
+                </div>
+                {matchedUser ? (
+                  <Av u={matchedUser} s="w-9 h-9 text-xs" />
+                ) : (
+                  <div className="w-9 h-9 rounded-full bg-[#FFF4EE] border border-[#FF5400]/30 flex items-center justify-center font-black text-xs text-[#FF5400] shrink-0">
+                    {item.display_name.slice(0, 2).toUpperCase()}
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="font-extrabold text-xs text-[#111317] truncate">
+                    {item.display_name}
+                    {isMe && (
+                      <span className="ml-1.5 text-[10px] text-[#FF5400]">
+                        (Você)
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-[11px] text-[#6E7381] truncate">
+                    {item.titles_count}🏆 · {item.real_wins}V-{item.real_losses}D · Saldo{" "}
+                    {item.avg_point_diff >= 0 ? `+${item.avg_point_diff.toFixed(1)}` : item.avg_point_diff.toFixed(1)}
+                  </p>
+                </div>
+                <div className="text-right shrink-0">
+                  <span className="n font-extrabold text-sm text-[#FF5400]">
+                    {item.total_hp}
+                  </span>
+                  <span className="block text-[10px] font-bold text-[#6E7381]">
+                    HP
+                  </span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

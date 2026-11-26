@@ -105,6 +105,8 @@ import { Cadastro, EmailVerificationModal, LoginPage, generateSixDigitCode, sani
 import { Home, Pelada } from "@/components/hezi/HomeAndEvents";
 import { Painel, RankingsPage, NotificacoesPlayerModal } from "@/components/hezi/PlayerProfile";
 import { Staff } from "@/components/hezi/AdminPanels";
+import { PartnerDashboardPage } from "@/features/partners/pages/PartnerDashboardPage";
+import { TeamsPage } from "@/features/teams/pages/TeamsPage";
 
 
 export async function compressImageFileToDataUrl(
@@ -1107,6 +1109,33 @@ function HeziSuperApp() {
                               <span className="text-sm">📊</span>
                               Rankings
                             </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAccountMenuOpen(false);
+                                setSelectedEventId(null);
+                                setTab("teams");
+                              }}
+                              className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-extrabold bg-white/5 hover:bg-[#FF5400] transition text-left"
+                            >
+                              <span className="text-sm">🛡️</span>
+                              Times Oficiais
+                            </button>
+                            {(role === "partner" || role === "admin") && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAccountMenuOpen(false);
+                                  setSelectedEventId(null);
+                                  setTab("partner_panel");
+                                }}
+                                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-extrabold bg-[#FF5400] text-white hover:bg-[#e04b00] transition text-left"
+                              >
+                                <span className="text-sm">🏟️</span>
+                                PAINEL DO PARCEIRO
+                              </button>
+                            )}
+                                
 
                             {staff && (
                               <div className="space-y-1">
@@ -1132,7 +1161,7 @@ function HeziSuperApp() {
                                         ["al", "⚡ Assinantes"],
                                         ["us", "🏀 Usuários"],
                                         ["ev", "📅 Eventos"],
-                                        ...(role === "admin" ? [["db", "🗄️ Banco de Dados"]] : []),
+                                        ...(role === "admin" ? [["parceiros", "🤝 Parceiros"], ["db", "🗄️ Banco de Dados"]] : []),
                                       ] as [StaffSubTabKey, string][]
                                     ).map(([key, label]) => (
                                       <button
@@ -1266,6 +1295,14 @@ function HeziSuperApp() {
             <AssinantePage S={S} />
           ) : tab === "rankings" ? (
             <RankingsPage S={S} />
+          ) : tab === "teams" ? (
+            <TeamsPage currentUserId={me?.id ?? null} onBack={() => setTab("home")} />
+          ) : tab === "partner_panel" ? (
+            <PartnerDashboardPage
+              currentUserId={me?.id ?? null}
+              isAdmin={role === "admin"}
+              onBack={() => setTab("home")}
+            />
           ) : staff ? (
             <Staff
               S={S}

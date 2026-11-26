@@ -277,7 +277,7 @@ export const mkR = (
 
 export interface HeziUser {
   id: number;
-  tipo: "aluno" | "jogador" | "professor";
+  tipo: "aluno" | "jogador" | "professor" | "partner";
   nome: string;
   username?: string;
   apelido?: string;

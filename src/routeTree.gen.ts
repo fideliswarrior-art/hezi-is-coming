@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PeladaRouteImport } from './routes/pelada'
+import { Route as CircuitoSlugRouteImport } from './routes/circuito.$slug'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -22,31 +23,40 @@ const PeladaRoute = PeladaRouteImport.update({
   path: '/pelada',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CircuitoSlugRoute = CircuitoSlugRouteImport.update({
+  id: '/circuito/$slug',
+  path: '/circuito/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/pelada': typeof PeladaRoute
+  '/circuito/$slug': typeof CircuitoSlugRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/pelada': typeof PeladaRoute
+  '/circuito/$slug': typeof CircuitoSlugRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/pelada': typeof PeladaRoute
+  '/circuito/$slug': typeof CircuitoSlugRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/pelada'
+  fullPaths: '/' | '/pelada' | '/circuito/$slug'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/pelada'
-  id: '__root__' | '/' | '/pelada'
+  to: '/' | '/pelada' | '/circuito/$slug'
+  id: '__root__' | '/' | '/pelada' | '/circuito/$slug'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   PeladaRoute: typeof PeladaRoute
+  CircuitoSlugRoute: typeof CircuitoSlugRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -65,12 +75,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PeladaRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/circuito/$slug': {
+      id: '/circuito/$slug'
+      path: '/circuito/$slug'
+      fullPath: '/circuito/$slug'
+      preLoaderRoute: typeof CircuitoSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   PeladaRoute: PeladaRoute,
+  CircuitoSlugRoute: CircuitoSlugRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

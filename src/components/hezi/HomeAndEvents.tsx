@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { HomePartnerBanner } from "@/features/partners/components/HomePartnerBanner";
 import {
   Home as HomeIcon,
   Dribbble,
@@ -119,6 +120,9 @@ export function Home({ S }: { S: AppContextProps }) {
           </Btn>
         </div>
       </div>
+
+      {/* Circuitos Licenciados Fixados na Home */}
+      <HomePartnerBanner />
 
       {/* Destaque "Está rolando" (exibido a partir de 30 minutos antes do horário do evento) */}
       {rollingEvents.length > 0 && (
