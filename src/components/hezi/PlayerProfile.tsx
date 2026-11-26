@@ -834,8 +834,15 @@ export function RankingsPage({ S }: { S: AppContextProps }) {
           {ranked.map((item, idx) => {
             const pos = idx + 1;
             const isMe = u && item.user_id === u.id;
-            const medal =
-              pos === 1 ? "" : pos === 2 ? "" : pos === 3 ? "" : `#${pos}`;
+            const posLabel = `#${pos}`;
+            const posColor =
+              pos === 1
+                ? "text-[#FF5400]"
+                : pos === 2
+                  ? "text-[#4B5563]"
+                  : pos === 3
+                    ? "text-[#B45309]"
+                    : "text-[#111317]";
             const matchedUser = item.user_id ? userById.get(item.user_id) || null : null;
 
             return (
@@ -849,8 +856,8 @@ export function RankingsPage({ S }: { S: AppContextProps }) {
                     : "bg-white border-[#EAEBEF]"
                 }`}
               >
-                <div className="w-8 text-center font-extrabold text-sm shrink-0 text-[#111317]">
-                  {medal}
+                <div className={`w-8 text-center font-extrabold text-sm shrink-0 ${posColor}`}>
+                  {posLabel}
                 </div>
                 {matchedUser ? (
                   <Av u={matchedUser} s="w-9 h-9 text-xs" />
@@ -869,7 +876,7 @@ export function RankingsPage({ S }: { S: AppContextProps }) {
                     )}
                   </p>
                   <p className="text-[11px] text-[#6E7381] truncate">
-                    {item.titles_count} · {item.real_wins}V-{item.real_losses}D · Saldo{" "}
+                    {item.titles_count} {item.titles_count === 1 ? "título" : "títulos"} · {item.real_wins}V-{item.real_losses}D · Saldo{" "}
                     {item.avg_point_diff >= 0 ? `+${item.avg_point_diff.toFixed(1)}` : item.avg_point_diff.toFixed(1)}
                   </p>
                 </div>
