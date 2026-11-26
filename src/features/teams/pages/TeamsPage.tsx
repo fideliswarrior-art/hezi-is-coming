@@ -13,9 +13,9 @@ interface TeamsPageProps {
 export function TeamsPage({ currentUserId, onBack }: TeamsPageProps) {
   const users = useHeziPlatform((s) => s.users);
   const {
-    teams,
-    rosterMembers,
-    teamRequests,
+    teams = [],
+    rosterMembers = [],
+    teamRequests = [],
     submitTeamRequest,
     addMemberToTeam,
     removeMemberFromTeam,

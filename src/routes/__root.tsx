@@ -55,6 +55,11 @@ function ErrorComponent({ error, reset }: { error: unknown; reset: () => void })
         <p className="mt-2 text-xs text-[#6E7381]">
           Algo deu errado. Tente atualizar ou voltar ao início.
         </p>
+        {error instanceof Error && error.message && (
+          <p className="mt-2 rounded-lg bg-[#F4F5F7] px-3 py-1.5 text-[11px] font-mono text-[#6E7381] break-words">
+            {error.message}
+          </p>
+        )}
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
             onClick={() => {

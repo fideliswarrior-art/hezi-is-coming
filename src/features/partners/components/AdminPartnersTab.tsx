@@ -23,7 +23,7 @@ interface AdminPartnersTabProps {
 export function AdminPartnersTab({ adminUserId }: AdminPartnersTabProps) {
   const users = useHeziPlatform((s) => s.users);
   const updUser = useHeziPlatform((s) => s.updUser);
-  const { teamRequests, approveTeamRequest, rejectTeamRequest } = useTeamStore();
+  const { teamRequests = [], approveTeamRequest, rejectTeamRequest } = useTeamStore();
 
   const {
     partners,
