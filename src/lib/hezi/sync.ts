@@ -2,6 +2,8 @@ import { useEffect, useRef } from "react";
 import { create } from "zustand";
 import { usePelada, type PeladaState } from "@/lib/pelada/store";
 import { useHeziPlatform, type HeziPlatformState } from "@/lib/hezi/store";
+import { usePartnerStore } from "@/features/partners/services/partnerService";
+import { useTeamStore } from "@/features/teams/services/teamService";
 
 export const useSyncStatus = create<{
   isOnline: boolean;
@@ -41,12 +43,29 @@ function extractPeladaData(s: PeladaState) {
 }
 
 function extractHeziData(s: HeziPlatformState) {
+  const p = usePartnerStore.getState();
+  const t = useTeamStore.getState();
   return {
     lastModified: s.lastModified,
     users: s.users,
     evs: s.evs,
     notifications: s.notifications,
     eventHistory: s.eventHistory,
+    partnersModule: {
+      partners: p.partners,
+      circuits: p.circuits,
+      subEvents: p.subEvents,
+      registrations: p.registrations,
+      matches: p.matches,
+      playerStats: p.playerStats,
+      hpLedger: p.hpLedger,
+      badges: p.badges,
+    },
+    teamsModule: {
+      teams: t.teams,
+      rosterMembers: t.rosterMembers,
+      teamRequests: t.teamRequests,
+    },
   };
 }
 
@@ -137,6 +156,13 @@ export function useRealtimeSync() {
           applyingRemoteRef.current = true;
           lastPushedHeziRef.current = data.heziUpdatedAt;
           useHeziPlatform.getState().hydrateFromRemote(data.hezi);
+          const remoteAny = data.hezi as Record<string, unknown>;
+          if (remoteAny.partnersModule && typeof remoteAny.partnersModule === "object") {
+            usePartnerStore.setState(remoteAny.partnersModule as Partial<ReturnType<typeof usePartnerStore.getState>>);
+          }
+          if (remoteAny.teamsModule && typeof remoteAny.teamsModule === "object") {
+            useTeamStore.setState(remoteAny.teamsModule as Partial<ReturnType<typeof useTeamStore.getState>>);
+          }
           applyingRemoteRef.current = false;
         }
       } catch {
@@ -156,11 +182,27 @@ export function useRealtimeSync() {
       }
     });
 
+    const unsubPartners = usePartnerStore.subscribe(() => {
+      if (!applyingRemoteRef.current) {
+        useHeziPlatform.setState({ lastModified: Date.now() });
+      }
+    });
+
+    const unsubTeams = useTeamStore.subscribe(() => {
+      if (!applyingRemoteRef.current) {
+        useHeziPlatform.setState({ lastModified: Date.now() });
+      }
+    });
+
     function onStorage(e: StorageEvent) {
       if (e.key === "pelada-store-v1") {
         void usePelada.persist.rehydrate();
       } else if (e.key === "hezi-platform-store-v6") {
         void useHeziPlatform.persist.rehydrate();
+      } else if (e.key === "hezi-partners-v1") {
+        void usePartnerStore.persist.rehydrate();
+      } else if (e.key === "hezi-teams-v1") {
+        void useTeamStore.persist.rehydrate();
       }
     }
     window.addEventListener("storage", onStorage);
@@ -180,6 +222,8 @@ export function useRealtimeSync() {
     return () => {
       unsubPelada();
       unsubHezi();
+      unsubPartners();
+      unsubTeams();
       window.removeEventListener("storage", onStorage);
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
