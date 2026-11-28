@@ -15,8 +15,12 @@ import {
   UserCheck,
   Users,
   AlertCircle,
+  Copy,
+  Link2,
 } from "lucide-react";
-import { CATS, ovr, useHeziPlatform, type CatKey } from "../../../lib/hezi/store";
+import { useHeziPlatform } from "../../../lib/hezi/store";
+import { Avaliar } from "../../../components/hezi/AdminPanels";
+import type { AppContextProps } from "../../../components/hezi/types";
 import { formatCpf, isValidCpf, normalizeCpf } from "../../../lib/hezi/cpf";
 import { ImageUploadField } from "../../../components/hezi/ImageUploadField";
 import { useTeamStore } from "../../teams/services/teamService";
@@ -27,6 +31,7 @@ import type { CategoryCode, PartnerModality } from "../types";
 interface PartnerDashboardPageProps {
   currentUserId: number | null;
   isAdmin?: boolean;
+  appContext?: AppContextProps;
   onBack?: () => void;
 }
 
@@ -35,10 +40,10 @@ type PartnerTab = "identidade" | "circuitos" | "inscricoes" | "sumula" | "turmas
 export function PartnerDashboardPage({
   currentUserId,
   isAdmin = false,
+  appContext,
   onBack,
 }: PartnerDashboardPageProps) {
   const users = useHeziPlatform((s) => s.users);
-  const updUser = useHeziPlatform((s) => s.updUser);
   const { teams, rosterMembers } = useTeamStore();
   const {
     partners,
@@ -49,6 +54,7 @@ export function PartnerDashboardPage({
     playerStats,
     trainingSlots = [],
     trainingCheckins = [],
+    enrollmentRequests = [],
     updatePartner,
     createCircuit,
     updateCircuit,
@@ -62,7 +68,8 @@ export function PartnerDashboardPage({
     addTrainingSlot,
     toggleTrainingSlot,
     confirmTrainingCheckin,
-    recordOvrEvaluation,
+    approveClassEnrollment,
+    rejectClassEnrollment,
   } = usePartnerStore();
 
   const [tab, setTab] = useState<PartnerTab>("circuitos");
@@ -104,19 +111,6 @@ export function PartnerDashboardPage({
   const [slotWeekday, setSlotWeekday] = useState(2);
   const [slotStart, setSlotStart] = useState("16:30");
   const [slotEnd, setSlotEnd] = useState("18:00");
-
-  // Avaliar OVR
-  const [evalStudentId, setEvalStudentId] = useState<string>("");
-  const [evalScores, setEvalScores] = useState<Record<CatKey, number>>({
-    ban: 68,
-    arr: 68,
-    cb: 68,
-    pla: 68,
-    def: 68,
-    fis: 68,
-    qi: 68,
-  });
-  const [evalNotes, setEvalNotes] = useState("");
 
   if (activePartner && identityLoadedFor !== activePartner.id) {
     setEditName(activePartner.name);
@@ -547,38 +541,94 @@ export function PartnerDashboardPage({
           </div>
         )}
 
-        {/* Navigation Pills */}
-        <div className="flex flex-wrap gap-1.5 bg-white border border-[#EAEBEF] rounded-2xl p-1.5">
-          {[
-            { id: "circuitos" as const, label: "Etapas", icon: Trophy },
-            { id: "inscricoes" as const, label: "Check-in", icon: UserCheck },
-            { id: "sumula" as const, label: "Súmula", icon: ClipboardCheck },
-            ...(activePartner.partner_tier === "qualified"
-              ? [
-                  { id: "turmas" as const, label: "Turmas", icon: Users },
-                  { id: "avaliar" as const, label: "Avaliar OVR", icon: Award },
-                ]
-              : []),
-            { id: "identidade" as const, label: "Perfil", icon: Edit3 },
-          ].map((item) => {
-            const Icon = item.icon;
-            const active = tab === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setTab(item.id)}
-                className={`flex-1 min-w-[80px] flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 py-2.5 px-2 rounded-xl text-[11px] font-black uppercase transition ${
-                  active
-                    ? "bg-[#111317] text-white"
-                    : "text-[#6B7280] hover:bg-[#F8F9FA] hover:text-[#111317]"
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
-        </div>
+        {/* Navigation Pills (Organizado por Contexto: Minha Escola vs Torneios vs Perfil) */}
+        {activePartner.partner_tier === "qualified" ? (
+          <div className="bg-white border border-[#EAEBEF] rounded-2xl p-2.5 space-y-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="bg-[#F8F9FA] border border-[#EAEBEF] rounded-xl p-1.5 space-y-1">
+                <p className="text-[10px] font-black uppercase text-[#FF5500] px-2">
+                  Minha Escola &amp; Treinos
+                </p>
+                <div className="grid grid-cols-2 gap-1">
+                  {[
+                    { id: "turmas" as const, label: "Turmas & Convites", icon: Users },
+                    { id: "avaliar" as const, label: "Avaliar Alunos", icon: Award },
+                  ].map((item) => {
+                    const Icon = item.icon;
+                    const active = tab === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => setTab(item.id)}
+                        className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-[11px] font-black uppercase transition ${
+                          active ? "bg-[#111317] text-white" : "text-[#6B7280] hover:bg-white"
+                        }`}
+                      >
+                        <Icon className="w-3.5 h-3.5" />
+                        <span>{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="bg-[#F8F9FA] border border-[#EAEBEF] rounded-xl p-1.5 space-y-1">
+                <p className="text-[10px] font-black uppercase text-[#6B7280] px-2">
+                  Torneios &amp; Perfil
+                </p>
+                <div className="grid grid-cols-4 gap-1">
+                  {[
+                    { id: "circuitos" as const, label: "Etapas", icon: Trophy },
+                    { id: "inscricoes" as const, label: "Check-in", icon: UserCheck },
+                    { id: "sumula" as const, label: "Súmula", icon: ClipboardCheck },
+                    { id: "identidade" as const, label: "Perfil", icon: Edit3 },
+                  ].map((item) => {
+                    const Icon = item.icon;
+                    const active = tab === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => setTab(item.id)}
+                        className={`flex flex-col items-center justify-center gap-0.5 py-1.5 px-1 rounded-lg text-[10px] font-black uppercase transition ${
+                          active ? "bg-[#111317] text-white" : "text-[#6B7280] hover:bg-white"
+                        }`}
+                      >
+                        <Icon className="w-3.5 h-3.5" />
+                        <span>{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-1.5 bg-white border border-[#EAEBEF] rounded-2xl p-1.5">
+            {[
+              { id: "circuitos" as const, label: "Etapas", icon: Trophy },
+              { id: "inscricoes" as const, label: "Check-in", icon: UserCheck },
+              { id: "sumula" as const, label: "Súmula", icon: ClipboardCheck },
+              { id: "identidade" as const, label: "Perfil", icon: Edit3 },
+            ].map((item) => {
+              const Icon = item.icon;
+              const active = tab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setTab(item.id)}
+                  className={`flex-1 min-w-[80px] flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 py-2.5 px-2 rounded-xl text-[11px] font-black uppercase transition ${
+                    active
+                      ? "bg-[#111317] text-white"
+                      : "text-[#6B7280] hover:bg-[#F8F9FA] hover:text-[#111317]"
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* Stage Selector (for inscricoes and sumula) */}
         {(tab === "inscricoes" || tab === "sumula") && partnerStages.length > 0 && (
@@ -800,31 +850,108 @@ export function PartnerDashboardPage({
                     .map((sl) => (
                       <div
                         key={sl.id}
-                        className="flex items-center justify-between px-3 py-2 rounded-xl bg-[#F8F9FA] border border-[#EAEBEF] text-xs"
+                        className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-xl bg-[#F8F9FA] border border-[#EAEBEF] text-xs"
                       >
                         <span className="font-bold">
                           {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"][sl.weekday]} ·{" "}
                           {sl.start_time}–{sl.end_time} · {sl.title}
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => toggleTrainingSlot(sl.id)}
-                          className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase ${
-                            sl.is_active
-                              ? "bg-emerald-100 text-emerald-800"
-                              : "bg-gray-200 text-gray-600"
-                          }`}
-                        >
-                          {sl.is_active ? "Ativa" : "Pausada"}
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const link = `${window.location.origin}/?turma=${activePartner.id}:${sl.id}`;
+                              void navigator.clipboard?.writeText(link);
+                              setFeedback({
+                                ok: true,
+                                msg: `Link da turma "${sl.title}" copiado! Envie para seus alunos solicitarem entrada.`,
+                              });
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#111317] text-white text-[10px] font-black uppercase"
+                          >
+                            <Link2 className="w-3 h-3" />
+                            Copiar Link
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => toggleTrainingSlot(sl.id)}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase ${
+                              sl.is_active
+                                ? "bg-emerald-100 text-emerald-800"
+                                : "bg-gray-200 text-gray-600"
+                            }`}
+                          >
+                            {sl.is_active ? "Ativa" : "Pausada"}
+                          </button>
+                        </div>
                       </div>
                     ))}
                 </div>
               )}
             </form>
 
+            {/* Solicitações de Entrada via Link da Turma */}
+            {enrollmentRequests.filter(
+              (r) => r.partner_id === activePartner.id && r.status === "pendente",
+            ).length > 0 && (
+              <div className="bg-white border-2 border-[#FF5500]/40 rounded-2xl p-4 space-y-3">
+                <h3 className="text-sm font-black uppercase text-[#FF5500]">
+                  Solicitações de Entrada nas Turmas
+                </h3>
+                <div className="space-y-2">
+                  {enrollmentRequests
+                    .filter((r) => r.partner_id === activePartner.id && r.status === "pendente")
+                    .map((req) => (
+                      <div
+                        key={req.id}
+                        className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-[#F8F9FA] border border-[#EAEBEF] text-xs"
+                      >
+                        <div>
+                          <p className="font-black text-[#111317]">{req.student_name}</p>
+                          <p className="text-[11px] text-[#6B7280]">
+                            Turma: <strong>{req.slot_title}</strong> {req.student_wpp ? `· ${req.student_wpp}` : ""}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const res = approveClassEnrollment(req.id);
+                              setFeedback({
+                                ok: res.ok,
+                                msg: res.ok
+                                  ? `${req.student_name} aceito na turma "${req.slot_title}"!`
+                                  : res.error || "Erro ao aceitar aluno.",
+                              });
+                            }}
+                            className="px-3 py-1.5 rounded-xl bg-emerald-600 text-white text-[11px] font-black uppercase"
+                          >
+                            Aceitar na Turma
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              rejectClassEnrollment(req.id);
+                              setFeedback({ ok: true, msg: `Solicitação de ${req.student_name} recusada.` });
+                            }}
+                            className="px-3 py-1.5 rounded-xl bg-red-600 text-white text-[11px] font-black uppercase"
+                          >
+                            Recusar
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+
             <div className="bg-white border border-[#EAEBEF] rounded-2xl p-4 space-y-3">
-              <h3 className="text-sm font-black uppercase">Presença de Hoje (Check-in Diário)</h3>
+              <div>
+                <h3 className="text-sm font-black uppercase">Presença de Hoje (Check-in Diário)</h3>
+                <p className="text-[11px] text-[#6B7280] mt-0.5">
+                  Regra anti-farm: máx. 1 crédito de GP Global por dia e 3/semana no Hezi Pass; a Ofensiva de Treino sobe normalmente a cada dia treinado.
+                </p>
+              </div>
               {users.filter((u) => u.base_partner_id === activePartner.id).length === 0 ? (
                 <p className="text-xs text-[#6B7280]">
                   Nenhum aluno vinculado a este projeto ainda. Peça ao Administrador para vincular em Moderador &gt; Assinantes.
@@ -876,7 +1003,9 @@ export function PartnerDashboardPage({
                                 });
                                 setFeedback({
                                   ok: true,
-                                  msg: `Presença de ${student.apelido || student.nome} confirmada (+${res.gpAwarded} GP)!`,
+                                  msg: res.cappedReason
+                                    ? `Presença de ${student.apelido || student.nome} confirmada! ${res.cappedReason}`
+                                    : `Presença de ${student.apelido || student.nome} confirmada (+${res.gpAwarded} GP e +1 Ofensiva)!`,
                                 });
                               }}
                               className="px-3.5 py-2 rounded-xl bg-[#FF5500] text-white text-[11px] font-black uppercase"
@@ -895,110 +1024,11 @@ export function PartnerDashboardPage({
           </div>
         )}
 
-        {/* TAB 6: AVALIAR OVR (PARCEIRO QUALIFICADO) */}
-        {tab === "avaliar" && activePartner.partner_tier === "qualified" && (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              const sid = Number(evalStudentId);
-              const student = users.find((u) => u.id === sid);
-              if (!student) {
-                setFeedback({ ok: false, msg: "Selecione um aluno regular deste projeto." });
-                return;
-              }
-              const prevOvr = ovr(student.sub || { ban: 65, arr: 65, cb: 65, pla: 65, def: 65, fis: 65, qi: 65 });
-              const calcOvr = ovr(evalScores);
-              const finalOvr = Math.min(99, Math.min(prevOvr + 5, calcOvr));
-              recordOvrEvaluation({
-                student_id: student.id,
-                partner_id: activePartner.id,
-                evaluator_id: currentUserId || activePartner.user_id,
-                previous_ovr: prevOvr,
-                calculated_ovr: calcOvr,
-                final_ovr: finalOvr,
-                coach_notes: evalNotes.trim(),
-              });
-              updUser(student.id, {
-                sub: evalScores,
-                ev: { d: new Date().toLocaleDateString("pt-BR"), c: "Avaliação Parceiro" },
-              });
-              setFeedback({
-                ok: true,
-                msg: `Avaliação salva! Anterior: ${prevOvr} OVR → Calculado: ${calcOvr} OVR → Aplicado (trava +5): ${finalOvr} OVR.`,
-              });
-              setEvalNotes("");
-            }}
-            className="bg-white border border-[#EAEBEF] rounded-2xl p-4 space-y-4"
-          >
-            <div>
-              <h2 className="text-sm font-black uppercase">Avaliar OVR (Trava Máxima +5 OVR)</h2>
-              <p className="text-[11px] text-[#6B7280]">
-                Exibe apenas alunos vinculados a {activePartner.name} com matrícula Regular.
-              </p>
-            </div>
-
-            <select
-              value={evalStudentId}
-              onChange={(e) => {
-                const sid = Number(e.target.value);
-                setEvalStudentId(e.target.value);
-                const st = users.find((u) => u.id === sid);
-                if (st?.sub) setEvalScores(st.sub);
-              }}
-              className="w-full px-3 py-2.5 rounded-xl border border-[#EAEBEF] bg-[#F8F9FA] text-xs font-bold"
-            >
-              <option value="">Selecionar aluno regular...</option>
-              {users
-                .filter(
-                  (u) =>
-                    u.base_partner_id === activePartner.id &&
-                    u.enrollment_status === "regular",
-                )
-                .map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.apelido || u.nome} (OVR atual: {ovr(u.sub || { ban: 65, arr: 65, cb: 65, pla: 65, def: 65, fis: 65, qi: 65 })})
-                  </option>
-                ))}
-            </select>
-
-            <div className="space-y-2.5">
-              {CATS.map((c) => (
-                <div key={c.k} className="flex items-center justify-between gap-3 bg-[#F8F9FA] px-3 py-2 rounded-xl border border-[#EAEBEF]">
-                  <span className="text-xs font-bold text-[#111317]">{c.t}</span>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="range"
-                      min={50}
-                      max={99}
-                      value={evalScores[c.k]}
-                      onChange={(e) =>
-                        setEvalScores((prev) => ({ ...prev, [c.k]: Number(e.target.value) }))
-                      }
-                      className="w-24 sm:w-32 accent-[#FF5500]"
-                    />
-                    <span className="w-8 text-right font-black text-sm text-[#FF5500]">
-                      {evalScores[c.k]}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <input
-              type="text"
-              value={evalNotes}
-              onChange={(e) => setEvalNotes(e.target.value)}
-              placeholder="Observações do professor..."
-              className="w-full px-3.5 py-2.5 rounded-xl border border-[#EAEBEF] bg-[#F8F9FA] text-xs"
-            />
-
-            <button
-              type="submit"
-              className="w-full py-3 rounded-xl bg-[#FF5500] text-white text-xs font-black uppercase"
-            >
-              Salvar Avaliação Oficial
-            </button>
-          </form>
+        {/* TAB 6: AVALIAR ALUNOS COMPLETO /20 (PARCEIRO QUALIFICADO) */}
+        {tab === "avaliar" && activePartner.partner_tier === "qualified" && appContext && (
+          <div className="bg-white border border-[#EAEBEF] rounded-2xl p-3 sm:p-4">
+            <Avaliar S={appContext} filterPartnerId={activePartner.id} />
+          </div>
         )}
 
         {/* TAB 2: CIRCUITOS & ETAPAS */}

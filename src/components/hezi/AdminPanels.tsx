@@ -149,8 +149,15 @@ export function Step({ v, set }: { v: number; set: (val: number) => void }) {
   );
 }
 
-export function Avaliar({ S }: { S: AppContextProps }) {
-  const al = S.users.filter((x) => x.tipo === "aluno" && x.st !== "ex_aluno");
+export function Avaliar({ S, filterPartnerId }: { S: AppContextProps; filterPartnerId?: string }) {
+  const al = S.users.filter((x) => {
+    if (x.tipo !== "aluno" || x.st === "ex_aluno") return false;
+    if (filterPartnerId) {
+      return x.base_partner_id === filterPartnerId && x.enrollment_status === "regular";
+    }
+    return true;
+  });
+
   const [id, setId] = useState<number>(al[0]?.id ?? 1);
   const [expandedEvalId, setExpandedEvalId] = useState<string | null>(null);
   const ci = "Mensal";
@@ -177,7 +184,18 @@ export function Avaliar({ S }: { S: AppContextProps }) {
     }
   };
 
-  if (!u) return null;
+  if (!u) {
+    return filterPartnerId ? (
+      <div className={C + " p-6 text-center space-y-2"}>
+        <p className="text-sm font-extrabold text-[#111317]">
+          Nenhum aluno regular vinculado a este projeto ainda
+        </p>
+        <p className="text-xs text-[#6E7381]">
+          Aceite seus alunos na aba Turmas &amp; Convites para liberar a avaliação técnica completa (/20).
+        </p>
+      </div>
+    ) : null;
+  }
 
   const currentSub = u.sub || baseSub;
   const currentBd = u.bd || B0();

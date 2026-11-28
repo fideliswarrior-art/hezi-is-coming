@@ -6,6 +6,16 @@ import { usePartnerStore } from "../services/partnerService";
 export function TreinosPage() {
   const partners = usePartnerStore((s) => s.partners);
   const trainingSlots = usePartnerStore((s) => s.trainingSlots || []);
+  const submitPartnerApplication = usePartnerStore((s) => s.submitPartnerApplication);
+
+  const [showApply, setShowApply] = useState(false);
+  const [appProject, setAppProject] = useState("");
+  const [appContact, setAppContact] = useState("");
+  const [appWpp, setAppWpp] = useState("");
+  const [appInsta, setAppInsta] = useState("");
+  const [appCity, setAppCity] = useState("");
+  const [appTier, setAppTier] = useState<"qualified" | "event_only">("qualified");
+  const [appSent, setAppSent] = useState(false);
 
   const [cityFilter, setCityFilter] = useState("all");
   const [neighborhoodFilter, setNeighborhoodFilter] = useState("all");
@@ -297,6 +307,114 @@ export function TreinosPage() {
             })}
           </div>
         )}
+
+        {/* Captação de Novos Parceiros / Escolas */}
+        <div className="bg-white border border-[#EAEBEF] rounded-2xl p-5 shadow-xs space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-extrabold text-[#111317]">
+                Tem uma escolinha, projeto social ou campeonato?
+              </h2>
+              <p className="text-xs text-[#6E7381]">
+                Envie uma solicitação para se tornar Parceiro Licenciado HEZI FAM.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setShowApply((v) => !v);
+                setAppSent(false);
+              }}
+              className="px-4 py-2.5 rounded-xl bg-[#111317] text-white text-xs font-extrabold uppercase hover:bg-[#FF5500] transition"
+            >
+              {showApply ? "Fechar" : "Quero ser Parceiro HEZI"}
+            </button>
+          </div>
+
+          {appSent && (
+            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-800">
+              Solicitação enviada! Nossa equipe entrará em contato pelo WhatsApp para liberar seu acesso.
+            </div>
+          )}
+
+          {showApply && !appSent && (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!appProject.trim() || !appWpp.trim()) return;
+                submitPartnerApplication({
+                  project_name: appProject.trim(),
+                  contact_name: appContact.trim() || appProject.trim(),
+                  whatsapp: appWpp.trim(),
+                  instagram: appInsta.trim(),
+                  city_neighborhood: appCity.trim(),
+                  desired_tier: appTier,
+                  message: "",
+                });
+                setAppSent(true);
+                setAppProject("");
+                setAppContact("");
+                setAppWpp("");
+                setAppInsta("");
+                setAppCity("");
+              }}
+              className="pt-2 border-t border-[#EAEBEF] grid grid-cols-1 sm:grid-cols-2 gap-2.5"
+            >
+              <input
+                type="text"
+                required
+                value={appProject}
+                onChange={(e) => setAppProject(e.target.value)}
+                placeholder="Nome do Projeto / Escola *"
+                className="px-3 py-2.5 rounded-xl border border-[#EAEBEF] bg-[#F8F9FA] text-xs font-semibold"
+              />
+              <input
+                type="text"
+                required
+                value={appContact}
+                onChange={(e) => setAppContact(e.target.value)}
+                placeholder="Seu Nome (Responsável) *"
+                className="px-3 py-2.5 rounded-xl border border-[#EAEBEF] bg-[#F8F9FA] text-xs font-semibold"
+              />
+              <input
+                type="text"
+                required
+                value={appWpp}
+                onChange={(e) => setAppWpp(e.target.value)}
+                placeholder="WhatsApp com DDD *"
+                className="px-3 py-2.5 rounded-xl border border-[#EAEBEF] bg-[#F8F9FA] text-xs font-semibold"
+              />
+              <input
+                type="text"
+                value={appInsta}
+                onChange={(e) => setAppInsta(e.target.value)}
+                placeholder="Instagram (@projeto)"
+                className="px-3 py-2.5 rounded-xl border border-[#EAEBEF] bg-[#F8F9FA] text-xs"
+              />
+              <input
+                type="text"
+                value={appCity}
+                onChange={(e) => setAppCity(e.target.value)}
+                placeholder="Cidade / Bairro"
+                className="px-3 py-2.5 rounded-xl border border-[#EAEBEF] bg-[#F8F9FA] text-xs"
+              />
+              <select
+                value={appTier}
+                onChange={(e) => setAppTier(e.target.value as "qualified" | "event_only")}
+                className="px-3 py-2.5 rounded-xl border border-[#EAEBEF] bg-[#F8F9FA] text-xs font-bold"
+              >
+                <option value="qualified">Escola / Projeto Completo (Turmas + OVR + Eventos)</option>
+                <option value="event_only">Organizador de Eventos / Campeonatos</option>
+              </select>
+              <button
+                type="submit"
+                className="sm:col-span-2 py-3 rounded-xl bg-[#FF5500] text-white text-xs font-black uppercase"
+              >
+                Enviar Solicitação de Parceria
+              </button>
+            </form>
+          )}
+        </div>
       </div>
     </div>
   );

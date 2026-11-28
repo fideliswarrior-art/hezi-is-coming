@@ -74,6 +74,31 @@ export interface OvrEvaluation {
   created_at: string;
 }
 
+export interface PartnerApplication {
+  id: string;
+  project_name: string;
+  contact_name: string;
+  whatsapp: string;
+  instagram: string;
+  city_neighborhood: string;
+  desired_tier: PartnerTier;
+  message: string;
+  status: "pendente" | "contatado" | "aprovado" | "recusado";
+  created_at: string;
+}
+
+export interface EnrollmentRequest {
+  id: string;
+  partner_id: string;
+  slot_id: string;
+  slot_title: string;
+  user_id: number;
+  student_name: string;
+  student_wpp: string;
+  status: "pendente" | "aprovado" | "recusado";
+  created_at: string;
+}
+
 export interface PartnerCircuit {
   id: string;
   partner_id: string;

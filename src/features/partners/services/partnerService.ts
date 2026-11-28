@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { OvrEvaluation, PartnerTier, PartnerTrainingSlot, TrainingCheckin } from "../types";
+import type { EnrollmentRequest, OvrEvaluation, PartnerApplication, PartnerTier, PartnerTrainingSlot, TrainingCheckin } from "../types";
 import { persist } from "zustand/middleware";
 import { isActiveSubscriber, useHeziPlatform } from "@/lib/hezi/store";
 import { computeHomologationPreview } from "../utils/hpCalculator";
@@ -183,6 +183,8 @@ interface PartnerStoreState {
   trainingSlots: PartnerTrainingSlot[];
   trainingCheckins: TrainingCheckin[];
   ovrEvaluations: OvrEvaluation[];
+  partnerApplications: PartnerApplication[];
+  enrollmentRequests: EnrollmentRequest[];
 
   // Partner Identity & Management
   createOrPromotePartner: (input: {
@@ -277,8 +279,27 @@ interface PartnerStoreState {
     confirmed_by: number;
     slot_id?: string | null;
     session_date?: string;
-  }) => { ok: boolean; gpAwarded: number };
+  }) => { ok: boolean; gpAwarded: number; cappedReason?: string };
   recordOvrEvaluation: (input: Omit<OvrEvaluation, "id" | "created_at">) => OvrEvaluation;
+
+  // Public Partner Applications & Class Enrollment Links
+  submitPartnerApplication: (
+    input: Omit<PartnerApplication, "id" | "status" | "created_at">,
+  ) => PartnerApplication;
+  updatePartnerApplicationStatus: (
+    id: string,
+    status: PartnerApplication["status"],
+  ) => void;
+  requestClassEnrollment: (input: {
+    partner_id: string;
+    slot_id: string;
+    slot_title: string;
+    user_id: number;
+    student_name: string;
+    student_wpp: string;
+  }) => { ok: boolean; error?: string };
+  approveClassEnrollment: (requestId: string) => { ok: boolean; error?: string };
+  rejectClassEnrollment: (requestId: string) => void;
 }
 
 export const usePartnerStore = create<PartnerStoreState>()(
@@ -295,6 +316,8 @@ export const usePartnerStore = create<PartnerStoreState>()(
       trainingSlots: [],
       trainingCheckins: [],
       ovrEvaluations: [],
+      partnerApplications: [],
+      enrollmentRequests: [],
 
       createOrPromotePartner: ({
         user_id,
@@ -849,15 +872,38 @@ export const usePartnerStore = create<PartnerStoreState>()(
         const platform = useHeziPlatform.getState();
         const student = platform.users.find((u) => u.id === user_id);
         const isRegular = student?.enrollment_status === "regular" || isActiveSubscriber(student);
-        const gpAwarded = isRegular ? 20 : 10;
         const nowIso = new Date().toISOString();
 
-        const existing = (get().trainingCheckins || []).find(
+        const allCheckins = get().trainingCheckins || [];
+        const existing = allCheckins.find(
           (c) => c.partner_id === partner_id && c.user_id === user_id && c.session_date === today,
         );
 
         if (existing && existing.status === "confirmed") {
           return { ok: true, gpAwarded: existing.gp_awarded };
+        }
+
+        // Trava Anti-Farm: máx 1 treino/dia e máx 3 treinos/7 dias creditando GP Global do Hezi Pass
+        const sevenDaysAgoMs = Date.now() - 7 * 24 * 60 * 60 * 1000;
+        const confirmedTodayAnyPartner = allCheckins.some(
+          (c) => c.user_id === user_id && c.session_date === today && c.status === "confirmed" && c.gp_awarded > 0,
+        );
+        const confirmedWeekCount = allCheckins.filter(
+          (c) =>
+            c.user_id === user_id &&
+            c.status === "confirmed" &&
+            c.gp_awarded > 0 &&
+            new Date(c.created_at).getTime() >= sevenDaysAgoMs,
+        ).length;
+
+        let gpAwarded = isRegular ? 10 : 5;
+        let cappedReason: string | undefined;
+        if (confirmedTodayAnyPartner) {
+          gpAwarded = 0;
+          cappedReason = "Limite diário de GP global de treino já atingido hoje (ofensiva mantida).";
+        } else if (confirmedWeekCount >= 3) {
+          gpAwarded = 0;
+          cappedReason = "Teto semanal de 3 treinos com GP global atingido (ofensiva mantida).";
         }
 
         if (existing) {
@@ -893,22 +939,25 @@ export const usePartnerStore = create<PartnerStoreState>()(
         if (student) {
           platform.updUser(student.id, {
             gp: (student.gp ?? 0) + gpAwarded,
-            of: (student.of ?? 0) + 1,
-            gpHistory: [
-              {
-                id: `gp-treino-${Date.now()}`,
-                amount: gpAwarded,
-                baseAmount: 10,
-                reason: "Presença confirmada no treino",
-                date: new Date().toLocaleDateString("pt-BR"),
-                doubled: isRegular,
-              },
-              ...(student.gpHistory || []),
-            ],
+            of: confirmedTodayAnyPartner ? (student.of ?? 0) : (student.of ?? 0) + 1,
+            gpHistory:
+              gpAwarded > 0
+                ? [
+                    {
+                      id: `gp-treino-${Date.now()}`,
+                      amount: gpAwarded,
+                      baseAmount: 5,
+                      reason: "Presença confirmada no treino",
+                      date: new Date().toLocaleDateString("pt-BR"),
+                      doubled: isRegular,
+                    },
+                    ...(student.gpHistory || []),
+                  ]
+                : student.gpHistory,
           });
         }
 
-        return { ok: true, gpAwarded };
+        return { ok: true, gpAwarded, cappedReason };
       },
 
       recordOvrEvaluation: (input) => {
@@ -920,6 +969,80 @@ export const usePartnerStore = create<PartnerStoreState>()(
         set((s) => ({ ovrEvaluations: [ev, ...(s.ovrEvaluations || [])] }));
         return ev;
       },
+
+      submitPartnerApplication: (input) => {
+        const app: PartnerApplication = {
+          ...input,
+          id: `papp-${Date.now()}`,
+          status: "pendente",
+          created_at: new Date().toISOString(),
+        };
+        set((s) => ({
+          partnerApplications: [app, ...(s.partnerApplications || [])],
+        }));
+        return app;
+      },
+
+      updatePartnerApplicationStatus: (id, status) =>
+        set((s) => ({
+          partnerApplications: (s.partnerApplications || []).map((a) =>
+            a.id === id ? { ...a, status } : a,
+          ),
+        })),
+
+      requestClassEnrollment: ({ partner_id, slot_id, slot_title, user_id, student_name, student_wpp }) => {
+        const existing = (get().enrollmentRequests || []).find(
+          (r) => r.partner_id === partner_id && r.user_id === user_id && r.status === "pendente",
+        );
+        if (existing) {
+          return { ok: false, error: "Você já enviou uma solicitação para este projeto. Aguarde o professor." };
+        }
+        const req: EnrollmentRequest = {
+          id: `enr-${Date.now()}`,
+          partner_id,
+          slot_id,
+          slot_title,
+          user_id,
+          student_name,
+          student_wpp,
+          status: "pendente",
+          created_at: new Date().toISOString(),
+        };
+        set((s) => ({
+          enrollmentRequests: [req, ...(s.enrollmentRequests || [])],
+        }));
+        return { ok: true };
+      },
+
+      approveClassEnrollment: (requestId) => {
+        const req = (get().enrollmentRequests || []).find((r) => r.id === requestId);
+        if (!req) return { ok: false, error: "Solicitação não encontrada." };
+        const platform = useHeziPlatform.getState();
+        const student = platform.users.find((u) => u.id === req.user_id);
+        if (!student) return { ok: false, error: "Conta do aluno não encontrada." };
+
+        platform.updUser(student.id, {
+          tipo: "aluno",
+          st: "ativo",
+          base_partner_id: req.partner_id,
+          enrollment_status: "regular",
+          class_label: req.slot_title,
+        });
+
+        set((s) => ({
+          enrollmentRequests: (s.enrollmentRequests || []).map((r) =>
+            r.id === requestId ? { ...r, status: "aprovado" } : r,
+          ),
+        }));
+        return { ok: true };
+      },
+
+      rejectClassEnrollment: (requestId) =>
+        set((s) => ({
+          enrollmentRequests: (s.enrollmentRequests || []).map((r) =>
+            r.id === requestId ? { ...r, status: "recusado" } : r,
+          ),
+        })),
     }),
     { name: "hezi-partners-v1" },
   ),

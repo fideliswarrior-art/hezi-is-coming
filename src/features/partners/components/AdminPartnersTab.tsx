@@ -32,6 +32,7 @@ export function AdminPartnersTab({ adminUserId }: AdminPartnersTabProps) {
     registrations,
     matches,
     hpLedger,
+    partnerApplications = [],
     createOrPromotePartner,
     updatePartner,
     updateCircuit,
@@ -39,6 +40,7 @@ export function AdminPartnersTab({ adminUserId }: AdminPartnersTabProps) {
     updateSubEvent,
     homologateSubEvent,
     revokeLedgerEntry,
+    updatePartnerApplicationStatus,
   } = usePartnerStore();
 
   const [selectedUserId, setSelectedUserId] = useState<string>("");
@@ -124,6 +126,59 @@ export function AdminPartnersTab({ adminUserId }: AdminPartnersTabProps) {
           <CheckCircle2 className="w-4 h-4 shrink-0" />
           <span>{feedback.msg}</span>
         </div>
+      )}
+
+      {/* 0A. INTERESSADOS EM SER PARCEIRO */}
+      {partnerApplications.filter((a) => a.status === "pendente").length > 0 && (
+        <section className="bg-white border-2 border-[#111317]/20 rounded-2xl p-4 sm:p-5 space-y-3 shadow-sm">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-sm font-black uppercase tracking-wide">
+              Solicitações de Novos Parceiros (Quero ser Parceiro)
+            </h3>
+            <span className="px-2.5 py-1 rounded-full bg-[#111317] text-white text-[11px] font-black">
+              {partnerApplications.filter((a) => a.status === "pendente").length} novo(s)
+            </span>
+          </div>
+          <div className="space-y-2">
+            {partnerApplications
+              .filter((a) => a.status === "pendente")
+              .map((app) => (
+                <div
+                  key={app.id}
+                  className="p-3 rounded-xl bg-[#F8F9FA] border border-[#EAEBEF] flex flex-wrap items-center justify-between gap-2 text-xs"
+                >
+                  <div>
+                    <p className="font-black">
+                      {app.project_name} ·{" "}
+                      <span className="text-[#FF5500]">
+                        {app.desired_tier === "qualified" ? "Projeto Completo" : "Eventos"}
+                      </span>
+                    </p>
+                    <p className="text-[11px] text-[#6B7280]">
+                      {app.contact_name} · {app.whatsapp} {app.instagram ? `· ${app.instagram}` : ""}{" "}
+                      {app.city_neighborhood ? `· ${app.city_neighborhood}` : ""}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => updatePartnerApplicationStatus(app.id, "contatado")}
+                      className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-[11px] font-black uppercase"
+                    >
+                      Marcar Contatado
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updatePartnerApplicationStatus(app.id, "recusado")}
+                      className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-[11px] font-black uppercase"
+                    >
+                      Arquivar
+                    </button>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </section>
       )}
 
       {/* 0. SOLICITAÇÕES DE NOVOS TIMES OFICIAIS */}

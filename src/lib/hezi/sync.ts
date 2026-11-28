@@ -63,6 +63,8 @@ function extractHeziData(s: HeziPlatformState) {
       trainingSlots: p.trainingSlots || [],
       trainingCheckins: p.trainingCheckins || [],
       ovrEvaluations: p.ovrEvaluations || [],
+      partnerApplications: p.partnerApplications || [],
+      enrollmentRequests: p.enrollmentRequests || [],
     },
     teamsModule: {
       teams: t.teams,

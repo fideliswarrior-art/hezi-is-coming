@@ -106,6 +106,7 @@ import { Home, Pelada } from "@/components/hezi/HomeAndEvents";
 import { Painel, RankingsPage, NotificacoesPlayerModal } from "@/components/hezi/PlayerProfile";
 import { Staff } from "@/components/hezi/AdminPanels";
 import { PartnerDashboardPage } from "@/features/partners/pages/PartnerDashboardPage";
+import { usePartnerStore } from "@/features/partners/services/partnerService";
 import { TeamsPage } from "@/features/teams/pages/TeamsPage";
 
 
@@ -792,6 +793,59 @@ function HeziSuperApp() {
     setTab("painel");
   };
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const turmaParam = params.get("turma");
+    if (turmaParam && turmaParam.includes(":")) {
+      try {
+        sessionStorage.setItem("hezi_pending_turma", turmaParam);
+      } catch {
+        /* ignore */
+      }
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+
+    let pendingTurma: string | null = null;
+    try {
+      pendingTurma = sessionStorage.getItem("hezi_pending_turma");
+    } catch {
+      /* ignore */
+    }
+    if (!pendingTurma) return;
+    const [partnerId, slotId] = pendingTurma.split(":");
+    const pStore = usePartnerStore.getState();
+    const slot = (pStore.trainingSlots || []).find(
+      (sl) => sl.id === slotId && sl.partner_id === partnerId,
+    );
+    const partner = pStore.partners.find((p) => p.id === partnerId);
+    if (!partner) return;
+
+    if (me) {
+      const res = pStore.requestClassEnrollment({
+        partner_id: partnerId,
+        slot_id: slotId,
+        slot_title: slot?.title || "Turma Oficial",
+        user_id: me.id,
+        student_name: me.apelido || me.nome,
+        student_wpp: me.wpp || "",
+      });
+      try {
+        sessionStorage.removeItem("hezi_pending_turma");
+      } catch {
+        /* ignore */
+      }
+      say(
+        res.ok
+          ? `Solicitação enviada para ${partner.name}! Aguarde o professor aceitar sua entrada.`
+          : res.error || "Solicitação já enviada.",
+      );
+    } else {
+      setCad(true);
+      say(`Crie sua conta para solicitar entrada na turma de ${partner.name}!`);
+    }
+  }, [me?.id]);
+
   const S: AppContextProps = {
     users,
     evs,
@@ -1310,6 +1364,7 @@ function HeziSuperApp() {
             <PartnerDashboardPage
               currentUserId={me?.id ?? null}
               isAdmin={role === "admin"}
+              appContext={S}
               onBack={() => setTab("home")}
             />
           ) : staff ? (
