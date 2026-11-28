@@ -80,7 +80,9 @@ export function PartnerDashboardPage({
   // Select partner (for partner user, auto-match; for admin, allow switching)
   const myPartners = useMemo(() => {
     if (isAdmin) return partners;
-    return partners.filter((p) => p.user_id === currentUserId);
+    return partners.filter(
+      (p) => p.user_id === currentUserId || p.coach_user_id === currentUserId,
+    );
   }, [partners, isAdmin, currentUserId]);
 
   const [selectedPartnerId, setSelectedPartnerId] = useState<string>("");

@@ -2235,6 +2235,73 @@ export function NotificacoesStaff({ S }: { S: AppContextProps }) {
         )}
       </div>
 
+      {(() => {
+        const {
+          partners = [],
+          enrollmentRequests = [],
+          approveClassEnrollment,
+          rejectClassEnrollment,
+        } = usePartnerStore.getState();
+        const managedIds = new Set(
+          S.role === "admin"
+            ? partners.map((p) => p.id)
+            : partners
+                .filter((p) => p.user_id === S.me?.id || p.coach_user_id === S.me?.id)
+                .map((p) => p.id),
+        );
+        const incoming = enrollmentRequests.filter(
+          (r) => r.status === "pendente" && managedIds.has(r.partner_id),
+        );
+        if (incoming.length === 0) return null;
+        return (
+          <div className="bg-white border border-[#EAEBEF] rounded-2xl p-4 space-y-2.5">
+            <p className="text-xs font-extrabold uppercase text-[#FF5400]">
+              Solicitações de Entrada em Projetos ({incoming.length})
+            </p>
+            {incoming.map((req) => {
+              const proj = partners.find((p) => p.id === req.partner_id);
+              return (
+                <div
+                  key={`staff-enr-${req.id}`}
+                  className="bg-[#FFF4EE] border border-[#FF5400]/30 rounded-2xl p-3 space-y-2 text-xs"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-extrabold text-[#111317]">
+                      {req.student_name} → {proj?.name || "Projeto"}
+                    </span>
+                    <span className="text-[11px] text-[#6E7381]">
+                      {new Date(req.created_at).toLocaleString("pt-BR")}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const res = approveClassEnrollment(req.id);
+                        S.say(res.ok ? `${req.student_name} aceito!` : res.error || "Erro");
+                      }}
+                      className="rounded-xl bg-[#10B981] text-white font-extrabold py-2 px-3"
+                    >
+                      Aceitar Aluno
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        rejectClassEnrollment(req.id);
+                        S.say("Solicitação recusada.");
+                      }}
+                      className="rounded-xl bg-[#FEF2F2] text-[#EF4444] font-extrabold py-2 px-3"
+                    >
+                      Recusar
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
+
       {/* Histórico de Notificações Processadas */}
       {resolvedRequests.length > 0 && (
         <div className="space-y-2">

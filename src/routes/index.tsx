@@ -904,6 +904,25 @@ function HeziSuperApp() {
     staff &&
     (tab === "pelada" || (tab === "painel" && staffSubTab === "cm"));
 
+  const isPartnerOrCoach = usePartnerStore((s) =>
+    Boolean(
+      me && s.partners.some((p) => p.user_id === me.id || p.coach_user_id === me.id),
+    ),
+  );
+  const partnerPendingNotifCount = usePartnerStore((s) => {
+    if (!me && role !== "admin") return 0;
+    const managedIds = new Set(
+      role === "admin"
+        ? s.partners.map((p) => p.id)
+        : s.partners
+            .filter((p) => p.user_id === me?.id || p.coach_user_id === me?.id)
+            .map((p) => p.id),
+    );
+    return (s.enrollmentRequests || []).filter(
+      (r) => r.status === "pendente" && managedIds.has(r.partner_id),
+    ).length;
+  });
+
   const myClassReqCount = usePartnerStore((s) =>
     me ? (s.enrollmentRequests || []).filter((r) => r.user_id === me.id).length : 0,
   );
@@ -911,13 +930,15 @@ function HeziSuperApp() {
   const pendingNotifCount = staff
     ? notifications.filter(
         (n) => n.type === "queue_request" && n.status === "pending",
-      ).length
+      ).length + partnerPendingNotifCount
     : me
       ? notifications.filter(
           (n) =>
             n.toUserId === me.id &&
             (n.type === "group_invite" ? n.status === "pending" : true),
-        ).length + myClassReqCount
+        ).length +
+        myClassReqCount +
+        partnerPendingNotifCount
       : 0;
 
   const verifyModalUser =
@@ -1196,7 +1217,7 @@ function HeziSuperApp() {
                               <span className="text-sm"></span>
                               Times Oficiais
                             </button>
-                            {(role === "partner" || role === "admin") && (
+                            {(role === "partner" || role === "admin" || isPartnerOrCoach) && (
                               <button
                                 type="button"
                                 onClick={() => {

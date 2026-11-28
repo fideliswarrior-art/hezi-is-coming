@@ -1387,7 +1387,20 @@ export function NotificacoesPlayerModal({
   close: () => void;
 }) {
   const myId = S.me?.id;
-  const { enrollmentRequests = [], partners = [] } = usePartnerStore();
+  const {
+    enrollmentRequests = [],
+    partners = [],
+    approveClassEnrollment,
+    rejectClassEnrollment,
+  } = usePartnerStore();
+  const managedPartnerIds = new Set(
+    partners
+      .filter((p) => p.user_id === myId || p.coach_user_id === myId)
+      .map((p) => p.id),
+  );
+  const partnerIncomingRequests = enrollmentRequests.filter(
+    (r) => r.status === "pendente" && managedPartnerIds.has(r.partner_id),
+  );
   const myClassRequests = enrollmentRequests.filter((r) => r.user_id === myId);
   const myNotifs = S.notifications.filter(
     (n) =>
@@ -1415,13 +1428,59 @@ export function NotificacoesPlayerModal({
           </button>
         </div>
 
-        {myNotifs.length === 0 && myClassRequests.length === 0 ? (
+        {myNotifs.length === 0 &&
+        myClassRequests.length === 0 &&
+        partnerIncomingRequests.length === 0 ? (
           <p className="text-xs text-[#6E7381] py-6 text-center">
             Você ainda não possui notificações. Convites de grupo na fila e
             confirmações de entrada aparecerão aqui com horário.
           </p>
         ) : (
           <div className="space-y-2.5">
+            {partnerIncomingRequests.map((req) => {
+              const proj = partners.find((p) => p.id === req.partner_id);
+              return (
+                <div
+                  key={`pin-${req.id}`}
+                  className="bg-[#FFF4EE] border-2 border-[#FF5400]/40 rounded-2xl p-3.5 space-y-2"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-extrabold uppercase text-[#FF5400]">
+                      Novo Aluno · {proj?.name || "Projeto"}
+                    </span>
+                    <span className="n text-[11px] font-bold text-[#6E7381]">
+                      {new Date(req.created_at).toLocaleString("pt-BR")}
+                    </span>
+                  </div>
+                  <p className="text-xs font-semibold text-[#111317]">
+                    <strong>{req.student_name}</strong> ({req.student_wpp || "sem WhatsApp"}) solicitou entrada em{" "}
+                    <strong>{req.slot_title}</strong>.
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const res = approveClassEnrollment(req.id);
+                        S.say(res.ok ? `${req.student_name} aceito no projeto!` : res.error || "Erro");
+                      }}
+                      className="rounded-xl bg-[#10B981] text-white text-xs font-extrabold py-2 px-3"
+                    >
+                      Aceitar Aluno
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        rejectClassEnrollment(req.id);
+                        S.say("Solicitação recusada.");
+                      }}
+                      className="rounded-xl bg-white border border-[#EAEBEF] text-[#EF4444] text-xs font-extrabold py-2 px-3"
+                    >
+                      Recusar
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
             {myClassRequests.map((req) => {
               const proj = partners.find((p) => p.id === req.partner_id);
               return (
