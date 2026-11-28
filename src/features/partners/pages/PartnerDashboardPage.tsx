@@ -44,6 +44,8 @@ export function PartnerDashboardPage({
   onBack,
 }: PartnerDashboardPageProps) {
   const users = useHeziPlatform((s) => s.users);
+  const updUser = useHeziPlatform((s) => s.updUser);
+  const [alunosSubTab, setAlunosSubTab] = useState<"lista" | "avaliar">("lista");
   const { teams, rosterMembers } = useTeamStore();
   const {
     partners,
@@ -551,8 +553,8 @@ export function PartnerDashboardPage({
                 </p>
                 <div className="grid grid-cols-2 gap-1">
                   {[
-                    { id: "turmas" as const, label: "Turmas & Convites", icon: Users },
-                    { id: "avaliar" as const, label: "Avaliar Alunos", icon: Award },
+                    { id: "turmas" as const, label: "Turmas", icon: Users },
+                    { id: "avaliar" as const, label: "Alunos", icon: Award },
                   ].map((item) => {
                     const Icon = item.icon;
                     const active = tab === item.id;
@@ -890,61 +892,6 @@ export function PartnerDashboardPage({
               )}
             </form>
 
-            {/* Solicitações de Entrada via Link da Turma */}
-            {enrollmentRequests.filter(
-              (r) => r.partner_id === activePartner.id && r.status === "pendente",
-            ).length > 0 && (
-              <div className="bg-white border-2 border-[#FF5500]/40 rounded-2xl p-4 space-y-3">
-                <h3 className="text-sm font-black uppercase text-[#FF5500]">
-                  Solicitações de Entrada nas Turmas
-                </h3>
-                <div className="space-y-2">
-                  {enrollmentRequests
-                    .filter((r) => r.partner_id === activePartner.id && r.status === "pendente")
-                    .map((req) => (
-                      <div
-                        key={req.id}
-                        className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-[#F8F9FA] border border-[#EAEBEF] text-xs"
-                      >
-                        <div>
-                          <p className="font-black text-[#111317]">{req.student_name}</p>
-                          <p className="text-[11px] text-[#6B7280]">
-                            Turma: <strong>{req.slot_title}</strong> {req.student_wpp ? `· ${req.student_wpp}` : ""}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const res = approveClassEnrollment(req.id);
-                              setFeedback({
-                                ok: res.ok,
-                                msg: res.ok
-                                  ? `${req.student_name} aceito na turma "${req.slot_title}"!`
-                                  : res.error || "Erro ao aceitar aluno.",
-                              });
-                            }}
-                            className="px-3 py-1.5 rounded-xl bg-emerald-600 text-white text-[11px] font-black uppercase"
-                          >
-                            Aceitar na Turma
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              rejectClassEnrollment(req.id);
-                              setFeedback({ ok: true, msg: `Solicitação de ${req.student_name} recusada.` });
-                            }}
-                            className="px-3 py-1.5 rounded-xl bg-red-600 text-white text-[11px] font-black uppercase"
-                          >
-                            Recusar
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              </div>
-            )}
-
             <div className="bg-white border border-[#EAEBEF] rounded-2xl p-4 space-y-3">
               <div>
                 <h3 className="text-sm font-black uppercase">Presença de Hoje (Check-in Diário)</h3>
@@ -1024,10 +971,198 @@ export function PartnerDashboardPage({
           </div>
         )}
 
-        {/* TAB 6: AVALIAR ALUNOS COMPLETO /20 (PARCEIRO QUALIFICADO) */}
-        {tab === "avaliar" && activePartner.partner_tier === "qualified" && appContext && (
-          <div className="bg-white border border-[#EAEBEF] rounded-2xl p-3 sm:p-4">
-            <Avaliar S={appContext} filterPartnerId={activePartner.id} />
+        {/* TAB 6: ALUNOS (LISTA & CONVITE + AVALIAR ALUNOS) */}
+        {tab === "avaliar" && activePartner.partner_tier === "qualified" && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-2 bg-white border border-[#EAEBEF] rounded-2xl p-1.5">
+              <button
+                type="button"
+                onClick={() => setAlunosSubTab("lista")}
+                className={`py-2.5 px-3 rounded-xl text-xs font-black uppercase transition ${
+                  alunosSubTab === "lista"
+                    ? "bg-[#111317] text-white"
+                    : "text-[#6B7280] hover:bg-[#F8F9FA]"
+                }`}
+              >
+                Alunos &amp; Convite
+              </button>
+              <button
+                type="button"
+                onClick={() => setAlunosSubTab("avaliar")}
+                className={`py-2.5 px-3 rounded-xl text-xs font-black uppercase transition ${
+                  alunosSubTab === "avaliar"
+                    ? "bg-[#FF5500] text-white"
+                    : "text-[#6B7280] hover:bg-[#F8F9FA]"
+                }`}
+              >
+                Avaliar Alunos
+              </button>
+            </div>
+
+            {alunosSubTab === "lista" ? (
+              <div className="space-y-4">
+                {/* Link único de convite do Projeto */}
+                <div className="bg-white border border-[#EAEBEF] rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-black uppercase text-[#111317]">
+                      Link de Convite · {activePartner.name}
+                    </p>
+                    <p className="text-xs text-[#6B7280]">
+                      Envie este link para seus alunos criarem conta e solicitarem entrada no seu projeto.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const link = `${window.location.origin}/?projeto=${activePartner.id}`;
+                      void navigator.clipboard?.writeText(link);
+                      setFeedback({
+                        ok: true,
+                        msg: `Link de convite de "${activePartner.name}" copiado!`,
+                      });
+                    }}
+                    className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#FF5500] text-white text-xs font-black uppercase"
+                  >
+                    <Link2 className="w-4 h-4" />
+                    Copiar Link do Projeto
+                  </button>
+                </div>
+
+                {/* Solicitações pendentes */}
+                {enrollmentRequests.filter(
+                  (r) => r.partner_id === activePartner.id && r.status === "pendente",
+                ).length > 0 && (
+                  <div className="bg-white border-2 border-[#FF5500]/40 rounded-2xl p-4 space-y-3">
+                    <h3 className="text-sm font-black uppercase text-[#FF5500]">
+                      Solicitações Aguardando Aceite
+                    </h3>
+                    <div className="space-y-2">
+                      {enrollmentRequests
+                        .filter((r) => r.partner_id === activePartner.id && r.status === "pendente")
+                        .map((req) => (
+                          <div
+                            key={req.id}
+                            className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-[#F8F9FA] border border-[#EAEBEF] text-xs"
+                          >
+                            <div>
+                              <p className="font-black text-[#111317]">{req.student_name}</p>
+                              <p className="text-[11px] text-[#6B7280]">
+                                {req.student_wpp || "Sem WhatsApp"} · {req.slot_title}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const res = approveClassEnrollment(req.id);
+                                  setFeedback({
+                                    ok: res.ok,
+                                    msg: res.ok
+                                      ? `${req.student_name} aceito como aluno de ${activePartner.name}!`
+                                      : res.error || "Erro ao aceitar aluno.",
+                                  });
+                                }}
+                                className="px-3 py-1.5 rounded-xl bg-emerald-600 text-white text-[11px] font-black uppercase"
+                              >
+                                Aceitar Aluno
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  rejectClassEnrollment(req.id);
+                                  setFeedback({
+                                    ok: true,
+                                    msg: `Solicitação de ${req.student_name} recusada.`,
+                                  });
+                                }}
+                                className="px-3 py-1.5 rounded-xl bg-red-600 text-white text-[11px] font-black uppercase"
+                              >
+                                Recusar
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Lista de Alunos do Projeto + Organização por Turma */}
+                <div className="bg-white border border-[#EAEBEF] rounded-2xl p-4 space-y-3">
+                  <h3 className="text-sm font-black uppercase">
+                    Alunos de {activePartner.name} ({users.filter((u) => u.base_partner_id === activePartner.id).length})
+                  </h3>
+                  {users.filter((u) => u.base_partner_id === activePartner.id).length === 0 ? (
+                    <p className="text-xs text-[#6B7280]">
+                      Nenhum aluno aceito ainda. Copie o link acima e envie para seus alunos.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {users
+                        .filter((u) => u.base_partner_id === activePartner.id)
+                        .map((student) => {
+                          const slots = trainingSlots.filter((sl) => sl.partner_id === activePartner.id);
+                          const isReg = student.enrollment_status === "regular";
+                          return (
+                            <div
+                              key={student.id}
+                              className="p-3 rounded-xl bg-[#F8F9FA] border border-[#EAEBEF] flex flex-wrap items-center justify-between gap-2 text-xs"
+                            >
+                              <div>
+                                <p className="font-black text-[#111317]">
+                                  {student.apelido || student.nome}
+                                </p>
+                                <p className="text-[11px] text-[#6B7280]">
+                                  @{student.username || "atleta"} · {student.class_label || "Sem turma definida"}
+                                </p>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <select
+                                  value={student.class_label || ""}
+                                  onChange={(e) =>
+                                    updUser(student.id, { class_label: e.target.value })
+                                  }
+                                  className="px-2.5 py-1.5 rounded-lg border border-[#EAEBEF] bg-white text-[11px] font-bold"
+                                >
+                                  <option value="">Sem turma definida</option>
+                                  {slots.map((sl) => {
+                                    const label = `${["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"][sl.weekday]} ${sl.start_time.slice(0, 5)} · ${sl.title}`;
+                                    return (
+                                      <option key={sl.id} value={label}>
+                                        {label}
+                                      </option>
+                                    );
+                                  })}
+                                </select>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    updUser(student.id, {
+                                      enrollment_status: isReg ? "pendente" : "regular",
+                                    })
+                                  }
+                                  className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase ${
+                                    isReg
+                                      ? "bg-emerald-100 text-emerald-800"
+                                      : "bg-red-100 text-red-700"
+                                  }`}
+                                >
+                                  {isReg ? "Regular" : "Pendente"}
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              appContext && (
+                <div className="bg-white border border-[#EAEBEF] rounded-2xl p-3 sm:p-4">
+                  <Avaliar S={appContext} filterPartnerId={activePartner.id} />
+                </div>
+              )
+            )}
           </div>
         )}
 

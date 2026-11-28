@@ -797,9 +797,17 @@ function HeziSuperApp() {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     const turmaParam = params.get("turma");
+    const projetoParam = params.get("projeto");
     if (turmaParam && turmaParam.includes(":")) {
       try {
         sessionStorage.setItem("hezi_pending_turma", turmaParam);
+      } catch {
+        /* ignore */
+      }
+      window.history.replaceState({}, "", window.location.pathname);
+    } else if (projetoParam) {
+      try {
+        sessionStorage.setItem("hezi_pending_turma", `${projetoParam}:projeto`);
       } catch {
         /* ignore */
       }
