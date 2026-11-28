@@ -271,7 +271,7 @@ export function Avaliar({ S }: { S: AppContextProps }) {
         >
           {al.map((a) => (
             <option key={a.id} value={a.id}>
-              {a.nome} ({a.pos}) — OVR {ovr(a.sub || baseSub)}
+              {a.nome}{a.pos ? ` (${a.pos})` : ""} — OVR {ovr(a.sub || baseSub)}
               {a.evalDraft ? " (Em andamento)" : ""}
             </option>
           ))}
@@ -662,7 +662,7 @@ export function Assinantes({ S }: { S: AppContextProps }) {
       <div className={C + " p-3.5 flex items-center justify-between gap-2"}>
         <div>
           <p className="font-extrabold text-sm text-[#111317]">
-             Gestão Exclusiva de Assinantes Assinantes ({assinantesList.length})
+             Gestão Exclusiva de Assinantes ({assinantesList.length})
           </p>
           <p className="text-xs text-[#6E7381]">
             Apenas assinantes Hezi Skills aparecem aqui. Usuários gerais ficam no
@@ -880,7 +880,7 @@ export function Assinantes({ S }: { S: AppContextProps }) {
                         </span>
                       )}
                       <span className="block text-[10px] text-[#6E7381]">
-                        {new Date(h.date).toLocaleString("pt-BR")}
+                        {Number.isNaN(new Date(h.date).getTime()) ? h.date : new Date(h.date).toLocaleString("pt-BR")}
                       </span>
                     </div>
                     <span className="font-extrabold text-[#10B981]">+{h.amount} GP</span>
@@ -1528,7 +1528,7 @@ export function UsuariosGeral({ S }: { S: AppContextProps }) {
                           </span>
                         )}
                         <span className="block text-[10px] text-[#6E7381]">
-                          {new Date(h.date).toLocaleString("pt-BR")}
+                          {Number.isNaN(new Date(h.date).getTime()) ? h.date : new Date(h.date).toLocaleString("pt-BR")}
                         </span>
                       </div>
                       <span className="font-extrabold text-[#10B981]">+{h.amount} GP</span>

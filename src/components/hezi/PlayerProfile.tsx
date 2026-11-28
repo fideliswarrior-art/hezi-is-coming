@@ -251,10 +251,16 @@ export function Boletim({ u }: { u: HeziUser }) {
                     >
                       <span className="font-medium text-[#111317]">{nm}</span>
                       <span className="n font-bold text-[#111317]">
-                        {r[k] ?? 0}/20 →{" "}
-                        <span className="text-[#FF5400]">
-                          {nano(r[k] ?? 0)} pts
-                        </span>
+                        {!u.ev ? (
+                          <span className="text-xs text-[#6E7381]">— /20 (Aguardando avaliação)</span>
+                        ) : (
+                          <>
+                            {r[k] ?? 0}/20 →{" "}
+                            <span className="text-[#FF5400]">
+                              {nano(r[k] ?? 0)} pts
+                            </span>
+                          </>
+                        )}
                       </span>
                     </div>
                   ))}
@@ -631,8 +637,8 @@ export function ProfileEditModal({
 export function RankingsPage({ S }: { S: AppContextProps }) {
   const u = S.me;
   const partnerList = usePartnerStore((s) => s.partners);
-  const { hpLedger, subEvents, circuits } = usePartnerStore();
-  const { teams } = useTeamStore();
+  const { hpLedger, subEvents, circuits, registrations, matches } = usePartnerStore();
+  const { teams, rosterMembers } = useTeamStore();
 
   const [modalityTab, setModalityTab] = useState<RankingModalityTab>("all_around");
   const [teamFilter, setTeamFilter] = useState<"3x3" | "5x5">("3x3");
@@ -706,6 +712,95 @@ export function RankingsPage({ S }: { S: AppContextProps }) {
               <p className="text-[10px] font-extrabold uppercase text-[#6E7381]">HP Oficial</p>
             </div>
           </div>
+
+          {matchedUser && (() => {
+            const targetOvr = ovr(matchedUser.sub || baseSub);
+            const activeTeams = rosterMembers
+              .filter((m) => m.user_id === matchedUser.id && m.is_active)
+              .map((m) => teamById.get(m.team_id))
+              .filter((t): t is NonNullable<typeof t> => Boolean(t));
+            return (
+              <div className="space-y-3 pt-2 border-t border-[#EAEBEF]">
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="bg-[#F4F5F7] rounded-xl p-2.5 text-center">
+                    <p className="text-[10px] font-extrabold uppercase text-[#6E7381]">Overall</p>
+                    <p className="n font-extrabold text-lg text-[#111317]">{targetOvr}</p>
+                  </div>
+                  <div className="bg-[#F4F5F7] rounded-xl p-2.5 text-center">
+                    <p className="text-[10px] font-extrabold uppercase text-[#6E7381]">Grind Points</p>
+                    <p className="n font-extrabold text-lg text-[#10B981]">{matchedUser.gp ?? 0}</p>
+                  </div>
+                  <div className="bg-[#F4F5F7] rounded-xl p-2.5 text-center">
+                    <p className="text-[10px] font-extrabold uppercase text-[#6E7381]">Ofensiva</p>
+                    <p className="n font-extrabold text-lg text-[#111317]">{matchedUser.st === "ex_aluno" ? 0 : (matchedUser.of ?? 0)}</p>
+                  </div>
+                </div>
+                {activeTeams.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {activeTeams.map((t) => (
+                      <span
+                        key={t.id}
+                        className="px-2.5 py-1 rounded-lg bg-[#111317] text-white text-[11px] font-extrabold"
+                      >
+                        Time Oficial ({t.modality}): {t.name}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <RadarHabilidades u={matchedUser} selectedKey="" onSelectCat={() => {}} />
+              </div>
+            );
+          })()}
+
+          {(() => {
+            const entityRegIds = new Set(
+              registrations
+                .filter((r) =>
+                  selectedEntity.team_id
+                    ? r.team_id === selectedEntity.team_id
+                    : r.user_id === selectedEntity.user_id,
+                )
+                .map((r) => r.id),
+            );
+            const entityMatches = matches.filter(
+              (m) =>
+                m.status === "finalizado" &&
+                (entityRegIds.has(m.player_a_id) ||
+                  (m.player_b_id ? entityRegIds.has(m.player_b_id) : false)),
+            );
+            if (entityMatches.length === 0) return null;
+            const regMap = new Map(registrations.map((r) => [r.id, r.participant_name]));
+            return (
+              <div className="pt-3 border-t border-[#EAEBEF] space-y-2">
+                <h3 className="text-xs font-black uppercase text-[#111317]">
+                  Histórico de Partidas Oficiais ({entityMatches.length})
+                </h3>
+                <div className="space-y-1.5">
+                  {entityMatches.slice(0, 10).map((m) => {
+                    const won = entityRegIds.has(m.winner_id || "");
+                    return (
+                      <div
+                        key={m.id}
+                        className="flex items-center justify-between px-3 py-2 rounded-xl bg-[#F8F9FA] border border-[#EAEBEF] text-xs"
+                      >
+                        <span className="font-bold text-[#111317] truncate">
+                          {m.round_name}: {regMap.get(m.player_a_id) || "A"} {m.score_a} × {m.score_b}{" "}
+                          {m.player_b_id ? regMap.get(m.player_b_id) || "B" : "BYE"}
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase shrink-0 ${
+                            won ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-700"
+                          }`}
+                        >
+                          {won ? "Vitória" : "Derrota"}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
 
           <div className="pt-3 border-t border-[#EAEBEF] space-y-2">
             <h3 className="text-xs font-black uppercase text-[#111317]">
@@ -1041,7 +1136,7 @@ export function Painel({
                       </span>
                     )}
                     <span className="block text-[10px] text-[#6E7381]">
-                      {new Date(h.date).toLocaleString("pt-BR")}
+                      {Number.isNaN(new Date(h.date).getTime()) ? h.date : new Date(h.date).toLocaleString("pt-BR")}
                     </span>
                   </div>
                   <span className="font-extrabold text-[#10B981]">+{h.amount} GP</span>
@@ -1115,7 +1210,24 @@ export function Painel({
           const basePartner = u.base_partner_id
             ? partnerList.find((p) => p.id === u.base_partner_id)
             : null;
-          if (!basePartner) return null;
+          if (!basePartner) {
+            return (
+              <a
+                href="/treinos"
+                className={C + " p-3.5 flex items-center justify-between gap-3 hover:border-[#FF5400] transition"}
+              >
+                <div>
+                  <p className="text-[11px] font-extrabold uppercase text-[#6E7381]">
+                    Meu Projeto / Escola Base
+                  </p>
+                  <p className="text-xs font-bold text-[#111317] mt-0.5">
+                    Nenhum centro de treino vinculado · Ver quadras qualificadas em /treinos
+                  </p>
+                </div>
+                <span className="text-xs font-extrabold text-[#FF5400] shrink-0">Ver mapa →</span>
+              </a>
+            );
+          }
           const isRegular = u.enrollment_status === "regular";
           return (
             <div className={C + " p-4 space-y-2"}>

@@ -360,6 +360,13 @@ export function PartnerDashboardPage({
       setFeedback({ ok: false, msg: "Selecione um atleta ou informe o nome." });
       return;
     }
+    if (!chosenUser && !regWhatsapp.trim()) {
+      setFeedback({
+        ok: false,
+        msg: "Para atleta avulso sem cadastro, informe o WhatsApp para vincular os Hezi Points depois.",
+      });
+      return;
+    }
     const res = registerParticipant({
       sub_event_id: activeStage.id,
       circuit_id: activeStageCircuit.id,
@@ -636,6 +643,7 @@ export function PartnerDashboardPage({
                 previewClassName="w-24 h-14 rounded-xl object-cover border border-[#EAEBEF]"
               />
             </div>
+            {activePartner.partner_tier === "qualified" && (
             <div className="pt-3 border-t border-[#EAEBEF] space-y-3">
               <p className="text-xs font-black uppercase text-[#FF5500]">
                 Dados do Local &amp; Treinos (Mapa /treinos)
@@ -663,7 +671,7 @@ export function PartnerDashboardPage({
                 placeholder="Endereço completo da quadra"
                 className="w-full px-3.5 py-2.5 rounded-xl border border-[#EAEBEF] bg-[#F8F9FA] text-xs"
               />
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                 <input
                   type="text"
                   value={editNeighborhood}
@@ -680,16 +688,21 @@ export function PartnerDashboardPage({
                 />
                 <input
                   type="text"
-                  value={editLat}
-                  onChange={(e) => setEditLat(e.target.value)}
-                  placeholder="Latitude (ex: -22.95)"
-                  className="px-3 py-2 rounded-xl border border-[#EAEBEF] bg-[#F8F9FA] text-xs"
-                />
-                <input
-                  type="text"
-                  value={editLng}
-                  onChange={(e) => setEditLng(e.target.value)}
-                  placeholder="Longitude (ex: -43.19)"
+                  value={editLat && editLng ? `${editLat}, ${editLng}` : ""}
+                  onChange={(e) => {
+                    const val = e.target.value.trim();
+                    const atMatch = val.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+                    const plainMatch = val.match(/^(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)$/);
+                    const m = atMatch || plainMatch;
+                    if (m) {
+                      setEditLat(m[1]);
+                      setEditLng(m[2]);
+                    } else if (!val) {
+                      setEditLat("");
+                      setEditLng("");
+                    }
+                  }}
+                  placeholder="Link do Google Maps ou lat, lng"
                   className="px-3 py-2 rounded-xl border border-[#EAEBEF] bg-[#F8F9FA] text-xs"
                 />
               </div>
@@ -701,6 +714,7 @@ export function PartnerDashboardPage({
                 className="w-full px-3.5 py-2.5 rounded-xl border border-[#EAEBEF] bg-[#F8F9FA] text-xs"
               />
             </div>
+            )}
             <button
               type="submit"
               className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#FF5500] text-white text-xs font-black uppercase"

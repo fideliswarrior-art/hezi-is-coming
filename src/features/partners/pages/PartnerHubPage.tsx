@@ -551,7 +551,70 @@ export function PartnerHubPage({ slug }: { slug: string }) {
 
         {/* TAB 2: JOGOS & PLACARES */}
         {tab === "jogos" && currentStage && (
-          <div className="space-y-2.5">
+          <div className="space-y-4">
+            {/* Chaveamento Visual (Bracket) */}
+            {(() => {
+              const stageMatches = matches.filter((m) => m.sub_event_id === currentStage.id);
+              if (stageMatches.length === 0) return null;
+              const rounds = Array.from(new Set(stageMatches.map((m) => m.round_name)));
+              return (
+                <div className="bg-white border border-[#EAEBEF] rounded-2xl p-4 shadow-xs space-y-2.5">
+                  <p className="text-xs font-extrabold uppercase text-[#FF5400]">
+                    Chaveamento da Etapa
+                  </p>
+                  <div className="flex gap-3 overflow-x-auto pb-2">
+                    {rounds.map((rName) => (
+                      <div key={rName} className="min-w-[210px] flex-1 space-y-2">
+                        <p className="text-[11px] font-extrabold uppercase text-[#6E7381] px-1">
+                          {rName}
+                        </p>
+                        {stageMatches
+                          .filter((m) => m.round_name === rName)
+                          .map((m) => {
+                            const regA = registrations.find((r) => r.id === m.player_a_id);
+                            const regB = m.player_b_id
+                              ? registrations.find((r) => r.id === m.player_b_id)
+                              : undefined;
+                            return (
+                              <div
+                                key={`br-${m.id}`}
+                                className="rounded-xl border border-[#EAEBEF] bg-[#F8F9FA] p-2.5 text-xs space-y-1"
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <span
+                                    className={`truncate ${
+                                      m.winner_id === m.player_a_id
+                                        ? "font-extrabold text-[#FF5400]"
+                                        : "font-semibold text-[#111317]"
+                                    }`}
+                                  >
+                                    {regA?.participant_name || "A"}
+                                  </span>
+                                  <span className="n font-extrabold text-[#111317]">{m.score_a}</span>
+                                </div>
+                                <div className="flex items-center justify-between gap-2 border-t border-[#EAEBEF] pt-1">
+                                  <span
+                                    className={`truncate ${
+                                      m.player_b_id && m.winner_id === m.player_b_id
+                                        ? "font-extrabold text-[#FF5400]"
+                                        : "font-semibold text-[#111317]"
+                                    }`}
+                                  >
+                                    {regB?.participant_name || (m.result_type === "bye" ? "BYE" : "—")}
+                                  </span>
+                                  <span className="n font-extrabold text-[#111317]">{m.score_b}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div className="space-y-2.5">
             {matches
               .filter((m) => m.sub_event_id === currentStage.id)
               .map((m) => {
@@ -642,6 +705,7 @@ export function PartnerHubPage({ slug }: { slug: string }) {
                   </div>
                 );
               })}
+            </div>
           </div>
         )}
 
