@@ -896,6 +896,10 @@ function HeziSuperApp() {
     staff &&
     (tab === "pelada" || (tab === "painel" && staffSubTab === "cm"));
 
+  const myClassReqCount = usePartnerStore((s) =>
+    me ? (s.enrollmentRequests || []).filter((r) => r.user_id === me.id).length : 0,
+  );
+
   const pendingNotifCount = staff
     ? notifications.filter(
         (n) => n.type === "queue_request" && n.status === "pending",
@@ -905,7 +909,7 @@ function HeziSuperApp() {
           (n) =>
             n.toUserId === me.id &&
             (n.type === "group_invite" ? n.status === "pending" : true),
-        ).length
+        ).length + myClassReqCount
       : 0;
 
   const verifyModalUser =

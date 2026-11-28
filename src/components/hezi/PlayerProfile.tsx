@@ -1387,6 +1387,8 @@ export function NotificacoesPlayerModal({
   close: () => void;
 }) {
   const myId = S.me?.id;
+  const { enrollmentRequests = [], partners = [] } = usePartnerStore();
+  const myClassRequests = enrollmentRequests.filter((r) => r.user_id === myId);
   const myNotifs = S.notifications.filter(
     (n) =>
       (n.toUserId !== undefined && n.toUserId === myId) ||
@@ -1413,13 +1415,51 @@ export function NotificacoesPlayerModal({
           </button>
         </div>
 
-        {myNotifs.length === 0 ? (
+        {myNotifs.length === 0 && myClassRequests.length === 0 ? (
           <p className="text-xs text-[#6E7381] py-6 text-center">
             Você ainda não possui notificações. Convites de grupo na fila e
             confirmações de entrada aparecerão aqui com horário.
           </p>
         ) : (
           <div className="space-y-2.5">
+            {myClassRequests.map((req) => {
+              const proj = partners.find((p) => p.id === req.partner_id);
+              return (
+                <div
+                  key={req.id}
+                  className="bg-[#FFF4EE] border border-[#FF5400]/30 rounded-2xl p-3.5 space-y-1.5"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-extrabold uppercase text-[#FF5400]">
+                      Solicitação de Entrada na Turma
+                    </span>
+                    <span className="n text-[11px] font-bold text-[#6E7381]">
+                      {new Date(req.created_at).toLocaleString("pt-BR")}
+                    </span>
+                  </div>
+                  <p className="text-xs font-semibold text-[#111317]">
+                    Você enviou um pedido para entrar em{" "}
+                    <strong>{proj?.name || "Projeto Parceiro"}</strong> (Turma:{" "}
+                    <strong>{req.slot_title}</strong>).
+                  </p>
+                  <span
+                    className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
+                      req.status === "aprovado"
+                        ? "bg-emerald-100 text-emerald-800"
+                        : req.status === "recusado"
+                          ? "bg-red-100 text-red-700"
+                          : "bg-amber-100 text-amber-800"
+                    }`}
+                  >
+                    {req.status === "aprovado"
+                      ? "Aprovado pelo professor"
+                      : req.status === "recusado"
+                        ? "Recusado"
+                        : "Pedido enviado · Aguardando professor"}
+                  </span>
+                </div>
+              );
+            })}
             {myNotifs.map((n) => (
               <div
                 key={n.id}
