@@ -17,6 +17,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { CATS, ovr, useHeziPlatform, type CatKey } from "../../../lib/hezi/store";
+import { formatCpf, isValidCpf, normalizeCpf } from "../../../lib/hezi/cpf";
 import { ImageUploadField } from "../../../components/hezi/ImageUploadField";
 import { useTeamStore } from "../../teams/services/teamService";
 import { CATEGORY_LABELS, MODALITY_LABELS, TIER_LABELS } from "../constants/hpTable";
@@ -201,6 +202,7 @@ export function PartnerDashboardPage({
   const [regTeamId, setRegTeamId] = useState<string>("");
   const [regName, setRegName] = useState("");
   const [regWhatsapp, setRegWhatsapp] = useState("");
+  const [regCpf, setRegCpf] = useState("");
 
   // New Match form
   const [matchRound, setMatchRound] = useState("Quartas");
@@ -367,6 +369,11 @@ export function PartnerDashboardPage({
       });
       return;
     }
+    const cpfDigits = normalizeCpf(regCpf);
+    if (cpfDigits && !isValidCpf(cpfDigits)) {
+      setFeedback({ ok: false, msg: "CPF inválido na inscrição avulsa." });
+      return;
+    }
     const res = registerParticipant({
       sub_event_id: activeStage.id,
       circuit_id: activeStageCircuit.id,
@@ -384,6 +391,7 @@ export function PartnerDashboardPage({
     setRegUserId("");
     setRegName("");
     setRegWhatsapp("");
+    setRegCpf("");
   };
 
   const toggleRosterMemberCheckin = (regId: string, uid: number) => {
@@ -1335,14 +1343,23 @@ export function PartnerDashboardPage({
                 </div>
               )}
 
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <input
                   type="text"
                   value={regWhatsapp}
                   onChange={(e) => setRegWhatsapp(e.target.value)}
-                  placeholder="WhatsApp (opcional)"
-                  className="flex-1 px-3 py-2 rounded-xl border border-[#EAEBEF] bg-[#F8F9FA] text-xs"
+                  placeholder={regUserId ? "WhatsApp (opcional)" : "WhatsApp (obrigatório p/ avulso)"}
+                  className="flex-1 min-w-[160px] px-3 py-2 rounded-xl border border-[#EAEBEF] bg-[#F8F9FA] text-xs"
                 />
+                {!regUserId && (
+                  <input
+                    type="text"
+                    value={regCpf}
+                    onChange={(e) => setRegCpf(formatCpf(e.target.value))}
+                    placeholder="CPF (opcional)"
+                    className="w-40 px-3 py-2 rounded-xl border border-[#EAEBEF] bg-[#F8F9FA] text-xs"
+                  />
+                )}
                 <button
                   type="submit"
                   className="px-4 py-2 rounded-xl bg-[#FF5500] text-white text-xs font-black uppercase"

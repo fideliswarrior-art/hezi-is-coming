@@ -297,6 +297,7 @@ export interface RegisterFormPayload {
   apelido: string;
   dataNascimento: string;
   wpp: string;
+  cpf?: string;
   instagram: string;
   email: string;
   senha: string;
@@ -737,6 +738,7 @@ function HeziSuperApp() {
       apelido: f.apelido.trim(),
       dataNascimento: f.dataNascimento,
       wpp: f.wpp.trim(),
+      cpf: f.cpf,
       instagram: f.instagram.trim(),
       email: f.email.trim().toLowerCase(),
       senha: f.senha,

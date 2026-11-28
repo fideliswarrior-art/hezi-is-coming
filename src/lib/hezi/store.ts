@@ -333,6 +333,8 @@ export interface HeziUser {
   base_partner_id?: string | null;
   enrollment_status?: "none" | "regular" | "pendente" | "vencido";
   class_label?: string;
+  cpf?: string;
+  cpfVerified?: boolean;
   gpHistory?: {
     id: string;
     amount: number;

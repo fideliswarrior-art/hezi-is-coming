@@ -87,6 +87,7 @@ import { CourtMasterOrganizer, useTick } from "@/routes/pelada";
 import { RadarHabilidades } from "@/components/hezi/RadarHabilidades";
 import { AssinantePage } from "@/components/hezi/AssinantePage";
 import type { AppContextProps, AppTab, StaffSubTabKey } from "@/components/hezi/types";
+import { formatCpf, isValidCpf, normalizeCpf } from "@/lib/hezi/cpf";
 import { C, OB, btBase, Btn, Chip, Hd } from "@/components/hezi/shared";
 
 export function generateSixDigitCode(): string {
@@ -152,6 +153,7 @@ interface RegisterStateForm {
   apelido: string;
   dataNascimento: string;
   wpp: string;
+  cpf?: string;
   instagram: string;
   email: string;
   senha: string;
@@ -183,6 +185,7 @@ export function Cadastro({
       apelido: "",
       dataNascimento: "",
       wpp: "",
+      cpf: "",
       instagram: "",
       email: "",
       senha: "",
@@ -221,6 +224,8 @@ export function Cadastro({
       cleanUsername === "prof");
 
   const isBirthDateValid = isValidBirthDate(f.dataNascimento);
+  const cpfDigits = normalizeCpf(f.cpf || "");
+  const isCpfValidOrEmpty = cpfDigits.length === 0 || isValidCpf(cpfDigits);
 
   const ok =
     f.nome.trim().length > 1 &&
@@ -228,6 +233,7 @@ export function Cadastro({
     !usernameTaken &&
     f.apelido.trim().length > 1 &&
     isBirthDateValid &&
+    isCpfValidOrEmpty &&
     f.wpp.replace(/\D/g, "").length >= 10 &&
     f.instagram.trim().length > 1 &&
     isEmailValid &&
@@ -264,6 +270,19 @@ export function Cadastro({
             onChange={(e) => setF({ ...f, nome: e.target.value })}
             className="w-full bg-[#F4F5F7] rounded-xl px-4 py-3 text-sm font-medium outline-none focus:ring-2 ring-[#FF5400]"
           />
+          <div>
+            <input
+              value={f.cpf || ""}
+              placeholder="CPF (opcional · 000.000.000-00)"
+              onChange={(e) => setF({ ...f, cpf: formatCpf(e.target.value) })}
+              className="w-full bg-[#F4F5F7] rounded-xl px-4 py-3 text-sm font-medium outline-none focus:ring-2 ring-[#FF5400]"
+            />
+            {cpfDigits.length > 0 && !isCpfValidOrEmpty && (
+              <p className="text-[11px] font-bold text-[#EF4444] mt-1 px-1">
+                CPF inválido. Verifique os dígitos ou deixe em branco por enquanto.
+              </p>
+            )}
+          </div>
 
           <div>
             <input
@@ -473,6 +492,7 @@ export function Cadastro({
               dataNascimento: f.dataNascimento,
               wpp: f.wpp,
               instagram: f.instagram,
+              cpf: cpfDigits || undefined,
               email: emailTrim,
               senha: f.senha,
               foto: f.foto || undefined,

@@ -125,6 +125,7 @@ export interface PartnerRegistration {
   checked_in: boolean;
   contact_whatsapp: string;
   instagram: string;
+  cpf?: string;
   approval_status: "pendente" | "confirmado" | "recusado" | "desclassificado";
   final_placement: number | null;
 }
