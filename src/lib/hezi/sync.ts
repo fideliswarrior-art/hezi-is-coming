@@ -60,6 +60,9 @@ function extractHeziData(s: HeziPlatformState) {
       playerStats: p.playerStats,
       hpLedger: p.hpLedger,
       badges: p.badges,
+      trainingSlots: p.trainingSlots || [],
+      trainingCheckins: p.trainingCheckins || [],
+      ovrEvaluations: p.ovrEvaluations || [],
     },
     teamsModule: {
       teams: t.teams,

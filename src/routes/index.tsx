@@ -916,6 +916,13 @@ function HeziSuperApp() {
               >
                 RANKINGS
               </button>
+              <span className="text-white/40 select-none">|</span>
+              <a
+                href="/treinos"
+                className="ote-nav-link transition hover:text-[#FF5400] text-white"
+              >
+                TREINOS
+              </a>
               {role === "visitante" && (
                 <>
                   <span className="text-white/40 select-none">|</span>

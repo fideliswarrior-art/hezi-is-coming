@@ -200,7 +200,8 @@ export function Boletim({ u }: { u: HeziUser }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
         {CATS.map((c) => {
           const open = o === c.k;
-          const b = bd[c.k]?.l ?? 0;
+          const catScore = sub[c.k] ?? 65;
+          const b = catScore >= 90 ? 3 : catScore >= 80 ? 2 : catScore >= 70 ? 1 : 0;
           const sCount = bd[c.k]?.s ?? 0;
           const asym =
             c.k === "ban" && Math.abs((r.dir ?? 0) - (r.esq ?? 0)) > 4;
@@ -223,7 +224,12 @@ export function Boletim({ u }: { u: HeziUser }) {
                     {c.t}
                   </p>
                   <p className="text-xs text-[#6E7381]">
-                    Badge: {BE[b]} {BN[b]} · Peso {Math.round(W[c.k] * 100)}%
+                    Badge: {BE[b]} {BN[b]}
+                    {b === 0
+                      ? " · Atinja 70 pts para desbloquear Bronze"
+                      : b === 3
+                        ? " · Nível máximo atingido!"
+                        : ` · Peso ${Math.round(W[c.k] * 100)}%`}
                   </p>
                 </div>
                 <span className="text-lg">{BE[b]}</span>
@@ -624,6 +630,7 @@ export function ProfileEditModal({
 
 export function RankingsPage({ S }: { S: AppContextProps }) {
   const u = S.me;
+  const partnerList = usePartnerStore((s) => s.partners);
   const { hpLedger, subEvents, circuits } = usePartnerStore();
   const { teams } = useTeamStore();
 
@@ -905,6 +912,7 @@ export function Painel({
   initialSubTab?: "perfil" | "pass";
 }) {
   const u = S.me;
+  const partnerList = usePartnerStore((s) => s.partners);
   const [editOpen, setEditOpen] = useState(false);
   const [subTab, setSubTab] = useState<"perfil" | "pass">(initialSubTab);
 
@@ -1086,6 +1094,7 @@ export function Painel({
                 u.username ? `@${u.username}` : null,
                 u.apelido,
                 u.instagram,
+                u.class_label,
               ]
                 .filter(Boolean)
                 .join(" · ")}
@@ -1101,6 +1110,47 @@ export function Painel({
             <Settings className="w-5 h-5 text-[#111317]" />
           </button>
         </div>
+
+        {(() => {
+          const basePartner = u.base_partner_id
+            ? partnerList.find((p) => p.id === u.base_partner_id)
+            : null;
+          if (!basePartner) return null;
+          const isRegular = u.enrollment_status === "regular";
+          return (
+            <div className={C + " p-4 space-y-2"}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-[11px] font-extrabold uppercase text-[#6E7381]">
+                  Meu Projeto / Escola Base
+                </p>
+                <span
+                  className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
+                    isRegular
+                      ? "bg-emerald-100 text-emerald-800"
+                      : "bg-amber-100 text-amber-800"
+                  }`}
+                >
+                  {isRegular ? "Matrícula Regular" : "Matrícula Pendente"}
+                </span>
+              </div>
+              <p className="font-extrabold text-sm text-[#111317]">{basePartner.name}</p>
+              <p className="text-xs text-[#6E7381]">
+                {basePartner.address || "Endereço não informado"}
+                {basePartner.coach_display_name ? ` · Prof. ${basePartner.coach_display_name}` : ""}
+              </p>
+              {basePartner.training_schedule_summary && (
+                <p className="text-xs font-bold text-[#FF5400]">
+                  {basePartner.training_schedule_summary}
+                </p>
+              )}
+              {!isRegular && (
+                <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 font-semibold">
+                  O multiplicador 2x GP e novas atualizações de OVR estão pausados até a regularização, mas sua inscrição em torneios na aba EVENTOS segue 100% liberada.
+                </p>
+              )}
+            </div>
+          );
+        })()}
 
         {editOpen && (
           <ProfileEditModal

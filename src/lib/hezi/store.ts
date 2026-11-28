@@ -330,6 +330,9 @@ export interface HeziUser {
     doubled?: boolean;
   }[];
   gp?: number;
+  base_partner_id?: string | null;
+  enrollment_status?: "none" | "regular" | "pendente" | "vencido";
+  class_label?: string;
   gpHistory?: {
     id: string;
     amount: number;

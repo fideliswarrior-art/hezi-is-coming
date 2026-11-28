@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { OvrEvaluation, PartnerTier, PartnerTrainingSlot, TrainingCheckin } from "../types";
 import { persist } from "zustand/middleware";
 import { isActiveSubscriber, useHeziPlatform } from "@/lib/hezi/store";
 import { computeHomologationPreview } from "../utils/hpCalculator";
@@ -179,6 +180,9 @@ interface PartnerStoreState {
   playerStats: PartnerPlayerStat[];
   hpLedger: HpLedgerEntry[];
   badges: PartnerBadge[];
+  trainingSlots: PartnerTrainingSlot[];
+  trainingCheckins: TrainingCheckin[];
+  ovrEvaluations: OvrEvaluation[];
 
   // Partner Identity & Management
   createOrPromotePartner: (input: {
@@ -186,6 +190,9 @@ interface PartnerStoreState {
     name: string;
     bio?: string;
     instagram?: string;
+    partner_tier?: PartnerTier;
+    coach_user_id?: number | null;
+    coach_display_name?: string;
   }) => { ok: boolean; partner?: Partner; error?: string };
   updatePartner: (id: string, patch: Partial<Partner>) => void;
 
@@ -247,6 +254,31 @@ interface PartnerStoreState {
     adminUserId: number,
   ) => { ok: boolean; message: string };
   revokeLedgerEntry: (ledgerId: string, reason: string) => void;
+
+  // Qualified Partner: Training Slots, Daily Check-ins & OVR Evaluations
+  addTrainingSlot: (input: {
+    partner_id: string;
+    title: string;
+    weekday: number;
+    start_time: string;
+    end_time: string;
+    max_capacity?: number;
+  }) => PartnerTrainingSlot;
+  toggleTrainingSlot: (slotId: string) => void;
+  requestTrainingCheckin: (input: {
+    partner_id: string;
+    slot_id: string | null;
+    user_id: number;
+    session_date?: string;
+  }) => { ok: boolean; checkin?: TrainingCheckin; error?: string };
+  confirmTrainingCheckin: (input: {
+    partner_id: string;
+    user_id: number;
+    confirmed_by: number;
+    slot_id?: string | null;
+    session_date?: string;
+  }) => { ok: boolean; gpAwarded: number };
+  recordOvrEvaluation: (input: Omit<OvrEvaluation, "id" | "created_at">) => OvrEvaluation;
 }
 
 export const usePartnerStore = create<PartnerStoreState>()(
@@ -260,8 +292,19 @@ export const usePartnerStore = create<PartnerStoreState>()(
       playerStats: SEED_STATS,
       hpLedger: buildSeedLedger(),
       badges: [],
+      trainingSlots: [],
+      trainingCheckins: [],
+      ovrEvaluations: [],
 
-      createOrPromotePartner: ({ user_id, name, bio, instagram }) => {
+      createOrPromotePartner: ({
+        user_id,
+        name,
+        bio,
+        instagram,
+        partner_tier = "event_only",
+        coach_user_id = null,
+        coach_display_name = "",
+      }) => {
         const cleanName = name.trim();
         if (!cleanName) {
           return { ok: false, error: "Informe o nome do projeto parceiro." };
@@ -753,6 +796,130 @@ export const usePartnerStore = create<PartnerStoreState>()(
               : entry,
           ),
         })),
+
+      addTrainingSlot: ({ partner_id, title, weekday, start_time, end_time, max_capacity = 20 }) => {
+        const slot: PartnerTrainingSlot = {
+          id: `slot-${Date.now()}`,
+          partner_id,
+          title: title.trim() || "Treino Oficial",
+          weekday,
+          start_time,
+          end_time,
+          max_capacity,
+          is_active: true,
+          created_at: new Date().toISOString(),
+        };
+        set((s) => ({ trainingSlots: [slot, ...(s.trainingSlots || [])] }));
+        return slot;
+      },
+
+      toggleTrainingSlot: (slotId) =>
+        set((s) => ({
+          trainingSlots: (s.trainingSlots || []).map((sl) =>
+            sl.id === slotId ? { ...sl, is_active: !sl.is_active } : sl,
+          ),
+        })),
+
+      requestTrainingCheckin: ({ partner_id, slot_id, user_id, session_date }) => {
+        const today = session_date || new Date().toISOString().slice(0, 10);
+        const existing = (get().trainingCheckins || []).find(
+          (c) => c.partner_id === partner_id && c.user_id === user_id && c.session_date === today,
+        );
+        if (existing) {
+          return { ok: false, error: "Check-in de hoje já registrado." };
+        }
+        const checkin: TrainingCheckin = {
+          id: `tchk-${Date.now()}`,
+          partner_id,
+          slot_id,
+          user_id,
+          session_date: today,
+          status: "pending",
+          gp_awarded: 0,
+          confirmed_by: null,
+          confirmed_at: null,
+          created_at: new Date().toISOString(),
+        };
+        set((s) => ({ trainingCheckins: [checkin, ...(s.trainingCheckins || [])] }));
+        return { ok: true, checkin };
+      },
+
+      confirmTrainingCheckin: ({ partner_id, user_id, confirmed_by, slot_id = null, session_date }) => {
+        const today = session_date || new Date().toISOString().slice(0, 10);
+        const platform = useHeziPlatform.getState();
+        const student = platform.users.find((u) => u.id === user_id);
+        const isRegular = student?.enrollment_status === "regular" || isActiveSubscriber(student);
+        const gpAwarded = isRegular ? 20 : 10;
+        const nowIso = new Date().toISOString();
+
+        const existing = (get().trainingCheckins || []).find(
+          (c) => c.partner_id === partner_id && c.user_id === user_id && c.session_date === today,
+        );
+
+        if (existing && existing.status === "confirmed") {
+          return { ok: true, gpAwarded: existing.gp_awarded };
+        }
+
+        if (existing) {
+          set((s) => ({
+            trainingCheckins: (s.trainingCheckins || []).map((c) =>
+              c.id === existing.id
+                ? {
+                    ...c,
+                    status: "confirmed",
+                    gp_awarded: gpAwarded,
+                    confirmed_by,
+                    confirmed_at: nowIso,
+                  }
+                : c,
+            ),
+          }));
+        } else {
+          const checkin: TrainingCheckin = {
+            id: `tchk-${Date.now()}`,
+            partner_id,
+            slot_id,
+            user_id,
+            session_date: today,
+            status: "confirmed",
+            gp_awarded: gpAwarded,
+            confirmed_by,
+            confirmed_at: nowIso,
+            created_at: nowIso,
+          };
+          set((s) => ({ trainingCheckins: [checkin, ...(s.trainingCheckins || [])] }));
+        }
+
+        if (student) {
+          platform.updUser(student.id, {
+            gp: (student.gp ?? 0) + gpAwarded,
+            of: (student.of ?? 0) + 1,
+            gpHistory: [
+              {
+                id: `gp-treino-${Date.now()}`,
+                amount: gpAwarded,
+                baseAmount: 10,
+                reason: "Presença confirmada no treino",
+                date: new Date().toLocaleDateString("pt-BR"),
+                doubled: isRegular,
+              },
+              ...(student.gpHistory || []),
+            ],
+          });
+        }
+
+        return { ok: true, gpAwarded };
+      },
+
+      recordOvrEvaluation: (input) => {
+        const ev: OvrEvaluation = {
+          ...input,
+          id: `ovr-ev-${Date.now()}`,
+          created_at: new Date().toISOString(),
+        };
+        set((s) => ({ ovrEvaluations: [ev, ...(s.ovrEvaluations || [])] }));
+        return ev;
+      },
     }),
     { name: "hezi-partners-v1" },
   ),

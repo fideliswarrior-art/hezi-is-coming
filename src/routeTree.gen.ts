@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PeladaRouteImport } from './routes/pelada'
+import { Route as TreinosRouteImport } from './routes/treinos'
 import { Route as CircuitoSlugRouteImport } from './routes/circuito.$slug'
 
 const IndexRoute = IndexRouteImport.update({
@@ -23,6 +24,11 @@ const PeladaRoute = PeladaRouteImport.update({
   path: '/pelada',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TreinosRoute = TreinosRouteImport.update({
+  id: '/treinos',
+  path: '/treinos',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CircuitoSlugRoute = CircuitoSlugRouteImport.update({
   id: '/circuito/$slug',
   path: '/circuito/$slug',
@@ -32,30 +38,34 @@ const CircuitoSlugRoute = CircuitoSlugRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/pelada': typeof PeladaRoute
+  '/treinos': typeof TreinosRoute
   '/circuito/$slug': typeof CircuitoSlugRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/pelada': typeof PeladaRoute
+  '/treinos': typeof TreinosRoute
   '/circuito/$slug': typeof CircuitoSlugRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/pelada': typeof PeladaRoute
+  '/treinos': typeof TreinosRoute
   '/circuito/$slug': typeof CircuitoSlugRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/pelada' | '/circuito/$slug'
+  fullPaths: '/' | '/pelada' | '/treinos' | '/circuito/$slug'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/pelada' | '/circuito/$slug'
-  id: '__root__' | '/' | '/pelada' | '/circuito/$slug'
+  to: '/' | '/pelada' | '/treinos' | '/circuito/$slug'
+  id: '__root__' | '/' | '/pelada' | '/treinos' | '/circuito/$slug'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   PeladaRoute: typeof PeladaRoute
+  TreinosRoute: typeof TreinosRoute
   CircuitoSlugRoute: typeof CircuitoSlugRoute
 }
 
@@ -75,6 +85,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PeladaRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/treinos': {
+      id: '/treinos'
+      path: '/treinos'
+      fullPath: '/treinos'
+      preLoaderRoute: typeof TreinosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/circuito/$slug': {
       id: '/circuito/$slug'
       path: '/circuito/$slug'
@@ -88,6 +105,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   PeladaRoute: PeladaRoute,
+  TreinosRoute: TreinosRoute,
   CircuitoSlugRoute: CircuitoSlugRoute,
 }
 export const routeTree = rootRouteImport

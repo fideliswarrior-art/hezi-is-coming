@@ -3,6 +3,7 @@ import { usePartnerStore } from "@/features/partners/services/partnerService";
 import { MODALITY_LABELS, TIER_LABELS } from "@/features/partners/constants/hpTable";
 import { useEffect, useState } from "react";
 import { HomePartnerBanner } from "@/features/partners/components/HomePartnerBanner";
+import { TodayTrainingCard } from "@/features/partners/components/TodayTrainingCard";
 import {
   Home as HomeIcon,
   Dribbble,
@@ -123,6 +124,9 @@ export function Home({ S }: { S: AppContextProps }) {
           </Btn>
         </div>
       </div>
+
+      {/* Treino Hoje (Prioritário) */}
+      <TodayTrainingCard me={S.me} />
 
       {/* Circuitos Licenciados Fixados na Home */}
       <HomePartnerBanner />
@@ -347,6 +351,8 @@ export function Pelada({ S }: { S: AppContextProps }) {
             </button>
           )}
         </div>
+
+        <TodayTrainingCard me={S.me} />
 
         {S.evs.length === 0 && availablePartnerStages.length === 0 ? (
           <div className={C + " p-6 text-center space-y-2"}>

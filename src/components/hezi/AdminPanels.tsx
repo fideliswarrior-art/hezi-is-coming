@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { AdminPartnersTab } from "@/features/partners/components/AdminPartnersTab";
+import { usePartnerStore } from "@/features/partners/services/partnerService";
 import {
   Home as HomeIcon,
   Dribbble,
@@ -603,7 +604,9 @@ export function Avaliar({ S }: { S: AppContextProps }) {
 // ABA "ALUNOS" (EXCLUSIVA PARA ALUNOS ASSINANTES HEZI SKILLS)
 // ---------------------------------------------------------------------------
 export function Assinantes({ S }: { S: AppContextProps }) {
+  const { partners } = usePartnerStore();
   const assinantesList = S.users.filter((x) => x.tipo === "aluno");
+  const qualifiedPartners = partners.filter((p) => p.partner_tier === "qualified");
   const [sel, setSel] = useState<number>(assinantesList[0]?.id ?? 1);
   const u = assinantesList.find((x) => x.id === sel) || assinantesList[0];
 

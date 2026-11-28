@@ -16,7 +16,7 @@ import {
   Users,
   AlertCircle,
 } from "lucide-react";
-import { useHeziPlatform } from "../../../lib/hezi/store";
+import { CATS, ovr, useHeziPlatform, type CatKey } from "../../../lib/hezi/store";
 import { ImageUploadField } from "../../../components/hezi/ImageUploadField";
 import { useTeamStore } from "../../teams/services/teamService";
 import { CATEGORY_LABELS, MODALITY_LABELS, TIER_LABELS } from "../constants/hpTable";
@@ -29,7 +29,7 @@ interface PartnerDashboardPageProps {
   onBack?: () => void;
 }
 
-type PartnerTab = "identidade" | "circuitos" | "inscricoes" | "sumula";
+type PartnerTab = "identidade" | "circuitos" | "inscricoes" | "sumula" | "turmas" | "avaliar";
 
 export function PartnerDashboardPage({
   currentUserId,
@@ -37,6 +37,7 @@ export function PartnerDashboardPage({
   onBack,
 }: PartnerDashboardPageProps) {
   const users = useHeziPlatform((s) => s.users);
+  const updUser = useHeziPlatform((s) => s.updUser);
   const { teams, rosterMembers } = useTeamStore();
   const {
     partners,
@@ -45,6 +46,8 @@ export function PartnerDashboardPage({
     registrations,
     matches,
     playerStats,
+    trainingSlots = [],
+    trainingCheckins = [],
     updatePartner,
     createCircuit,
     updateCircuit,
@@ -55,6 +58,10 @@ export function PartnerDashboardPage({
     createMatch,
     updateMatch,
     upsertPlayerStat,
+    addTrainingSlot,
+    toggleTrainingSlot,
+    confirmTrainingCheckin,
+    recordOvrEvaluation,
   } = usePartnerStore();
 
   const [tab, setTab] = useState<PartnerTab>("circuitos");
@@ -81,7 +88,34 @@ export function PartnerDashboardPage({
   const [editInsta, setEditInsta] = useState("");
   const [editLogo, setEditLogo] = useState("");
   const [editBanner, setEditBanner] = useState("");
+  const [editAddress, setEditAddress] = useState("");
+  const [editNeighborhood, setEditNeighborhood] = useState("");
+  const [editCity, setEditCity] = useState("");
+  const [editLat, setEditLat] = useState("");
+  const [editLng, setEditLng] = useState("");
+  const [editCoachName, setEditCoachName] = useState("");
+  const [editSchedule, setEditSchedule] = useState("");
+  const [editWpp, setEditWpp] = useState("");
   const [identityLoadedFor, setIdentityLoadedFor] = useState("");
+
+  // Turmas & Treinos
+  const [slotTitle, setSlotTitle] = useState("Treino Fundamentos & Competição");
+  const [slotWeekday, setSlotWeekday] = useState(2);
+  const [slotStart, setSlotStart] = useState("16:30");
+  const [slotEnd, setSlotEnd] = useState("18:00");
+
+  // Avaliar OVR
+  const [evalStudentId, setEvalStudentId] = useState<string>("");
+  const [evalScores, setEvalScores] = useState<Record<CatKey, number>>({
+    ban: 68,
+    arr: 68,
+    cb: 68,
+    pla: 68,
+    def: 68,
+    fis: 68,
+    qi: 68,
+  });
+  const [evalNotes, setEvalNotes] = useState("");
 
   if (activePartner && identityLoadedFor !== activePartner.id) {
     setEditName(activePartner.name);
@@ -89,6 +123,14 @@ export function PartnerDashboardPage({
     setEditInsta(activePartner.instagram);
     setEditLogo(activePartner.logo_url);
     setEditBanner(activePartner.banner_url);
+    setEditAddress(activePartner.address || "");
+    setEditNeighborhood(activePartner.neighborhood || "");
+    setEditCity(activePartner.city || "");
+    setEditLat(activePartner.latitude != null ? String(activePartner.latitude) : "");
+    setEditLng(activePartner.longitude != null ? String(activePartner.longitude) : "");
+    setEditCoachName(activePartner.coach_display_name || "");
+    setEditSchedule(activePartner.training_schedule_summary || "");
+    setEditWpp(activePartner.whatsapp_contact || "");
     setIdentityLoadedFor(activePartner.id);
   }
 
@@ -216,6 +258,14 @@ export function PartnerDashboardPage({
       instagram: editInsta,
       logo_url: editLogo,
       banner_url: editBanner,
+      address: editAddress.trim(),
+      neighborhood: editNeighborhood.trim(),
+      city: editCity.trim(),
+      latitude: editLat.trim() ? Number(editLat) : null,
+      longitude: editLng.trim() ? Number(editLng) : null,
+      coach_display_name: editCoachName.trim(),
+      training_schedule_summary: editSchedule.trim(),
+      whatsapp_contact: editWpp.trim(),
     });
     setFeedback({ ok: true, msg: "Identidade do parceiro atualizada!" });
   };
@@ -483,11 +533,17 @@ export function PartnerDashboardPage({
         )}
 
         {/* Navigation Pills */}
-        <div className="grid grid-cols-4 gap-1.5 bg-white border border-[#EAEBEF] rounded-2xl p-1.5">
+        <div className="flex flex-wrap gap-1.5 bg-white border border-[#EAEBEF] rounded-2xl p-1.5">
           {[
             { id: "circuitos" as const, label: "Etapas", icon: Trophy },
             { id: "inscricoes" as const, label: "Check-in", icon: UserCheck },
             { id: "sumula" as const, label: "Súmula", icon: ClipboardCheck },
+            ...(activePartner.partner_tier === "qualified"
+              ? [
+                  { id: "turmas" as const, label: "Turmas", icon: Users },
+                  { id: "avaliar" as const, label: "Avaliar OVR", icon: Award },
+                ]
+              : []),
             { id: "identidade" as const, label: "Perfil", icon: Edit3 },
           ].map((item) => {
             const Icon = item.icon;
@@ -496,7 +552,7 @@ export function PartnerDashboardPage({
               <button
                 key={item.id}
                 onClick={() => setTab(item.id)}
-                className={`flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 py-2.5 px-2 rounded-xl text-[11px] font-black uppercase transition ${
+                className={`flex-1 min-w-[80px] flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 py-2.5 px-2 rounded-xl text-[11px] font-black uppercase transition ${
                   active
                     ? "bg-[#111317] text-white"
                     : "text-[#6B7280] hover:bg-[#F8F9FA] hover:text-[#111317]"
@@ -580,11 +636,345 @@ export function PartnerDashboardPage({
                 previewClassName="w-24 h-14 rounded-xl object-cover border border-[#EAEBEF]"
               />
             </div>
+            <div className="pt-3 border-t border-[#EAEBEF] space-y-3">
+              <p className="text-xs font-black uppercase text-[#FF5500]">
+                Dados do Local &amp; Treinos (Mapa /treinos)
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <input
+                  type="text"
+                  value={editCoachName}
+                  onChange={(e) => setEditCoachName(e.target.value)}
+                  placeholder="Nome do Professor Responsável"
+                  className="px-3.5 py-2.5 rounded-xl border border-[#EAEBEF] bg-[#F8F9FA] text-xs font-semibold"
+                />
+                <input
+                  type="text"
+                  value={editWpp}
+                  onChange={(e) => setEditWpp(e.target.value)}
+                  placeholder="WhatsApp de matrícula (ex: 21999999999)"
+                  className="px-3.5 py-2.5 rounded-xl border border-[#EAEBEF] bg-[#F8F9FA] text-xs font-semibold"
+                />
+              </div>
+              <input
+                type="text"
+                value={editAddress}
+                onChange={(e) => setEditAddress(e.target.value)}
+                placeholder="Endereço completo da quadra"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-[#EAEBEF] bg-[#F8F9FA] text-xs"
+              />
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <input
+                  type="text"
+                  value={editNeighborhood}
+                  onChange={(e) => setEditNeighborhood(e.target.value)}
+                  placeholder="Bairro"
+                  className="px-3 py-2 rounded-xl border border-[#EAEBEF] bg-[#F8F9FA] text-xs"
+                />
+                <input
+                  type="text"
+                  value={editCity}
+                  onChange={(e) => setEditCity(e.target.value)}
+                  placeholder="Cidade"
+                  className="px-3 py-2 rounded-xl border border-[#EAEBEF] bg-[#F8F9FA] text-xs"
+                />
+                <input
+                  type="text"
+                  value={editLat}
+                  onChange={(e) => setEditLat(e.target.value)}
+                  placeholder="Latitude (ex: -22.95)"
+                  className="px-3 py-2 rounded-xl border border-[#EAEBEF] bg-[#F8F9FA] text-xs"
+                />
+                <input
+                  type="text"
+                  value={editLng}
+                  onChange={(e) => setEditLng(e.target.value)}
+                  placeholder="Longitude (ex: -43.19)"
+                  className="px-3 py-2 rounded-xl border border-[#EAEBEF] bg-[#F8F9FA] text-xs"
+                />
+              </div>
+              <input
+                type="text"
+                value={editSchedule}
+                onChange={(e) => setEditSchedule(e.target.value)}
+                placeholder="Resumo dos horários (ex: Terça e Quinta • 16:30 às 18:00)"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-[#EAEBEF] bg-[#F8F9FA] text-xs"
+              />
+            </div>
             <button
               type="submit"
               className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#FF5500] text-white text-xs font-black uppercase"
             >
               Salvar Identidade
+            </button>
+          </form>
+        )}
+
+        {/* TAB 5: TURMAS & TREINOS (PARCEIRO QUALIFICADO) */}
+        {tab === "turmas" && activePartner.partner_tier === "qualified" && (
+          <div className="space-y-4">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                addTrainingSlot({
+                  partner_id: activePartner.id,
+                  title: slotTitle,
+                  weekday: slotWeekday,
+                  start_time: slotStart,
+                  end_time: slotEnd,
+                });
+                setFeedback({ ok: true, msg: "Turma/horário cadastrado!" });
+              }}
+              className="bg-white border border-[#EAEBEF] rounded-2xl p-4 space-y-3"
+            >
+              <h2 className="text-sm font-black uppercase">Cadastrar Turma &amp; Horário</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
+                <input
+                  type="text"
+                  value={slotTitle}
+                  onChange={(e) => setSlotTitle(e.target.value)}
+                  placeholder="Nome da Turma"
+                  className="sm:col-span-2 px-3 py-2.5 rounded-xl border border-[#EAEBEF] bg-[#F8F9FA] text-xs font-semibold"
+                />
+                <select
+                  value={slotWeekday}
+                  onChange={(e) => setSlotWeekday(Number(e.target.value))}
+                  className="px-3 py-2.5 rounded-xl border border-[#EAEBEF] bg-[#F8F9FA] text-xs font-bold"
+                >
+                  {["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"].map(
+                    (d, idx) => (
+                      <option key={d} value={idx}>
+                        {d}
+                      </option>
+                    ),
+                  )}
+                </select>
+                <div className="flex gap-1.5">
+                  <input
+                    type="time"
+                    value={slotStart}
+                    onChange={(e) => setSlotStart(e.target.value)}
+                    className="flex-1 px-2 py-2 rounded-xl border border-[#EAEBEF] bg-[#F8F9FA] text-xs font-bold"
+                  />
+                  <input
+                    type="time"
+                    value={slotEnd}
+                    onChange={(e) => setSlotEnd(e.target.value)}
+                    className="flex-1 px-2 py-2 rounded-xl border border-[#EAEBEF] bg-[#F8F9FA] text-xs font-bold"
+                  />
+                </div>
+              </div>
+              <button
+                type="submit"
+                className="px-4 py-2 rounded-xl bg-[#FF5500] text-white text-xs font-black uppercase"
+              >
+                Adicionar Turma
+              </button>
+
+              {trainingSlots.filter((sl) => sl.partner_id === activePartner.id).length > 0 && (
+                <div className="pt-2 border-t border-[#EAEBEF] space-y-1.5">
+                  {trainingSlots
+                    .filter((sl) => sl.partner_id === activePartner.id)
+                    .map((sl) => (
+                      <div
+                        key={sl.id}
+                        className="flex items-center justify-between px-3 py-2 rounded-xl bg-[#F8F9FA] border border-[#EAEBEF] text-xs"
+                      >
+                        <span className="font-bold">
+                          {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"][sl.weekday]} ·{" "}
+                          {sl.start_time}–{sl.end_time} · {sl.title}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => toggleTrainingSlot(sl.id)}
+                          className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase ${
+                            sl.is_active
+                              ? "bg-emerald-100 text-emerald-800"
+                              : "bg-gray-200 text-gray-600"
+                          }`}
+                        >
+                          {sl.is_active ? "Ativa" : "Pausada"}
+                        </button>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </form>
+
+            <div className="bg-white border border-[#EAEBEF] rounded-2xl p-4 space-y-3">
+              <h3 className="text-sm font-black uppercase">Presença de Hoje (Check-in Diário)</h3>
+              {users.filter((u) => u.base_partner_id === activePartner.id).length === 0 ? (
+                <p className="text-xs text-[#6B7280]">
+                  Nenhum aluno vinculado a este projeto ainda. Peça ao Administrador para vincular em Moderador &gt; Assinantes.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {users
+                    .filter((u) => u.base_partner_id === activePartner.id)
+                    .map((student) => {
+                      const todayStr = new Date().toISOString().slice(0, 10);
+                      const todayChk = trainingCheckins.find(
+                        (c) =>
+                          c.partner_id === activePartner.id &&
+                          c.user_id === student.id &&
+                          c.session_date === todayStr,
+                      );
+                      const isReg = student.enrollment_status === "regular";
+                      return (
+                        <div
+                          key={student.id}
+                          className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-[#F8F9FA] border border-[#EAEBEF] text-xs"
+                        >
+                          <div>
+                            <p className="font-black text-[#111317]">
+                              {student.apelido || student.nome}
+                            </p>
+                            <span
+                              className={`inline-block mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-black ${
+                                isReg
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : "bg-red-100 text-red-700"
+                              }`}
+                            >
+                              {isReg ? "Regular" : "Pendente"}
+                            </span>
+                          </div>
+                          {todayChk?.status === "confirmed" ? (
+                            <span className="px-3 py-1.5 rounded-xl bg-emerald-600 text-white text-[11px] font-black uppercase">
+                              Presença Confirmada (+{todayChk.gp_awarded} GP)
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const res = confirmTrainingCheckin({
+                                  partner_id: activePartner.id,
+                                  user_id: student.id,
+                                  confirmed_by: currentUserId || activePartner.user_id,
+                                });
+                                setFeedback({
+                                  ok: true,
+                                  msg: `Presença de ${student.apelido || student.nome} confirmada (+${res.gpAwarded} GP)!`,
+                                });
+                              }}
+                              className="px-3.5 py-2 rounded-xl bg-[#FF5500] text-white text-[11px] font-black uppercase"
+                            >
+                              {todayChk?.status === "pending"
+                                ? "Confirmar Solicitação (+GP)"
+                                : "Confirmar Presença (+GP)"}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 6: AVALIAR OVR (PARCEIRO QUALIFICADO) */}
+        {tab === "avaliar" && activePartner.partner_tier === "qualified" && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const sid = Number(evalStudentId);
+              const student = users.find((u) => u.id === sid);
+              if (!student) {
+                setFeedback({ ok: false, msg: "Selecione um aluno regular deste projeto." });
+                return;
+              }
+              const prevOvr = ovr(student.sub || { ban: 65, arr: 65, cb: 65, pla: 65, def: 65, fis: 65, qi: 65 });
+              const calcOvr = ovr(evalScores);
+              const finalOvr = Math.min(99, Math.min(prevOvr + 5, calcOvr));
+              recordOvrEvaluation({
+                student_id: student.id,
+                partner_id: activePartner.id,
+                evaluator_id: currentUserId || activePartner.user_id,
+                previous_ovr: prevOvr,
+                calculated_ovr: calcOvr,
+                final_ovr: finalOvr,
+                coach_notes: evalNotes.trim(),
+              });
+              updUser(student.id, {
+                sub: evalScores,
+                ev: { d: new Date().toLocaleDateString("pt-BR"), c: "Avaliação Parceiro" },
+              });
+              setFeedback({
+                ok: true,
+                msg: `Avaliação salva! Anterior: ${prevOvr} OVR → Calculado: ${calcOvr} OVR → Aplicado (trava +5): ${finalOvr} OVR.`,
+              });
+              setEvalNotes("");
+            }}
+            className="bg-white border border-[#EAEBEF] rounded-2xl p-4 space-y-4"
+          >
+            <div>
+              <h2 className="text-sm font-black uppercase">Avaliar OVR (Trava Máxima +5 OVR)</h2>
+              <p className="text-[11px] text-[#6B7280]">
+                Exibe apenas alunos vinculados a {activePartner.name} com matrícula Regular.
+              </p>
+            </div>
+
+            <select
+              value={evalStudentId}
+              onChange={(e) => {
+                const sid = Number(e.target.value);
+                setEvalStudentId(e.target.value);
+                const st = users.find((u) => u.id === sid);
+                if (st?.sub) setEvalScores(st.sub);
+              }}
+              className="w-full px-3 py-2.5 rounded-xl border border-[#EAEBEF] bg-[#F8F9FA] text-xs font-bold"
+            >
+              <option value="">Selecionar aluno regular...</option>
+              {users
+                .filter(
+                  (u) =>
+                    u.base_partner_id === activePartner.id &&
+                    u.enrollment_status === "regular",
+                )
+                .map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.apelido || u.nome} (OVR atual: {ovr(u.sub || { ban: 65, arr: 65, cb: 65, pla: 65, def: 65, fis: 65, qi: 65 })})
+                  </option>
+                ))}
+            </select>
+
+            <div className="space-y-2.5">
+              {CATS.map((c) => (
+                <div key={c.k} className="flex items-center justify-between gap-3 bg-[#F8F9FA] px-3 py-2 rounded-xl border border-[#EAEBEF]">
+                  <span className="text-xs font-bold text-[#111317]">{c.t}</span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="range"
+                      min={50}
+                      max={99}
+                      value={evalScores[c.k]}
+                      onChange={(e) =>
+                        setEvalScores((prev) => ({ ...prev, [c.k]: Number(e.target.value) }))
+                      }
+                      className="w-24 sm:w-32 accent-[#FF5500]"
+                    />
+                    <span className="w-8 text-right font-black text-sm text-[#FF5500]">
+                      {evalScores[c.k]}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <input
+              type="text"
+              value={evalNotes}
+              onChange={(e) => setEvalNotes(e.target.value)}
+              placeholder="Observações do professor..."
+              className="w-full px-3.5 py-2.5 rounded-xl border border-[#EAEBEF] bg-[#F8F9FA] text-xs"
+            />
+
+            <button
+              type="submit"
+              className="w-full py-3 rounded-xl bg-[#FF5500] text-white text-xs font-black uppercase"
+            >
+              Salvar Avaliação Oficial
             </button>
           </form>
         )}

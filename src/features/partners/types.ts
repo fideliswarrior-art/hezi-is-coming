@@ -11,6 +11,8 @@ export type SubEventStatus =
   | "homologada"
   | "cancelada";
 
+export type PartnerTier = "event_only" | "qualified";
+
 export interface Partner {
   id: string;
   user_id: number;
@@ -21,6 +23,54 @@ export interface Partner {
   logo_url: string;
   banner_url: string;
   is_active: boolean;
+  created_at: string;
+  partner_tier?: PartnerTier;
+  coach_user_id?: number | null;
+  coach_display_name?: string;
+  address?: string;
+  neighborhood?: string;
+  city?: string;
+  state?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  training_schedule_summary?: string;
+  whatsapp_contact?: string;
+}
+
+export interface PartnerTrainingSlot {
+  id: string;
+  partner_id: string;
+  title: string;
+  weekday: number; // 0=Dom .. 6=Sab
+  start_time: string;
+  end_time: string;
+  max_capacity: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface TrainingCheckin {
+  id: string;
+  partner_id: string;
+  slot_id: string | null;
+  user_id: number;
+  session_date: string; // YYYY-MM-DD
+  status: "pending" | "confirmed" | "rejected";
+  gp_awarded: number;
+  confirmed_by: number | null;
+  confirmed_at: string | null;
+  created_at: string;
+}
+
+export interface OvrEvaluation {
+  id: string;
+  student_id: number;
+  partner_id: string | null;
+  evaluator_id: number;
+  previous_ovr: number;
+  calculated_ovr: number;
+  final_ovr: number;
+  coach_notes: string;
   created_at: string;
 }
 

@@ -13,7 +13,7 @@ import { isActiveSubscriber, useHeziPlatform } from "../../../lib/hezi/store";
 import { useTeamStore } from "../../teams/services/teamService";
 import { TIER_LABELS } from "../constants/hpTable";
 import { usePartnerStore } from "../services/partnerService";
-import type { CircuitStatus, SanctionTier } from "../types";
+import type { CircuitStatus, PartnerTier, SanctionTier } from "../types";
 import { computeHomologationPreview } from "../utils/hpCalculator";
 
 interface AdminPartnersTabProps {
@@ -45,6 +45,8 @@ export function AdminPartnersTab({ adminUserId }: AdminPartnersTabProps) {
   const [partnerName, setPartnerName] = useState("");
   const [partnerInsta, setPartnerInsta] = useState("");
   const [partnerBio, setPartnerBio] = useState("");
+  const [partnerTier, setPartnerTier] = useState<PartnerTier>("event_only");
+  const [partnerCoachId, setPartnerCoachId] = useState<string>("");
   const [feedback, setFeedback] = useState<{ ok: boolean; msg: string } | null>(null);
   const [revokeReasonById, setRevokeReasonById] = useState<Record<string, string>>({});
   const [editingCircuitId, setEditingCircuitId] = useState<string | null>(null);
@@ -72,11 +74,16 @@ export function AdminPartnersTab({ adminUserId }: AdminPartnersTabProps) {
       setFeedback({ ok: false, msg: "Selecione um usuário da base HEZI." });
       return;
     }
+    const coachUid = partnerTier === "qualified" && partnerCoachId ? Number(partnerCoachId) : null;
+    const coachUser = coachUid ? userById.get(coachUid) : null;
     const res = createOrPromotePartner({
       user_id: uid,
       name: partnerName,
       bio: partnerBio,
       instagram: partnerInsta,
+      partner_tier: partnerTier,
+      coach_user_id: coachUid,
+      coach_display_name: coachUser ? coachUser.apelido || coachUser.nome : "",
     });
     if (!res.ok) {
       setFeedback({ ok: false, msg: res.error || "Erro ao cadastrar parceiro." });
@@ -509,6 +516,28 @@ export function AdminPartnersTab({ adminUserId }: AdminPartnersTabProps) {
             placeholder="Bio curta do projeto..."
             className="px-3 py-2.5 rounded-xl border border-[#EAEBEF] bg-[#F8F9FA] text-xs"
           />
+          <select
+            value={partnerTier}
+            onChange={(e) => setPartnerTier(e.target.value as PartnerTier)}
+            className="px-3 py-2.5 rounded-xl border border-[#EAEBEF] bg-[#F8F9FA] text-xs font-bold"
+          >
+            <option value="event_only">Nível 1 — Parceiro Evento (Sem Mapa/OVR)</option>
+            <option value="qualified">Nível 2 — Parceiro Completo (Qualificado)</option>
+          </select>
+          {partnerTier === "qualified" && (
+            <select
+              value={partnerCoachId}
+              onChange={(e) => setPartnerCoachId(e.target.value)}
+              className="px-3 py-2.5 rounded-xl border border-[#EAEBEF] bg-[#F8F9FA] text-xs font-bold"
+            >
+              <option value="">Vincular Professor Responsável...</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  Prof. {u.apelido || u.nome} (@{u.username})
+                </option>
+              ))}
+            </select>
+          )}
           <button
             type="submit"
             className="sm:col-span-2 py-2.5 rounded-xl bg-[#111317] text-white text-xs font-black uppercase"
@@ -521,19 +550,34 @@ export function AdminPartnersTab({ adminUserId }: AdminPartnersTabProps) {
           {partners.map((p) => (
             <div
               key={p.id}
-              className="flex items-center justify-between px-3 py-2 rounded-xl bg-[#F8F9FA] border border-[#EAEBEF] text-xs"
+              className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-xl bg-[#F8F9FA] border border-[#EAEBEF] text-xs"
             >
               <div>
                 <strong>{p.name}</strong> <span className="text-[#6B7280]">{p.instagram}</span>
+                <span className="ml-2 px-2 py-0.5 rounded bg-white border border-[#EAEBEF] text-[10px] font-black">
+                  {p.partner_tier === "qualified" ? "Qualificado (Nível 2)" : "Evento (Nível 1)"}
+                </span>
               </div>
-              <button
-                onClick={() => updatePartner(p.id, { is_active: !p.is_active })}
-                className={`px-2.5 py-1 rounded-lg font-black text-[11px] ${
-                  p.is_active ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-700"
-                }`}
-              >
-                {p.is_active ? "Ativo" : "Suspenso"}
-              </button>
+              <div className="flex items-center gap-2">
+                <select
+                  value={p.partner_tier || "event_only"}
+                  onChange={(e) =>
+                    updatePartner(p.id, { partner_tier: e.target.value as PartnerTier })
+                  }
+                  className="px-2 py-1 rounded-lg border border-[#EAEBEF] bg-white text-[11px] font-bold"
+                >
+                  <option value="event_only">Nível 1 (Evento)</option>
+                  <option value="qualified">Nível 2 (Qualificado)</option>
+                </select>
+                <button
+                  onClick={() => updatePartner(p.id, { is_active: !p.is_active })}
+                  className={`px-2.5 py-1 rounded-lg font-black text-[11px] ${
+                    p.is_active ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-700"
+                  }`}
+                >
+                  {p.is_active ? "Ativo" : "Suspenso"}
+                </button>
+              </div>
             </div>
           ))}
         </div>
